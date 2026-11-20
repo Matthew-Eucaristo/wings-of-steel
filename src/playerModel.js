@@ -113,6 +113,8 @@ export class PlayerModel {
 
   updateCape(dt, vel) {
     const C = this.capeC, R = this.capeR;
+    // re-seat the cloth after teleports (respawn, restart) instead of stretching it across the map
+    if (this.capeInit && this.anchorPoint(0, _v) && _v.distanceToSquared(this.cp[0]) > 16) this.capeInit = false;
     if (!this.capeInit) {
       for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
         this.anchorPoint(c, _v);
