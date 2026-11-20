@@ -31,7 +31,7 @@ const _q = new THREE.Quaternion();
 const DOWN = new THREE.Vector3(0, -1, 0);
 
 // muted, slightly grey flesh: titans read as pale and unwell rather than cartoon pink
-const SKIN_TONES = ['#b9998a', '#b08f80', '#a3857a', '#c2a497', '#94786c', '#b59487', '#a99389'];
+const SKIN_TONES = ['#b09a8e', '#a89184', '#9c877d', '#b8a59a', '#8e7a70', '#ab968b', '#a2938b'];
 
 function skinMaterial(tone) {
   if (!SKIN) SKIN = skinTextures();
