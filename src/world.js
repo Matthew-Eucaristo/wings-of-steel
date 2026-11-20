@@ -242,7 +242,8 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
   float ang = atan(vWPos.x, vWPos.z);
   float forest = smoothstep(0.9, 0.6, abs(abs(ang) - 3.14159) ) * smoothstep(TOWN_EDGE, TOWN_EDGE + 30.0, length(vWPos.xz));
   g = mix(g, g * vec3(0.55, 0.62, 0.45), forest);
-  vec3 cb = cob.rgb * mix(0.8, 1.15, macro);
+  // warmer, lighter sandstone paving so the streets don't read as a black void from the air
+  vec3 cb = cob.rgb * mix(0.8, 1.15, macro) * vec3(1.3, 1.22, 1.1);
   diffuseColor.rgb *= mix(g, cb, tm);
 `.replace(/TOWN_EDGE/g, (TOWN_R + 10).toFixed(1)))
         .replace('#include <normal_fragment_maps>', `
