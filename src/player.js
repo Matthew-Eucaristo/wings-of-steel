@@ -334,8 +334,10 @@ export class Player {
       g.hud.toast('<span style="font-size:18px">MENGGANTI SILINDER GAS…</span>', this.gasReload);
     }
     const att = this.hooks.filter((h) => h.state === 'attached');
-    // cables and active gas provide support force; freefall keeps full gravity
-    const gravityScale = att.length ? 0.68 : (gasHeld && this.gas > 0 && !this.grounded ? 0.65 : 1);
+    const lockDist = this.lock?.alive ? this.pos.distanceTo(this.lock.nape.c) : Infinity;
+    const combatBoost = gasHeld && lockDist < 95;
+    // target intercept briefly cancels most gravity; free boost still descends gently
+    const gravityScale = combatBoost ? 0.32 : att.length ? 0.68 : (gasHeld && this.gas > 0 && !this.grounded ? 0.65 : 1);
     v.y -= TUNE.gravity * gravityScale * dt;
     this.coyoteT = this.grounded ? 0.12 : Math.max(0, (this.coyoteT || 0) - dt);
     if (this.grounded && !att.length) {
@@ -398,14 +400,18 @@ export class Player {
       v.addScaledVector(_v, TUNE.gasThrust * this.classDef.thrust * 1.3 * dt);
       gasUse += 5 * dt; this.gasOn = true; this.diving = true;
     } else if (gasHeld && this.gas > 0 && (!this.grounded || att.length)) {
-      const dir = wish.lengthSq() > 0.01 ? _v.copy(wish).addScaledVector(cam.forward, 0.5) : _v.copy(cam.forward);
-      dir.y = Math.max(dir.y, 0.32); dir.normalize();
+      const dir = combatBoost
+        ? _v.subVectors(this.lock.nape.c, p).addScaledVector(wish, lockDist * 0.08)
+        : (wish.lengthSq() > 0.01 ? _v.copy(wish).addScaledVector(cam.forward, 0.5) : _v.copy(cam.forward));
+      if (!combatBoost) dir.y = Math.max(dir.y, 0.32);
+      dir.normalize();
       v.addScaledVector(dir, TUNE.gasThrust * this.classDef.thrust * dt);
       gasUse += 4.5 * dt; this.gasOn = true;
     }
     if (control && inp.pressed('ShiftLeft', true) && this.dashCD <= 0 && this.gas > 3 && !this.grounded) {
-      const dir = wish.lengthSq() > 0.01 ? _v.copy(wish) : _v.copy(cam.forward);
-      dir.y += 0.12; dir.normalize();
+      const dir = combatBoost ? _v.subVectors(this.lock.nape.c, p) : (wish.lengthSq() > 0.01 ? _v.copy(wish) : _v.copy(cam.forward));
+      if (!combatBoost) dir.y += 0.12;
+      dir.normalize();
       v.addScaledVector(dir, TUNE.dashImpulse * this.classDef.speed); this.dashCD = 0.4; gasUse += 2; g.onDash(dir);
     }
     // cables
