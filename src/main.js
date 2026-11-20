@@ -223,6 +223,8 @@ class Game {
     this.post.resize();
     this.post.bloom.enabled = q > 0;
     this.world.sun.castShadow = q > 0;
+    const ms = q > 1 ? 4096 : 2048, sh = this.world.sun.shadow;
+    if (sh.mapSize.x !== ms) { sh.mapSize.set(ms, ms); if (sh.map) { sh.map.dispose(); sh.map = null; } }
     this.hud.toast(`<span style="font-size:20px">Grafis: ${['RENDAH', 'SEDANG', 'TINGGI'][q]}</span>`, 1.2);
   }
 
