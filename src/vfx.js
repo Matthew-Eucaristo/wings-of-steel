@@ -34,8 +34,9 @@ export class VFX {
   }
   gas(p, dir, strength = 1) {
     for (let i = 0; i < 2; i++) {
-      _d.copy(dir).multiplyScalar(-rand(6, 12) * strength).add(_v.set(rand(-1, 1), rand(-1, 1), rand(-1, 1)));
-      this.smoke.spawn(p, _d, { life: rand(0.5, 1.1), size0: 0.25, size1: rand(1.4, 2.4) * strength, color: GAS, colorEnd: GAS_E, alpha: 0.32, drag: 3.5, buoy: 0.4, fadeIn: 0.05 });
+      // tight exhaust jet that blooms late, so the trail reads as a stream and doesn't fog the camera
+      _d.copy(dir).multiplyScalar(-rand(9, 16) * strength).add(_v.set(rand(-0.6, 0.6), rand(-0.6, 0.6), rand(-0.6, 0.6)));
+      this.smoke.spawn(p, _d, { life: rand(0.35, 0.8), size0: 0.18, size1: rand(0.9, 1.6) * strength, color: GAS, colorEnd: GAS_E, alpha: 0.28, drag: 3.5, buoy: 0.4, fadeIn: 0.04 });
     }
   }
   burst(p, dir, n = 40) {
