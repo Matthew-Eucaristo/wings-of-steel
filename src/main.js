@@ -68,15 +68,15 @@ class Game {
     this.cam.yaw = Math.atan2(-this.player.pos.x, -this.player.pos.z);
     this.cam.target.copy(this.player.pos);
     addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); this.cam.resize(); this.post.resize(); });
-    document.addEventListener('pointerlockchange', () => {
-      this.locked = document.pointerLockElement === canvas;
-      document.getElementById('paused').classList.toggle('hidden', this.locked || !this.started || this.player.dead || this.won && !this.endless);
-    });
+    this.syncPause = () => document.getElementById('paused').classList.toggle('hidden', this.locked || !this.started || this.player.dead || this.won && !this.endless);
+    document.addEventListener('pointerlockchange', () => { this.locked = document.pointerLockElement === canvas; this.syncPause(); });
+    // lock can be refused (e.g. re-requested right after Esc); show the resume overlay instead of a silently frozen game
+    document.addEventListener('pointerlockerror', () => { this.locked = false; this.syncPause(); });
     const lock = () => canvas.requestPointerLock();
     this.lock = lock;
     document.getElementById('start').onclick = () => { lock(); this.story.begin(true); };
     document.getElementById('quick').onclick = () => { lock(); this.story.begin(false); };
-    document.getElementById('cont').onclick = () => { this.endless = true; document.getElementById('win').classList.add('hidden'); this.hud.show(true); lock(); };
+    document.getElementById('cont').onclick = () => { this.endless = true; document.getElementById('win').classList.add('hidden'); this.hud.show(true); this.syncPause(); lock(); };
     document.getElementById('again').onclick = () => { this.restart(); lock(); };
     document.getElementById('paused').onclick = lock;
     document.getElementById('retry').onclick = () => { this.restart(); lock(); };
@@ -96,7 +96,6 @@ class Game {
   restart() {
     this.endless = false; this.won = false; this.stats = { maxSpeed: 0, bestCombo: 0, time: 0 };
     document.getElementById('win').classList.add('hidden');
-    this.story.toPlay(true);
     for (const t of this.titans) t.dispose();
     this.titans = [];
     const old = this.player;
@@ -104,7 +103,10 @@ class Game {
     this.player = new Player(this);
     this.kills = 0; this.wave = 0; this.waveT = 2;
     document.getElementById('dead').classList.add('hidden');
+    this.story.toPlay(true);
     this.hud.show(true);
+    this.hud.toast('BERSIAP<br><span style="font-size:18px">Titan datang dalam hitungan detik</span>', 2);
+    this.syncPause();
   }
 
   spawnWave() {
