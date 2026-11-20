@@ -29,18 +29,25 @@ const _v2 = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const DOWN = new THREE.Vector3(0, -1, 0);
 
-const SKIN_TONES = ['#e2a98f', '#d89a7e', '#c98b73', '#eab89f', '#b77c64', '#d6a08a', '#caa08c'];
+const SKIN_TONES = ['#c79c88', '#bf9480', '#b08572', '#cfa592', '#a07c6a', '#c29684', '#b89888'];
 
 function skinMaterial(tone) {
   if (!SKIN) SKIN = skinTextures();
-  const m = new THREE.MeshStandardMaterial({ color: tone, map: SKIN.map, normalMap: SKIN.normalMap, roughness: 0.62, metalness: 0 });
-  m.normalScale.set(0.6, 0.6);
+  const m = new THREE.MeshStandardMaterial({ color: tone, map: SKIN.map, normalMap: SKIN.normalMap, roughness: 0.58, metalness: 0 });
+  m.normalScale.set(0.9, 0.9);
   const u = { uHit: { value: 0 }, uDead: { value: 0 } };
   m.userData.u = u;
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, u);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWP;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uHit; uniform float uDead;')
+      .replace('#include <common>', '#include <common>\nuniform float uHit; uniform float uDead; varying vec3 vWP;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        float mott = sin(vWP.x*1.7+vWP.y*0.9)*sin(vWP.z*1.3-vWP.y*1.1)*0.5+0.5;
+        diffuseColor.rgb *= mix(vec3(0.93,0.9,0.92), vec3(1.05,0.98,0.94), mott);
+        diffuseColor.rgb *= mix(vec3(0.5,0.42,0.34), vec3(1.0), smoothstep(0.1, 2.2, vWP.y));`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         float rim = pow(1.0 - saturate(dot(normalize(normal), normalize(vViewPosition))), 2.5);
         // fake subsurface: warm reddish rim + soft wrap
@@ -118,7 +125,8 @@ export class Titan {
     this.mat = mat;
     const dark = new THREE.MeshStandardMaterial({ color: '#1a0c0a', roughness: 0.9 });
     const teethM = new THREE.MeshStandardMaterial({ color: '#efe6d2', roughness: 0.4 });
-    const eyeM = new THREE.MeshStandardMaterial({ color: '#f4efe0', roughness: 0.2, emissive: '#2a2010', emissiveIntensity: 0.2 });
+    const eyeM = new THREE.MeshStandardMaterial({ color: '#cfc4b0', roughness: 0.15 });
+    const irisM = new THREE.MeshStandardMaterial({ color: ['#3a2a1a', '#2c3a30', '#4a3a22'][Math.floor(this.r() * 3)], roughness: 0.1 });
     const hairM = new THREE.MeshStandardMaterial({ color: ['#2b1d14', '#4a3020', '#191512', '#6b4a2a'][Math.floor(this.r() * 4)], roughness: 0.8 });
     const mk = (g, m = mat, parent) => {
       const me = new THREE.Mesh(g, m);
@@ -163,8 +171,11 @@ export class Titan {
     for (const sx of [-1, 1]) {
       const ear = mk(new THREE.SphereGeometry(0.2 * hs, 10, 8), mat, head); ear.scale.set(0.4, 1, 0.7); ear.position.set(sx * 0.8 * hs, 0.5 * hs, 0);
       const socket = mk(new THREE.SphereGeometry(0.2 * hs, 12, 10), dark, head); socket.scale.set(1.1, 0.75, 0.5); socket.position.set(sx * 0.3 * hs, 0.6 * hs, 0.74 * hs);
-      const eye = mk(new THREE.SphereGeometry(0.15 * hs, 14, 10), eyeM, head); eye.position.set(sx * 0.3 * hs, 0.6 * hs, 0.76 * hs);
-      const pupil = mk(new THREE.SphereGeometry(0.045 * hs, 8, 6), dark, head); pupil.position.set(sx * 0.3 * hs, 0.6 * hs, 0.9 * hs);
+      const eye = mk(new THREE.SphereGeometry(0.12 * hs, 14, 10), eyeM, head); eye.position.set(sx * 0.3 * hs, 0.6 * hs, 0.72 * hs);
+      const look = (this.r() - 0.5) * 0.05 * hs;
+      const iris = mk(new THREE.SphereGeometry(0.075 * hs, 12, 8), irisM, head); iris.scale.set(1, 1, 0.5); iris.position.set(sx * 0.3 * hs + look, 0.6 * hs, 0.815 * hs);
+      const pupil = mk(new THREE.SphereGeometry(0.035 * hs, 8, 6), dark, head); pupil.scale.set(1, 1, 0.4); pupil.position.set(sx * 0.3 * hs + look, 0.6 * hs, 0.845 * hs);
+      const lid = mk(new THREE.SphereGeometry(0.135 * hs, 12, 8, 0, Math.PI * 2, 0, Math.PI * (0.38 + this.r() * 0.1)), mat, head); lid.position.copy(eye.position); lid.rotation.x = 0.35;
     }
     // grin: dark mouth + teeth arc
     const grinW = lerp(0.35, 0.75, P.grin);
