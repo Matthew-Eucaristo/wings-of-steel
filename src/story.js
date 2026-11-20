@@ -24,6 +24,7 @@ const STEPS = [
   { title: 'Tarik kabel', hint: 'Sambil menahan kait, tahan <kbd>Spasi</kbd> untuk menarik diri melesat.', check: (s) => s.reelT > 0.7 },
   { title: 'Berayun', hint: 'Lepas kait di udara lalu kait lagi ke titik lain — <b>2×</b> tanpa menyentuh tanah. Arahkan ayunan dengan <kbd>WASD</kbd>.', check: (s) => s.airAttach >= 2 },
   { title: 'Dorongan gas', hint: 'Tahan <kbd>Shift</kbd> untuk menyembur gas, tap untuk dash. Gas terbatas — isi di depot hijau.', check: (s) => s.gasT > 0.5 || s.dashed },
+  { title: 'Gerakan lanjut', hint: 'Tahan <kbd>W</kbd> ke dinding untuk <b>memanjat</b> atau <b>lari di dinding</b>, <kbd>Spasi</kbd> untuk tendang lompat. <kbd>Shift</kbd>+<kbd>Spasi</kbd> menukik. <kbd>F</kbd> ganti kait fokus/otomatis.', check: (s, p) => (s.advN = (s.advN || 0) + (p.climbing || p.wallRun || p.diving ? 1 : 0)) > 25 },
   { title: 'Bunuh titan', hint: 'Titan mendekat! Kunci <b class="r">tengkuk</b> (belah ketupat merah) dan tebas dengan <kbd>Klik Kiri</kbd>. Makin cepat kamu melesat, makin dalam tebasannya.', enter: (st) => st.spawnTutorialTitan(), check: (s, p, g) => g.kills >= 1 },
 ];
 

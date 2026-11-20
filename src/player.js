@@ -6,6 +6,11 @@ const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vecto
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion();
 const UP = new THREE.Vector3(0, 1, 0);
 const near = [];
+const CLASSES = {
+  light: { cylinders: 2, blades: 4, speed: 1.12, steer: 1.15, thrust: 1.08, damage: 1.12 },
+  balanced: { cylinders: 4, blades: 6, speed: 1, steer: 1, thrust: 1, damage: 1 },
+  heavy: { cylinders: 6, blades: 8, speed: 0.86, steer: 0.82, thrust: 0.9, damage: 0.94 },
+};
 
 export const TUNE = {
   gravity: 21, hookRange: 120, hookSpeed: 260, reelAccel: 46, reelMax: 46, gasThrust: 34, dashImpulse: 15,
@@ -25,12 +30,22 @@ export class Player {
     this.quat = new THREE.Quaternion();
     this.hooks = [new Hook(-1), new Hook(1)];
     this.grounded = false; this.groundN = new THREE.Vector3(0, 1, 0);
-    this.hp = 100; this.gas = 100; this.blade = 100; this.bladeSets = 8; this.dead = false;
+    this.hp = 100; this.gas = 100; this.blade = 100; this.dead = false;
     this.slashT = -1; this.slashHits = new Set(); this.spin = 0; this.charge = 0;
     this.dashCD = 0; this.invuln = 0; this.grabbedBy = null; this.struggle = 0;
-    this.gasOn = false; this.speed = 0; this.aim = null; this.lock = null;
+    this.gasOn = false; this.speed = 0; this.aim = null; this.lock = null; this.hookMode = 'auto';
     this.combo = 0; this.comboT = 0; this.airTime = 0; this.lastImpact = 0;
     this.yawFace = 0;
+    this.applyClass(game.playerClass || 'balanced', true);
+  }
+
+  applyClass(name, refill = false) {
+    this.className = CLASSES[name] ? name : 'balanced';
+    this.classDef = CLASSES[this.className];
+    if (refill) {
+      this.gas = 100; this.gasCylinders = this.classDef.cylinders; this.bladeSets = this.classDef.blades;
+      this.gasReload = 0;
+    }
   }
 
   get hooked() { return this.hooks.some((h) => h.state === 'attached'); }
@@ -44,17 +59,38 @@ export class Player {
     const g = this.game;
     const aim = this.aim;
     if (!aim) { g.hud.flash('no-anchor'); g.audio.click(); return; }
-    // split anchors slightly so left/right cables diverge like real ODM
     const cam = g.cam;
-    // focus mode: both cables converge on the crosshair point for a straight hard pull
-    const spread = this.hookMode === 'focus' ? 0 : clamp(aim.t * 0.07, 0.3, 4.5) * h.side;
-    _v.copy(aim.point).addScaledVector(cam.right, spread);
     const from = this.model.gearPos(h.side, _v2);
-    _v3.subVectors(_v, from);
-    const dist = _v3.length();
-    _v3.divideScalar(dist);
-    let hit = g.world.col.raycast(from, _v3, dist + 3, { dynamics: true, inflate: 1.15 });
-    if (!hit || hit.t > TUNE.hookRange) hit = aim;
+    let hit;
+    if (this.hookMode === 'focus') {
+      // near-centre nape lock gets a gentle magnetic assist, but only with clear line of sight
+      if (this.lock) {
+        _v3.subVectors(this.lock.nape.c, from); const nd = _v3.length();
+        if (nd > 1e-3 && nd <= TUNE.hookRange) {
+          _v3.divideScalar(nd);
+          const flesh = g.world.col.raycast(from, _v3, nd + 1, { dynamics: true, inflate: 1.35 });
+          if (flesh?.collider?.owner === this.lock) hit = flesh;
+        }
+      }
+      // otherwise both hooks share the exact crosshair anchor: strongest straight-line pull
+      if (!hit) hit = aim;
+    } else {
+      // automatic navigation: each hook searches its half of the intended view for a useful independent anchor
+      cam.camera.getWorldDirection(_v3);
+      _v3.addScaledVector(cam.right, h.side * 0.16).normalize();
+      hit = g.world.col.raycast(cam.camera.position, _v3, TUNE.hookRange + 10, { dynamics: true, inflate: 1.15 });
+      if (hit && hit.point.distanceTo(this.pos) > TUNE.hookRange) hit = null;
+      // a narrow street may have no side anchor; fall back to a small split around the valid crosshair hit
+      if (!hit) {
+        const spread = clamp(aim.t * 0.07, 0.3, 4.5) * h.side;
+        _v.copy(aim.point).addScaledVector(cam.right, spread);
+        _v3.subVectors(_v, from);
+        const dist = _v3.length();
+        if (dist > 1e-3) _v3.divideScalar(dist);
+        hit = g.world.col.raycast(from, _v3, dist + 3, { dynamics: true, inflate: 1.15 });
+        if (!hit || hit.t > TUNE.hookRange) hit = aim;
+      }
+    }
     h.state = 'fly'; h.t = 0;
     h.tip.copy(from);
     h.target.copy(hit.point);
@@ -88,13 +124,19 @@ export class Player {
     } else this.aim = null;
     // nape lock-on for HUD and slash assist
     let best = null, bestS = 0.96;
+    // hysteresis: once the nape is acquired, keep it while it remains near the centre instead of flickering off
+    if (this.lock?.alive && this.lock.state !== 'emerge') {
+      _v.subVectors(this.lock.nape.c, cam.position);
+      const d = _v.length(), s = d > 0 ? _v.dot(_n) / d : -1;
+      if (d <= 140 && s > 0.90) { best = this.lock; bestS = s + 0.04; }
+    }
     for (const t of g.titans) {
       if (!t.alive || t.state === 'emerge') continue;
       _v.subVectors(t.nape.c, cam.position);
       const d = _v.length();
       if (d > 140) continue;
       // sticky lock: the current target keeps priority so the marker doesn't flicker between titans
-      const s = _v.dot(_n) / d + (t === this.lock ? 0.025 : 0);
+      const s = _v.dot(_n) / d + (t === this.lock ? 0.04 : 0);
       if (s > bestS) { bestS = s; best = t; }
     }
     this.lock = best;
@@ -178,6 +220,15 @@ export class Player {
       if (d <= step) {
         h.tip.copy(tgt); h.state = 'attached';
         h.len = h.tip.distanceTo(this.pos);
+        // the cable catches with a real 3D tug. Overhead anchors lift immediately, even before gas/reel.
+        _v3.subVectors(tgt, this.pos); const al = _v3.length();
+        if (al > 1e-3) {
+          _v3.divideScalar(al);
+          const away = this.vel.dot(_v3);
+          if (away < 0) this.vel.addScaledVector(_v3, -away * 0.45);
+          this.vel.addScaledVector(_v3, 2.8);
+          if (_v3.y > 0.2) this.grounded = false;
+        }
         this.game.onHookHit(h);
       } else h.tip.addScaledVector(_v2, step / d);
     } else h.tip.copy(tgt);
@@ -195,17 +246,27 @@ export class Player {
     const gasHeld = control && (inp.key('ShiftLeft') || inp.key('ShiftRight'));
     let gasUse = 0;
     this.gasOn = false;
+    if (this.gasReload > 0) {
+      this.gasReload -= dt;
+      if (this.gasReload <= 0) {
+        this.gas = 100; this.gasCylinders = Math.max(1, this.gasCylinders - 1);
+        g.hud.toast('<span style="font-size:18px">SILINDER GAS TERPASANG</span>', 0.7);
+      }
+    } else if (control && (inp.pressed('KeyC') || this.gas <= 0) && this.gasCylinders > 1 && this.gas < 95) {
+      this.gas = 0; this.gasReload = this.className === 'light' ? 0.75 : this.className === 'heavy' ? 1.25 : 1;
+      g.hud.toast('<span style="font-size:18px">MENGGANTI SILINDER GAS…</span>', this.gasReload);
+    }
     v.y -= TUNE.gravity * dt;
     const att = this.hooks.filter((h) => h.state === 'attached');
     if (this.grounded && !att.length) {
       // running
-      const sp = TUNE.runSpeed * (gasHeld && this.gas > 0 ? 1.6 : 1);
+      const sp = TUNE.runSpeed * this.classDef.speed * (gasHeld && this.gas > 0 ? 1.6 : 1);
       const tx = wish.x * sp, tz = wish.z * sp;
       const k = wish.lengthSq() > 0 ? 10 : (Math.hypot(v.x, v.z) > 14 ? 1.5 : 8);
       v.x = damp(v.x, tx, k, dt); v.z = damp(v.z, tz, k, dt);
       if (control && inp.pressed('Space', true)) { v.y = TUNE.jump; this.grounded = false; g.audio.jump(); }
     } else {
-      v.addScaledVector(wish, (att.length ? TUNE.swingSteer : TUNE.airSteer) * dt);
+      v.addScaledVector(wish, (att.length ? TUNE.swingSteer : TUNE.airSteer) * this.classDef.steer * dt);
     }
     // wall moves: run along it, climb it facing in, kick off with Space
     this.wallRun = false; this.climbing = false;
@@ -250,16 +311,16 @@ export class Player {
     } else if (gasHeld && this.gas > 0 && !this.grounded && !att.length && inp.key('Space')) {
       // Shift+Space: vertical power-dive, steerable with WASD
       _v.copy(wish).multiplyScalar(0.35); _v.y = -1; _v.normalize();
-      v.addScaledVector(_v, TUNE.gasThrust * 1.3 * dt);
+      v.addScaledVector(_v, TUNE.gasThrust * this.classDef.thrust * 1.3 * dt);
       gasUse += 5 * dt; this.gasOn = true; this.diving = true;
     } else if (gasHeld && this.gas > 0 && (!this.grounded || att.length)) {
       const dir = wish.lengthSq() > 0.01 ? _v.copy(wish).addScaledVector(cam.forward, 0.5).normalize() : _v.copy(cam.forward);
-      v.addScaledVector(dir, TUNE.gasThrust * dt);
+      v.addScaledVector(dir, TUNE.gasThrust * this.classDef.thrust * dt);
       gasUse += 4.5 * dt; this.gasOn = true;
     }
     if (control && inp.pressed('ShiftLeft', true) && this.dashCD <= 0 && this.gas > 3 && !this.grounded) {
       const dir = wish.lengthSq() > 0.01 ? _v.copy(wish).normalize() : _v.copy(cam.forward);
-      v.addScaledVector(dir, TUNE.dashImpulse); this.dashCD = 0.4; gasUse += 2; g.onDash(dir);
+      v.addScaledVector(dir, TUNE.dashImpulse * this.classDef.speed); this.dashCD = 0.4; gasUse += 2; g.onDash(dir);
     }
     // cables
     for (const h of att) {
@@ -268,16 +329,19 @@ export class Player {
       const dist = _n.length();
       if (dist < 1e-3) continue;
       _n.divideScalar(dist);
+      // spring-driven ODM spool: every attached cable pulls along its actual 3D direction; Space is the powered reel
+      v.addScaledVector(_n, 24 * dt / att.length * (att.length > 1 ? 1.2 : 1));
       if (reel && this.gas > 0) {
         const vr = v.dot(_n);
-        if (vr < TUNE.reelMax) v.addScaledVector(_n, TUNE.reelAccel * dt / att.length * (att.length > 1 ? 1.35 : 1));
+        if (vr < TUNE.reelMax) v.addScaledVector(_n, TUNE.reelAccel * this.classDef.thrust * dt / att.length * (att.length > 1 ? 1.35 : 1));
         gasUse += 3.2 * dt / att.length; this.gasOn = true;
         // ease off close to the anchor so reeling into a wall doesn't splat you
         if (dist < 7 && vr > 0) v.addScaledVector(_n, -vr * Math.min(1, dt * (7 - dist) * 1.5));
       }
       // rope only pulls (inextensible), slowly winches in for tension
       h.len = Math.min(h.len, dist);
-      if (!this.grounded) h.len = Math.max(1.5, h.len - dt * (reel ? 0 : 1.5));
+      // passive winch keeps every cable pulling along its full 3D angle; Space adds powered reel acceleration
+      h.len = Math.max(1.5, h.len - dt * (reel ? 3.5 : 2.2));
       h.tension = 0;
       if (dist > h.len) {
         const vr = v.dot(_n);
@@ -383,7 +447,7 @@ export class Player {
         const angle = clamp(-_v.dot(back) * 0.5 + 0.5, 0, 1);
         let dmg = 90 + relV * relV * 0.55 + relV * 6;
         dmg *= (this.spin > 0 ? 1.6 : 1) * (0.75 + angle * 0.5);
-        dmg = Math.round(dmg);
+        dmg = Math.round(dmg * this.classDef.damage);
         const r = t.hit('nape', dmg, t.nape.c, this.vel);
         this.useBlade(r.result === 'kill' ? 14 : 9);
         g.onSlashHit(t, r.result, dmg, t.nape.c.clone());
@@ -398,7 +462,7 @@ export class Player {
       }
       if (best && best.part !== 'torso') {
         this.slashHits.add(t);
-        const dmg = Math.round(60 + relV * 8);
+        const dmg = Math.round((60 + relV * 8) * this.classDef.damage);
         const r = t.hit(best.part, dmg, _v3, this.vel, best.side);
         this.useBlade(6);
         g.onSlashHit(t, r.result, dmg, _v3.clone());
@@ -418,12 +482,13 @@ export class Player {
   depot(dt) {
     for (const d of this.game.world.depots) {
       if (Math.hypot(this.pos.x - d.pos.x, this.pos.z - d.pos.z) < d.radius && Math.abs(this.pos.y - d.pos.y) < 4) {
-        const before = this.gas + this.bladeSets + this.hp;
+        const before = this.gas + this.gasCylinders * 100 + this.bladeSets + this.hp;
         this.gas = Math.min(100, this.gas + dt * 45);
+        this.gasCylinders = this.classDef.cylinders; this.gasReload = 0;
         this.hp = Math.min(100, this.hp + dt * 10);
-        if (this.bladeSets < 8 && (this._dt = (this._dt || 0) + dt) > 0.35) { this._dt = 0; this.bladeSets++; }
+        if (this.bladeSets < this.classDef.blades && (this._dt = (this._dt || 0) + dt) > 0.35) { this._dt = 0; this.bladeSets++; }
         if (this.blade < 100 && this.bladeSets > 0 && this.blade <= 0) this.swapBlades();
-        if (this.gas + this.bladeSets + this.hp > before + 0.01) this.game.hud.resupply(d.name);
+        if (this.gas + this.gasCylinders * 100 + this.bladeSets + this.hp > before + 0.01) this.game.hud.resupply(d.name);
       }
     }
   }

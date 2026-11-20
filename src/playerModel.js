@@ -230,6 +230,9 @@ export class PlayerModel {
         sz = sg * lerp(1.3, 0.2, sweep);
         ex = -0.2;
         hx = lerp(1.9, -0.2, Math.min(1, sweep * 1.6));
+      } else if (st.wall === 'climb' && !st.fp) {
+        // hand-over-hand: arms alternate reaching overhead against the face
+        sx = -2.5 + Math.sin(ph + i * Math.PI) * 0.55; sz = sg * 0.3; ex = -0.5 - Math.max(0, Math.sin(ph + i * Math.PI)) * 0.5; hx = 0.3;
       } else if (st.grabbed) {
         sx = Math.sin(performance.now() * 0.02 + i) * 0.8 - 1.5; sz = sg * 0.8;
       }

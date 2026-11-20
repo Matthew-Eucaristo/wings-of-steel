@@ -6,6 +6,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:Raj
 #vignette{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.45) 100%)}
 #hurt{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 40%,rgba(160,0,0,.75) 100%);opacity:0;transition:opacity .25s}
 #cross{position:absolute;left:50%;top:50%;width:0;height:0}
+#resource-arcs{position:absolute;left:-64px;top:-64px;width:128px;height:128px;overflow:visible;filter:drop-shadow(0 2px 3px rgba(0,0,0,.8))}
+#resource-arcs path{fill:none;stroke-linecap:round}
+#resource-arcs .arc-track{stroke:rgba(255,255,255,.11);stroke-width:3}
+#resource-arcs .arc-value{stroke-width:4;stroke-dasharray:100;stroke-dashoffset:0;transition:stroke-dashoffset .15s}
+#resource-arcs .arc-value.gas{stroke:#b9e8ff}
+#resource-arcs .arc-value.blade{stroke:#f4eee0}
+.resource-label{position:absolute;top:50px;width:72px;font-size:9px;font-weight:700;letter-spacing:1.5px;color:rgba(255,255,255,.62);text-shadow:0 1px 3px #000}
+.resource-label b{display:block;font-family:Cinzel,serif;font-size:12px;color:#fff;letter-spacing:0}
+.resource-label.gas{right:42px;text-align:right;color:#9fdfff}
+.resource-label.blade{left:42px;text-align:left}
+.resource-label small{display:block;font-size:11px;color:#ffd27a;letter-spacing:0}
+.resource-label.gas small{color:#9fdfff}
 #cross .dot{position:absolute;left:-2px;top:-2px;width:4px;height:4px;border-radius:50%;background:#fff;box-shadow:0 0 4px #000}
 #cross .ring{position:absolute;left:-16px;top:-16px;width:32px;height:32px;border-radius:50%;border:2px solid rgba(255,255,255,.35);transition:all .12s}
 #cross.ok .ring{border-color:rgba(120,255,190,.9);box-shadow:0 0 10px rgba(120,255,190,.5);transform:scale(.8)}
@@ -31,8 +43,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:Raj
 #kills{position:absolute;top:18px;right:26px;text-align:right;text-shadow:0 2px 4px #000}
 #kills b{font-family:Cinzel,serif;font-size:44px;line-height:1}#kills span{display:block;font-size:13px;letter-spacing:4px;opacity:.7}
 #combo{position:absolute;right:26px;top:96px;font-family:Cinzel,serif;font-size:24px;color:#ffcf6a;text-shadow:0 0 10px rgba(255,150,40,.8);opacity:0;transition:opacity .3s}
-#gear{position:absolute;left:26px;bottom:26px;width:300px;padding:14px 16px;background:linear-gradient(135deg,rgba(20,16,12,.7),rgba(20,16,12,.25));border-left:3px solid #c9a96a;clip-path:polygon(0 0,100% 0,92% 100%,0 100%)}
+#gear{position:absolute;left:26px;top:26px;width:250px;padding:10px 14px;background:linear-gradient(135deg,rgba(20,16,12,.65),rgba(20,16,12,.18));border-left:3px solid #c9a96a;clip-path:polygon(0 0,100% 0,94% 100%,0 100%)}
 #gear .row{display:flex;align-items:center;gap:8px;margin:5px 0}
+#gear .gas-row,#gear .blade-row{display:none}
 #gear label{width:52px;font-size:13px;font-weight:700;letter-spacing:2px;color:#d9c59a}
 .bar{flex:1;height:9px;background:rgba(255,255,255,.12);transform:skewX(-20deg);overflow:hidden}
 .bar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#b8261b,#ff6b4a);transition:width .15s}
@@ -40,7 +53,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:Raj
 #gear.lowgas .bar.gas i{background:#ff5530;animation:bl .4s infinite}
 @keyframes bl{50%{opacity:.4}}
 #sets{font-weight:700;width:34px;text-align:right}
-.hooks{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.hooks{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);width:180px;display:flex;justify-content:space-between;align-items:center;margin-top:8px;text-shadow:0 2px 3px #000}
 .hooks span{font-weight:700;font-size:15px;padding:1px 8px;border:1px solid rgba(255,255,255,.3);opacity:.5}
 .hooks span.on{opacity:1;border-color:#ffd27a;color:#ffd27a;box-shadow:0 0 8px rgba(255,180,70,.5)}
 #spd{border:none!important;opacity:1!important;font-family:Cinzel,serif;font-size:26px!important}
@@ -65,6 +78,10 @@ button:disabled{opacity:.4}
 #dead button{margin-top:18px}
 
 .btns{display:flex;gap:18px;justify-content:center}
+#classes{display:flex;gap:8px;margin:8px 0 16px}
+#classes button{min-width:132px;padding:8px 12px;background:rgba(18,16,13,.62);border:1px solid rgba(255,255,255,.22);color:#d8cfbe;font:700 13px Rajdhani;letter-spacing:1.5px;cursor:pointer}
+#classes button small{display:block;margin-top:3px;font-size:10px;letter-spacing:.4px;opacity:.7}
+#classes button.selected{border-color:#ffd27a;color:#fff4d5;box-shadow:0 0 12px rgba(255,190,90,.3);background:rgba(74,55,30,.72)}
 button.ghost{background:rgba(255,255,255,.08);color:#f3e2bf;box-shadow:inset 0 0 0 2px rgba(246,226,176,.5)}
 .sub{margin-top:14px;font-size:14px;opacity:.65}
 #title{transition:opacity .6s}

@@ -15,6 +15,7 @@ const _v = new THREE.Vector3();
 class Input {
   constructor(canvas, game) {
     this.keys = new Set(); this.edge = new Set();
+    this.padKeys = new Set();
     this.mouse = { l: false, r: false, lPressed: false, dx: 0, dy: 0 };
     addEventListener('keydown', (e) => {
       if (['Space', 'Tab', 'KeyQ', 'KeyE'].includes(e.code)) e.preventDefault();
@@ -32,7 +33,30 @@ class Input {
     addEventListener('contextmenu', (e) => e.preventDefault());
     addEventListener('mousemove', (e) => { if (game.locked) { this.mouse.dx += e.movementX; this.mouse.dy += e.movementY; } });
   }
-  key(c) { return this.keys.has(c); }
+  pollGamepad() {
+    const p = navigator.getGamepads?.()[0];
+    const next = new Set();
+    if (p) {
+      const ax = p.axes, bt = p.buttons, dead = 0.22;
+      if (ax[0] < -dead) next.add('KeyA'); if (ax[0] > dead) next.add('KeyD');
+      if (ax[1] < -dead) next.add('KeyW'); if (ax[1] > dead) next.add('KeyS');
+      if (bt[6]?.value > 0.25) next.add('KeyQ'); if (bt[7]?.value > 0.25) next.add('KeyE');
+      if (bt[4]?.pressed || bt[5]?.pressed) next.add('ShiftLeft');
+      if (bt[0]?.pressed) next.add('Space');
+      if (bt[1]?.pressed) next.add('KeyF');
+      if (bt[3]?.pressed) next.add('KeyC');
+      if (bt[12]?.pressed) next.add('KeyR');
+      if (bt[9]?.pressed) next.add('Escape');
+      this.mouse.dx += Math.abs(ax[2] || 0) > dead ? ax[2] * 17 : 0;
+      this.mouse.dy += Math.abs(ax[3] || 0) > dead ? ax[3] * 14 : 0;
+      const slash = !!bt[2]?.pressed;
+      if (slash && !this.padSlash) this.mouse.lPressed = true;
+      this.mouse.l = slash; this.padSlash = slash;
+    }
+    for (const k of next) if (!this.padKeys.has(k)) this.edge.add(k);
+    this.padKeys = next;
+  }
+  key(c) { return this.keys.has(c) || this.padKeys.has(c); }
   pressed(c) { return this.edge.has(c); }
   endFrame() { this.edge.clear(); this.mouse.lPressed = false; this.mouse.dx = this.mouse.dy = 0; }
 }
@@ -49,6 +73,7 @@ class Game {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.0;
     this.scene = new THREE.Scene();
+    this.playerClass = 'balanced';
     this.world = new World(this.scene, renderer);
     this.world.build();
     this.titans = [];
@@ -74,6 +99,11 @@ class Game {
     document.addEventListener('pointerlockerror', () => { this.locked = false; this.syncPause(); });
     const lock = () => canvas.requestPointerLock();
     this.lock = lock;
+    for (const b of document.querySelectorAll('#classes button')) b.onclick = () => {
+      this.playerClass = b.dataset.class;
+      document.querySelectorAll('#classes button').forEach((x) => x.classList.toggle('selected', x === b));
+      this.player.applyClass(this.playerClass, true);
+    };
     document.getElementById('start').onclick = () => { lock(); this.story.begin(true); };
     document.getElementById('quick').onclick = () => { lock(); this.story.begin(false); };
     document.getElementById('cont').onclick = () => { this.endless = true; document.getElementById('win').classList.add('hidden'); this.hud.show(true); this.syncPause(); lock(); };
@@ -253,6 +283,7 @@ class Game {
   step(rdt) {
     this.elapsed += rdt;
     const inp = this.input;
+    inp.pollGamepad();
     if (this.locked) this.cam.look(inp.mouse.dx, inp.mouse.dy);
     // time dilation: hitstop + kill slow-motion
     let ts = 1;
@@ -268,8 +299,8 @@ class Game {
     }
     if (inp.pressed('KeyF')) {
       const p = this.player;
-      p.hookMode = p.hookMode === 'focus' ? 'split' : 'focus';
-      this.hud.toast(p.hookMode === 'focus' ? 'KAIT: FOKUS<br><span style="font-size:16px">dua kabel ke satu titik</span>' : 'KAIT: PECAH<br><span style="font-size:16px">kabel kiri-kanan terpisah</span>', 1.2);
+      p.hookMode = p.hookMode === 'focus' ? 'auto' : 'focus';
+      this.hud.toast(p.hookMode === 'focus' ? 'KAIT: FOKUS<br><span style="font-size:16px">dua kabel ke satu titik</span>' : 'KAIT: OTOMATIS<br><span style="font-size:16px">jangkar dipilih mengikuti arah pandang</span>', 1.2);
     }
     if (inp.pressed('KeyV')) {
       this.cam.fp = !this.cam.fp;
