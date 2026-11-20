@@ -225,6 +225,10 @@ class Game {
     const paused = this.started && !this.locked && !this.player.dead;
     const dt = paused ? 0 : rdt * this.timeScale;
     if (inp.pressed('KeyH')) document.getElementById('help').classList.toggle('hidden');
+    for (const [k, f] of [['BracketLeft', 0.85], ['BracketRight', 1.18]]) if (inp.pressed(k)) {
+      this.cam.sens = clamp(this.cam.sens * f, 0.0006, 0.008); localStorage.setItem('odm-sens', this.cam.sens);
+      this.hud.toast(`<span style="font-size:20px">Sensitivitas mouse ${(this.cam.sens / 0.0022).toFixed(2)}x</span>`, 1);
+    }
     if (inp.pressed('KeyM')) this.audio.musicOn = !this.audio.musicOn;
     if (dt > 0) {
       if (this.started) {

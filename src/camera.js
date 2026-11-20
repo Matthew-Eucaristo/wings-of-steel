@@ -11,7 +11,7 @@ export class CameraRig {
     this.forward = new THREE.Vector3(); this.forwardFlat = new THREE.Vector3();
     this.right = new THREE.Vector3(); this.rightFlat = new THREE.Vector3();
     this.dist = 4.5; this.fov = 72; this.trauma = 0; this.roll = 0; this.t = 0;
-    this.target = new THREE.Vector3(); this.sens = 0.0022;
+    this.target = new THREE.Vector3(); this.sens = +localStorage.getItem('odm-sens') || 0.0022;
     this.killCam = 0; this.killPos = new THREE.Vector3();
     this.computeAxes();
   }
