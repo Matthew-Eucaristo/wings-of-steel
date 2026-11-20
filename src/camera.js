@@ -34,10 +34,12 @@ export class CameraRig {
     const sp = p.speed;
     const tgt = _t.copy(p.pos); tgt.y += 0.55;
     if (p.grabbedBy) { p.grabbedBy.head.getWorldPosition(_v); tgt.lerp(_v, 0.4); }
+    if (!this.game.started) tgt.y += 2.5;
     this.target.lerp(tgt, 1 - Math.exp(-30 * rdt));
     let wantDist = clamp(4.2 + sp * 0.06, 4.2, 7.5);
     if (p.grabbedBy) wantDist = 6 + p.grabbedBy.height * 0.9;
     if (p.dead) wantDist = 10;
+    if (!this.game.started) wantDist = 15;
     this.dist = damp(this.dist, wantDist, 3, rdt);
     // shoulder offset; lean the frame into lateral velocity for a sense of swing
     const lat = p.vel.dot(this.rightFlat);

@@ -244,7 +244,7 @@ class Game {
       this.world.update(dt);
       this.vfx.update(dt, rdt);
     }
-    if (!this.started) { this.cam.yaw += rdt * 0.05; }
+    if (!this.started) { this.cam.yaw += rdt * 0.06; this.cam.pitch = 0.08 + Math.sin(this.elapsed * 0.15) * 0.06; }
     this.cam.update(dt, rdt);
     this.world.followShadow(this.player.pos);
     // music intensity from nearby threat
