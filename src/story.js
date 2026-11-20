@@ -1,3 +1,4 @@
+import { WALL_R } from './world.js';
 import * as THREE from 'three';
 import { Titan } from './titan.js';
 import { clamp, lerp } from './util.js';
@@ -47,6 +48,7 @@ export class Story {
   startIntro() {
     const g = this.game;
     this.phase = 'intro'; this.t = 0; this.breached = false; this.introTitans = [];
+    this.removeColossus(); this.colGone = false;
     g.world.breachPlug.visible = true;
     this.el.bars.classList.add('on'); this.el.skip.classList.remove('hidden');
     g.cam.override = (cam) => this.shot(cam);
@@ -62,7 +64,7 @@ export class Story {
     } else if (t < CUTS[1]) {
       const k = seg(CUTS[0], CUTS[1]);
       cam.position.lerpVectors(V([-22, 16, 296]), V([-16, 13, 310]), k);
-      cam.lookAt(_a.set(0, lerp(30, 20, k), 380));
+      cam.lookAt(_a.set(0, lerp(30, 34, k), 380));
       fov = 62;
     } else if (t < CUTS[2]) {
       const k = seg(CUTS[1], CUTS[2]);
@@ -84,6 +86,16 @@ export class Story {
     }
     g.cam.fovOverride = fov;
   }
+  // original wall-topping giant: only head and shoulders clear the 58 m wall, wreathed in steam once the gate falls
+  spawnColossus() {
+    const c = new Titan(this.game, new THREE.Vector3(0, 0, WALL_R + 24), { height: 90, passive: true, tone: '#7d4c40' });
+    c.heading = c.wanderH = Math.PI; c.root.rotation.y = Math.PI;
+    c.setState('wander'); c.body.position.y = 0;
+    this.colossus = c;
+  }
+  removeColossus() {
+    if (this.colossus) { this.colossus.dispose(); this.colossus = null; }
+  }
   breach() {
     const g = this.game, v = g.vfx;
     this.breached = true;
@@ -102,6 +114,7 @@ export class Story {
   }
   endIntro() {
     const g = this.game;
+    this.removeColossus();
     for (const ti of this.introTitans) { const i = g.titans.indexOf(ti); if (i >= 0) g.titans.splice(i, 1); ti.dispose(); }
     this.introTitans = [];
     g.world.breachPlug.visible = false;
@@ -164,6 +177,17 @@ export class Story {
       const t = this.t;
       if (this.endYaw === undefined) { const p = g.player.pos; this.endYaw = Math.atan2(-p.x, 380 - p.z); }
       if (!this.breached && t >= BREACH_T) this.breach();
+      if (!this.colossus && !this.colGone && t >= CUTS[0] && t < CUTS[1]) this.spawnColossus();
+      const c = this.colossus;
+      if (c) {
+        c.heading = c.wanderH = Math.PI;
+        c.update(rdt); c.root.position.set(0, 0, WALL_R + 24); c.speed = 0;
+        if (this.breached && Math.random() < rdt * 25) {
+          c.head.getWorldPosition(_a);
+          g.vfx.steam(_a.add(_b.set((Math.random() - 0.5) * 14, (Math.random() - 0.3) * 10, (Math.random() - 0.5) * 8)), 9, 3);
+        }
+        if (t >= CUTS[1]) { this.removeColossus(); this.colGone = true; }
+      }
       if (this.breached && t < CUTS[2] && Math.random() < rdt * 40) g.vfx.steam(_a.set((Math.random() - 0.5) * 34, Math.random() * 45, 372 + Math.random() * 12), 7, 3);
       let fade = t < 0.8 ? 1 - t / 0.8 : 0;
       for (const c of CUTS) fade = Math.max(fade, 1 - Math.abs(t - c) / 0.22);
