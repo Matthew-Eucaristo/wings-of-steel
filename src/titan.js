@@ -225,10 +225,12 @@ export class Titan {
       mk(limbGeo(1.85 * al, 0.36, 0.24, 0.22, 0.2), mat, el);
       const fa = mk(new THREE.SphereGeometry(0.26, 12, 10), mat, el); fa.scale.set(1.0, 2.0, 0.9); fa.position.set(sx * 0.03, -0.55 * al, 0.03);
       const wr = G(el, 0, -1.85 * al, 0);
-      const palm = mk(new THREE.BoxGeometry(0.5, 0.62, 0.22), mat, wr); palm.position.set(0, -0.32, 0.03);
+      const palm = mk(new THREE.SphereGeometry(0.34, 14, 10), mat, wr); palm.scale.set(0.78, 1.0, 0.38); palm.position.set(0, -0.34, 0.03);
       for (let f = 0; f < 4; f++) {
         const fg = mk(new THREE.CapsuleGeometry(0.07, 0.38, 3, 6), mat, wr);
-        fg.position.set(-0.18 + f * 0.12, -0.78, 0.04); fg.rotation.x = 0.25;
+        // relaxed curl, middle fingers longest
+        fg.scale.y = [0.85, 1.0, 0.97, 0.8][f];
+        fg.position.set(-0.18 + f * 0.12, -0.76, 0.08); fg.rotation.x = 0.45; fg.rotation.z = (f - 1.5) * 0.06;
       }
       const thumb = mk(new THREE.CapsuleGeometry(0.08, 0.3, 3, 6), mat, wr); thumb.position.set(-sx * 0.26, -0.4, 0.14); thumb.rotation.z = -sx * 0.6;
       this.shoulders.push(sh); this.elbows.push(el); this.wrists.push(wr);
