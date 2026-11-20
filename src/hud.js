@@ -67,7 +67,10 @@ export class HUD {
       if (!off) { m.style.display = 'none'; continue; }
       const a = Math.atan2(y, x), k = 0.9 / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)) * 1.1);
       const sx = (Math.cos(a) * k * 0.5 + 0.5) * innerWidth, sy = (-Math.sin(a) * k * 0.5 + 0.5) * innerHeight;
-      m.style.display = 'block'; m.style.left = sx + 'px'; m.style.top = sy + 'px';
+      // keep edge arrows off the gear panel in the bottom-left corner
+      const panel = e.gear.getBoundingClientRect();
+      const ty = sx < panel.right + 12 && sy > panel.top - 12 ? panel.top - 12 : sy;
+      m.style.display = 'block'; m.style.left = sx + 'px'; m.style.top = ty + 'px';
       m.style.transform = `rotate(${-a + Math.PI / 4}rad)`;
     }
     // low gas: beacon on the nearest depot, clamped to the screen edge when off-screen
