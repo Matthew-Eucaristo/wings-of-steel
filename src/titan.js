@@ -117,7 +117,7 @@ export class Titan {
     game.scene.add(this.root);
     this.parts = [];
     this.makeHitboxes();
-    this.nape = { c: new THREE.Vector3(), r: 0.6 * this.s };
+    this.nape = { c: new THREE.Vector3(), r: 1.15 * this.s };
     this.update(0);
   }
 
@@ -408,8 +408,16 @@ export class Titan {
         if (this.armCut[i] <= 0 && t > 0.35 && t < 0.85 && !p.grabbedBy && p.invuln <= 0) {
           const hp = this.handPos(i, new THREE.Vector3());
           if (hp.distanceTo(p.pos) < 1.15 * s + 0.6) {
-            if (p.vel.length() > 24) { p.knockback(_v.subVectors(p.pos, hp).normalize(), 18, 22); }
-            else { p.grab(this); this.setState('grab'); }
+            const speed = p.vel.length();
+            const committed = ((p.slashT > 0.05 && p.slashT < 0.95) || p.spin > 0) && speed > 12;
+            if (committed) {
+              // a committed high-speed slash wins over the grab; the player keeps the attack line
+              this.setState('chase'); this.cooldown = 1.0; g.cam.shake(0.12);
+            } else if (speed > 24) {
+              // glancing swipe instead of an unfair instant grab
+              p.knockback(_v.subVectors(p.pos, hp).normalize(), 8, 6); p.invuln = Math.max(p.invuln, 0.35);
+              this.setState('chase'); this.cooldown = 0.8;
+            } else { p.grab(this); this.setState('grab'); }
           }
         }
         if (t >= 1) { this.setState('chase'); this.cooldown = rand(0.8, 2.2) / (abn ? 2 : 1); }
@@ -419,7 +427,8 @@ export class Titan {
         targetSpeed = (abn ? 8.5 : 3.0) * Math.sqrt(s) * (distH < reach * 1.3 ? 0.3 : 1);
         lean = abn ? 0.55 : 0.08;
         const pyRel = p.pos.y - pos.y;
-        if (distH < reach * 1.15 && pyRel < this.height * 1.05 && pyRel > -2 && this.cooldown <= 0) {
+        const attackCommitted = ((p.slashT > 0.05 && p.slashT < 0.95) || p.spin > 0) && p.vel.length() > 12;
+        if (distH < reach * 1.15 && pyRel < this.height * 1.05 && pyRel > -2 && this.cooldown <= 0 && !attackCommitted) {
           // pick the arm on the player's side
           const local = this.root.worldToLocal(_v.copy(p.pos));
           this.grabSide = local.x > 0 ? 1 : 0;

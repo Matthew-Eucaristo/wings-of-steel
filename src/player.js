@@ -117,7 +117,7 @@ export class Player {
   release(h) {
     if (h.state === 'none' || h.state === 'ret') return;
     // cable whips back into the gear instead of vanishing
-    h.state = 'ret'; h.t = 0; h.joint = null; h.owner = null; h.tension = 0; h.bend = null;
+    h.state = 'ret'; h.t = 0; h.joint = null; h.owner = null; h.tension = 0;
     this.game.audio.hookRetract(h.side);
   }
 
@@ -400,9 +400,20 @@ export class Player {
       v.addScaledVector(_v, TUNE.gasThrust * this.classDef.thrust * 1.3 * dt);
       gasUse += 5 * dt; this.gasOn = true; this.diving = true;
     } else if (gasHeld && this.gas > 0 && (!this.grounded || att.length)) {
-      const dir = combatBoost
-        ? _v.subVectors(this.lock.nape.c, p).addScaledVector(wish, lockDist * 0.08)
-        : (wish.lengthSq() > 0.01 ? _v.copy(wish).addScaledVector(cam.forward, 0.5) : _v.copy(cam.forward));
+      let dir;
+      if (combatBoost) {
+        const t = this.lock;
+        const front = _v2.set(Math.sin(t.heading), 0, Math.cos(t.heading));
+        const fromTitan = _v3.subVectors(p, t.root.position); fromTitan.y = 0;
+        const frontApproach = fromTitan.dot(front) > 0.15 * Math.max(1, fromTitan.length()) && lockDist > 12;
+        if (frontApproach) {
+          const side = _v4.set(front.z, 0, -front.x);
+          if (fromTitan.dot(side) < 0) side.negate();
+          _v.copy(t.nape.c).addScaledVector(side, 7 * t.s); _v.y += 1.8 * t.s;
+          dir = _v.sub(p);
+        } else dir = _v.subVectors(t.nape.c, p);
+        dir.addScaledVector(wish, lockDist * 0.06);
+      } else dir = wish.lengthSq() > 0.01 ? _v.copy(wish).addScaledVector(cam.forward, 0.5) : _v.copy(cam.forward);
       if (!combatBoost) dir.y = Math.max(dir.y, 0.32);
       dir.normalize();
       v.addScaledVector(dir, TUNE.gasThrust * this.classDef.thrust * dt);
@@ -416,20 +427,8 @@ export class Player {
     }
     // cables
     for (const h of att) {
-      // lightweight rope constraint: at most one bend point, scanned only 8x/sec
-      h.bendScan = (h.bendScan || 0) - dt;
-      if (h.bendScan <= 0) {
-        h.bendScan = 0.125;
-        _v4.subVectors(this.anchorOf(h, _v), p);
-        const lineLen = _v4.length();
-        if (lineLen > 2) {
-          _v4.divideScalar(lineLen);
-          const hit = g.world.col.raycast(p, _v4, lineLen - 0.8, { dynamics: false });
-          if (hit && hit.collider) (h.bend ||= new THREE.Vector3()).copy(hit.point).addScaledVector(hit.normal, 0.12);
-          else h.bend = null;
-        }
-      }
-      const a = h.bend ? _v.copy(h.bend) : this.anchorOf(h, _v);
+      // cable pull stays lightweight: velocity constraint toward the anchor only
+      const a = this.anchorOf(h, _v);
       _n.subVectors(a, p);
       const dist = _n.length();
       if (dist < 1e-3) continue;
@@ -547,12 +546,13 @@ export class Player {
       const relV = this.vel.length();
       if (dN < t.nape.r + reach) {
         this.slashHits.add(t);
+        const napeCritical = Math.max(0, dN - reach) < 0.62 * t.s;
         // approach angle bonus: hitting from behind/above
         _v.subVectors(t.nape.c, this.pos).normalize();
         const back = _v2.set(-Math.sin(t.heading), 0, -Math.cos(t.heading));
         const angle = clamp(-_v.dot(back) * 0.5 + 0.5, 0, 1);
         let dmg = 90 + relV * relV * 0.55 + relV * 6;
-        dmg *= (this.spin > 0 ? 1.6 : 1) * (0.75 + angle * 0.5);
+        dmg *= (this.spin > 0 ? 1.6 : 1) * (0.75 + angle * 0.5) * (napeCritical ? 1 : 0.72);
         dmg = Math.round(dmg * this.classDef.damage);
         const r = t.hit('nape', dmg, t.nape.c, this.vel);
         this.useBlade(r.result === 'kill' ? 14 : 9);
