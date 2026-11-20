@@ -70,6 +70,7 @@ export class CameraRig {
       cam.lookAt(_v);
       cam.rotateZ(this.roll);
     }
+    if (this.override) this.override(cam, rdt);
     // trauma shake
     this.trauma = Math.max(0, this.trauma - rdt * 1.6);
     const s = this.trauma * this.trauma;
@@ -80,7 +81,7 @@ export class CameraRig {
       cam.rotateZ(Math.sin(t * 0.9 + 4) * 0.02 * s);
     }
     const wantFov = clamp(70 + Math.max(0, sp - 8) * 0.55, 70, 100) + (this.killCam > 0 ? -8 : 0) + (fp ? 8 : 0);
-    this.fov = damp(this.fov, wantFov, 4, rdt);
+    this.fov = this.fovOverride ?? damp(this.fov, wantFov, 4, rdt);
     if (Math.abs(cam.fov - this.fov) > 0.01) { cam.fov = this.fov; cam.updateProjectionMatrix(); }
     this.killCam = Math.max(0, this.killCam - rdt);
     if (this.debug) this.debug(cam);

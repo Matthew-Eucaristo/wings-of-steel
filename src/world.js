@@ -305,6 +305,13 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     wall.castShadow = wall.receiveShadow = true;
     this.scene.add(wall);
     this.col.add(new RingWall(R, T, H, 0, GAP_HALF));
+    // intact gate section, only shown in the prologue before the breach
+    const gw = 2 * R * Math.sin(GAP_HALF) + 4;
+    this.breachPlug = new THREE.Mesh(new THREE.BoxGeometry(gw, H, T), mat);
+    this.breachPlug.position.set(0, H / 2, R + T / 2);
+    this.breachPlug.visible = false;
+    this.breachPlug.castShadow = this.breachPlug.receiveShadow = true;
+    this.scene.add(this.breachPlug);
 
     // buttress towers, battlements, broken edges
     const parts = [];

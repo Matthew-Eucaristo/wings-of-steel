@@ -7,6 +7,7 @@ import { VFX } from './vfx.js';
 import { Audio } from './audio.js';
 import { HUD } from './hud.js';
 import { Post } from './post.js';
+import { Story } from './story.js';
 import { clamp, damp, lerp, rand } from './util.js';
 
 const _v = new THREE.Vector3();
@@ -58,6 +59,9 @@ class Game {
     this.player = new Player(this);
     this.hud = new HUD(this);
     this.post = new Post(renderer, this.scene, this.cam.camera);
+    this.story = new Story(this);
+    this.stats = { maxSpeed: 0, bestCombo: 0, time: 0 };
+    this.maxWave = 5;
     this.kills = 0; this.wave = 0; this.waveT = 3; this.timeScale = 1; this.slowT = 0; this.hitstop = 0; this.flash = 0; this.intensity = 0;
     this.running = false; this.locked = false; this.started = false; this.elapsed = 0;
     this.cam.yaw = Math.atan2(-this.player.pos.x, -this.player.pos.z);
@@ -65,10 +69,14 @@ class Game {
     addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); this.cam.resize(); this.post.resize(); });
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === canvas;
-      document.getElementById('paused').classList.toggle('hidden', this.locked || !this.started || this.player.dead);
+      document.getElementById('paused').classList.toggle('hidden', this.locked || !this.started || this.player.dead || this.won && !this.endless);
     });
     const lock = () => canvas.requestPointerLock();
-    document.getElementById('start').onclick = () => { this.started = true; this.audio.init(); document.getElementById('title').classList.add('hidden'); this.hud.show(true); lock(); this.hud.toast('BERSIAP<br><span style="font-size:18px">Titan menerobos tembok!</span>', 2.5); };
+    this.lock = lock;
+    document.getElementById('start').onclick = () => { lock(); this.story.begin(true); };
+    document.getElementById('quick').onclick = () => { lock(); this.story.begin(false); };
+    document.getElementById('cont').onclick = () => { this.endless = true; document.getElementById('win').classList.add('hidden'); this.hud.show(true); lock(); };
+    document.getElementById('again').onclick = () => { this.restart(); lock(); };
     document.getElementById('paused').onclick = lock;
     document.getElementById('retry').onclick = () => { this.restart(); lock(); };
     canvas.addEventListener('click', () => { if (this.started && !this.locked && !this.player.dead) lock(); });
@@ -77,7 +85,17 @@ class Game {
     renderer.setAnimationLoop(() => this.frame());
   }
 
+  beginPlay() {
+    this.started = true;
+    document.getElementById('title').classList.add('hidden');
+    this.hud.show(true);
+    this.hud.toast('BERSIAP<br><span style="font-size:18px">Titan menerobos Gerbang Selatan!</span>', 2.5);
+  }
+
   restart() {
+    this.endless = false; this.won = false; this.stats = { maxSpeed: 0, bestCombo: 0, time: 0 };
+    document.getElementById('win').classList.add('hidden');
+    this.story.toPlay(true);
     for (const t of this.titans) t.dispose();
     this.titans = [];
     const old = this.player;
@@ -105,7 +123,7 @@ class Game {
       const d = new THREE.Vector3(-p.x, 0, -p.z).normalize();
       this.titans.push(new Titan(this, new THREE.Vector3(p.x + d.x * 55, 0, p.z + d.z * 55), { height: 9 }));
     }
-    document.getElementById('wave').textContent = 'WAVE ' + this.wave;
+    document.getElementById('wave').textContent = this.endless ? 'WAVE ' + this.wave : `WAVE ${this.wave} / ${this.maxWave}`;
     this.hud.toast(`WAVE ${this.wave}<br><span style="font-size:18px">${n + (this.wave === 1 ? 1 : 0)} titan mendekat</span>`, 2.2);
     this.audio.thunder();
     this.cam.shake(0.5);
@@ -129,6 +147,7 @@ class Game {
       const lbl = p.speed > 40 ? 'LEGENDARY' : p.spin > 0 ? 'SPIN SLASH!' : p.speed > 28 ? 'CLEAN KILL' : 'KILL';
       this.hud.toast(lbl, 1.2);
       this.hud.combo(p.combo);
+      this.stats.bestCombo = Math.max(this.stats.bestCombo, p.combo);
       this.slowT = 0.9; this.hitstop = 0.08; this.flash = 0.35;
       this.cam.shake(0.7); this.cam.killCam = 0.9;
       t.root.updateMatrixWorld();
@@ -165,19 +184,32 @@ class Game {
   onLand(v) { if (v > 6) { this.audio.land(v); this.vfx.dust(_v.copy(this.player.pos).setY(this.player.pos.y - 0.9), 0.8, 6); } if (v > 14) this.cam.shake(v / 80); }
   onCrash(v) { this.cam.shake(0.8); this.flash = 0.2; this.hud.toast('<span style="font-size:20px">TABRAKAN!</span>', 0.8); }
   onBump(v) { this.cam.shake(v / 120); }
-  onDash(dir) { this.audio.dash(); this.vfx.burst(this.player.pos, dir, 16); this.cam.shake(0.12); }
+  onDash(dir) { this.story.onDash(); this.audio.dash(); this.vfx.burst(this.player.pos, dir, 16); this.cam.shake(0.12); }
   onPlayerHurt(d) { this.hud.hurt(d); this.audio.hurt(); this.cam.shake(0.5); }
   onGrabbed() { this.audio.roar(this.player.pos, 10, 0.6); this.cam.shake(0.6); }
   onPlayerDeath(why) {
     const msg = { eaten: 'Dimakan titan.', crash: 'Menabrak dengan kecepatan terlalu tinggi.', swat: 'Terhempas tangan titan.' }[why] || '';
     setTimeout(() => {
       document.getElementById('deadwhy').textContent = msg;
-      document.getElementById('deadstats').textContent = `Titan dibunuh: ${this.kills} · Wave: ${this.wave}`;
+      document.getElementById('deadstats').innerHTML = this.statsHTML();
       document.getElementById('dead').classList.remove('hidden');
       this.hud.show(false);
       document.exitPointerLock();
     }, why === 'eaten' ? 400 : 1600);
     if (why === 'eaten') { this.vfx.bloodSpray(this.player.pos, _v.set(0, 1, 0), 60, 0.8); this.player.model.setVisible(false); }
+  }
+
+  statsHTML() {
+    const s = this.stats, m = Math.floor(s.time / 60), sec = Math.floor(s.time % 60);
+    return `<span>Titan <b>${this.kills}</b></span><span>Wave <b>${this.wave}</b></span><span>Kecepatan maks <b>${Math.round(s.maxSpeed)} m/s</b></span><span>Combo terbaik <b>${s.bestCombo}×</b></span><span>Waktu <b>${m}:${String(sec).padStart(2, '0')}</b></span>`;
+  }
+  victory() {
+    this.won = true;
+    document.getElementById('winstats').innerHTML = this.statsHTML();
+    document.getElementById('win').classList.remove('hidden');
+    this.hud.show(false);
+    this.audio.thunder();
+    document.exitPointerLock();
   }
 
   setQuality(q) {
@@ -222,7 +254,7 @@ class Game {
     if (this.hitstop > 0) { this.hitstop -= rdt; ts = 0.04; }
     else if (this.slowT > 0) { this.slowT -= rdt; ts = 0.28 + (1 - clamp(this.slowT / 0.9, 0, 1)) * 0.72; }
     this.timeScale = damp(this.timeScale, ts, 25, rdt);
-    const paused = this.started && !this.locked && !this.player.dead;
+    const paused = this.started && !this.locked && !this.player.dead && !(this.won && !this.endless);
     const dt = paused ? 0 : rdt * this.timeScale;
     if (inp.pressed('KeyH')) document.getElementById('help').classList.toggle('hidden');
     for (const [k, f] of [['BracketLeft', 0.85], ['BracketRight', 1.18]]) if (inp.pressed(k)) {
@@ -237,7 +269,11 @@ class Game {
     if (dt > 0) {
       if (this.started) {
         const alive = this.titans.filter((t) => t.alive).length;
-        if (alive === 0) { this.waveT -= dt; if (this.waveT <= 0) { this.spawnWave(); this.waveT = 6; } }
+        this.stats.time += dt; this.stats.maxSpeed = Math.max(this.stats.maxSpeed, this.player.speed);
+        if (alive === 0 && this.story.allowWaves()) {
+          if (this.wave >= this.maxWave && !this.endless && !this.won) this.victory();
+          else if (!this.won || this.endless) { this.waveT -= dt; if (this.waveT <= 0) { this.spawnWave(); this.waveT = 6; } }
+        }
       }
       this.world.col.dynamics.length = 0;
       for (const t of this.titans) if (t.alive || t.deadT < 8) for (const c of t.parts) this.world.col.dynamics.push(c);
@@ -248,7 +284,8 @@ class Game {
       this.world.update(dt);
       this.vfx.update(dt, rdt);
     }
-    if (!this.started) { this.cam.yaw += rdt * 0.06; this.cam.pitch = 0.08 + Math.sin(this.elapsed * 0.15) * 0.06; }
+    this.story.update(rdt);
+    if (!this.started && !this.story.active) { this.cam.yaw += rdt * 0.06; this.cam.pitch = 0.08 + Math.sin(this.elapsed * 0.15) * 0.06; }
     this.cam.update(dt, rdt);
     this.world.followShadow(this.player.pos);
     // music intensity from nearby threat

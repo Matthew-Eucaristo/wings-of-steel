@@ -44,11 +44,24 @@
     <div><kbd>R</kbd> ganti pedang · depot hijau = isi ulang</div>
   </div>
   <p class="tip">Damage tebasan = kecepatan². Ayun, tarik, lepas, lalu putar ke tengkuk.</p>
-  <button id="start">KLIK UNTUK MULAI</button>
+  <div class="btns"><button id="start">MULAI KAMPANYE</button><button id="quick" class="ghost">LANGSUNG BERTEMPUR</button></div>
+  <p class="sub">Kampanye = prolog sinematik + pelatihan singkat · Tekan <kbd>V</kbd> di dalam game untuk first-person</p>
   <div id="loading">Membangun distrik…</div>
 </div>
-<div id="dead" class="hidden"><h1>KAMU GUGUR</h1><p id="deadwhy"></p><p id="deadstats"></p><button id="retry">COBA LAGI</button></div>
-<div id="paused" class="hidden"><h1>JEDA</h1><p>Klik untuk lanjut</p></div>
+<div id="fade"></div>
+<div id="bars"><i></i><i></i></div>
+<div id="cap"></div>
+<div id="skip" class="hidden"><kbd>Spasi</kbd> / <kbd>Klik</kbd> lewati</div>
+<div id="tut" class="hidden"></div>
+<div id="win" class="hidden"><small>PROLOG SELESAI</small><h1>DISTRIK DIAMANKAN</h1><p>Gerbang Selatan masih terbuka — tapi malam ini kota bertahan.</p><div id="winstats" class="stats"></div><div class="btns"><button id="cont">LANJUT: TANPA AKHIR</button><button id="again" class="ghost">MAIN LAGI</button></div></div>
+<div id="dead" class="hidden"><h1>KAMU GUGUR</h1><p id="deadwhy"></p><div id="deadstats" class="stats"></div><button id="retry">COBA LAGI</button></div>
+<div id="paused" class="hidden"><h1>JEDA</h1><p class="tip">Klik di mana saja untuk lanjut</p>
+  <div class="controls">
+    <div><kbd>Q</kbd> <kbd>E</kbd> / <kbd>Klik Kanan</kbd> kait</div><div><kbd>Spasi</kbd> tarik kabel · lompat</div>
+    <div><kbd>Shift</kbd> gas · tap = dash</div><div><kbd>Klik Kiri</kbd> tebas · tahan = putaran</div>
+    <div><kbd>R</kbd> ganti pedang</div><div><kbd>V</kbd> first / third person</div>
+    <div><kbd>[</kbd> <kbd>]</kbd> sensitivitas mouse</div><div><kbd>G</kbd> grafis · <kbd>M</kbd> musik · <kbd>H</kbd> bantuan</div>
+  </div></div>
 <script type="module" src="/src/main.js"></script>
 </body>
 </html>
