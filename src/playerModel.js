@@ -185,10 +185,11 @@ export class PlayerModel {
       r.rotateZ(this.spinAngle);
     } else this.spinAngle = 0;
     const D = (o, prop, v, k = 14) => { o[prop] = damp(o[prop], v, k, dt); };
-    this.runPhase += dt * (st.grounded ? st.speed * 1.25 : 0);
+    this.runPhase += dt * (st.wall ? Math.max(st.speed, 6) * 1.25 : st.grounded ? st.speed * 1.25 : 0);
     const ph = this.runPhase;
-    const run = st.grounded ? clamp(st.speed / 9, 0, 1) : 0;
-    const air = st.grounded ? 0 : 1;
+    // wall-run and climb reuse the stride: legs keep cycling against the face
+    const run = st.wall ? 1 : st.grounded ? clamp(st.speed / 9, 0, 1) : 0;
+    const air = st.grounded || st.wall ? 0 : 1;
     // landing absorb: knees and spine fold on touchdown, scaled by impact speed
     if (st.grounded && this.wasAir && (this.prevVy || 0) < -5) this.landK = clamp(-this.prevVy / 20, 0.3, 1);
     this.wasAir = !st.grounded; this.prevVy = st.vel ? st.vel.y : 0;

@@ -207,9 +207,38 @@ export class Player {
     } else {
       v.addScaledVector(wish, (att.length ? TUNE.swingSteer : TUNE.airSteer) * dt);
     }
+    // wall moves: run along it, climb it facing in, kick off with Space
+    this.wallRun = false; this.climbing = false;
+    if (this.wallT > 0) this.wallT -= dt;
+    if (this.grounded) this.climbT = 0;
+    if (this.wallT > 0 && control && !this.grabbedBy) {
+      const n = this.wallN;
+      if (!this.grounded && inp.pressed('Space', true)) {
+        // kick-off: push away from the wall and up, keeping some momentum along it
+        const vn = v.dot(n); if (vn < 0) v.addScaledVector(n, -vn);
+        v.addScaledVector(n, 11); v.y = Math.max(v.y, 0) + 8;
+        this.wallT = 0; g.audio.jump(); g.cam.shake(0.15);
+      } else if (mz > 0) {
+        const into = -(wish.x * n.x + wish.z * n.z);
+        if (into > 0.7 && (this.climbT || 0) < 1.4) {
+          // climb: run straight up the face for a short burst
+          this.climbing = true; this.climbT = (this.climbT || 0) + dt;
+          v.y = damp(v.y, 9, 8, dt);
+          v.x = damp(v.x, -n.x * 2, 6, dt); v.z = damp(v.z, -n.z * 2, 6, dt);
+        } else {
+          const along = Math.hypot(v.x - n.x * v.dot(n), v.z - n.z * v.dot(n));
+          if (along > 4 && !this.grounded) {
+            // wall-run: most of gravity cancelled while moving fast along the face
+            this.wallRun = true;
+            v.y += TUNE.gravity * 0.75 * dt; if (v.y < -3) v.y = damp(v.y, -3, 6, dt);
+            v.addScaledVector(n, -4 * dt);
+          }
+        }
+      }
+    }
     // gas boost: thrust along camera look (or wish) while airborne
     const brake = gasHeld && mz < 0 && mx === 0 && !this.grounded && Math.hypot(v.x, v.z) > 1.5;
-    this.braking = brake && this.gas > 0;
+    this.braking = brake && this.gas > 0; this.diving = false;
     if (this.braking) {
       // air brake: retro-burst against the velocity, never reversing it
       // kills horizontal momentum; only softens a fall so it can't be used to hover
@@ -217,15 +246,20 @@ export class Player {
       if (hs > 1e-3) { const k = Math.max(0, hs - rate) / hs; v.x *= k; v.z *= k; }
       if (v.y < 0) v.y += Math.min(-v.y, rate * 0.35);
       else v.y = Math.max(0, v.y - rate);
-      gasUse += 8 * dt; this.gasOn = true;
+      gasUse += 5.5 * dt; this.gasOn = true;
+    } else if (gasHeld && this.gas > 0 && !this.grounded && !att.length && inp.key('Space')) {
+      // Shift+Space: vertical power-dive, steerable with WASD
+      _v.copy(wish).multiplyScalar(0.35); _v.y = -1; _v.normalize();
+      v.addScaledVector(_v, TUNE.gasThrust * 1.3 * dt);
+      gasUse += 5 * dt; this.gasOn = true; this.diving = true;
     } else if (gasHeld && this.gas > 0 && (!this.grounded || att.length)) {
       const dir = wish.lengthSq() > 0.01 ? _v.copy(wish).addScaledVector(cam.forward, 0.5).normalize() : _v.copy(cam.forward);
       v.addScaledVector(dir, TUNE.gasThrust * dt);
-      gasUse += 7 * dt; this.gasOn = true;
+      gasUse += 4.5 * dt; this.gasOn = true;
     }
     if (control && inp.pressed('ShiftLeft', true) && this.dashCD <= 0 && this.gas > 3 && !this.grounded) {
       const dir = wish.lengthSq() > 0.01 ? _v.copy(wish).normalize() : _v.copy(cam.forward);
-      v.addScaledVector(dir, TUNE.dashImpulse); this.dashCD = 0.4; gasUse += 3; g.onDash(dir);
+      v.addScaledVector(dir, TUNE.dashImpulse); this.dashCD = 0.4; gasUse += 2; g.onDash(dir);
     }
     // cables
     for (const h of att) {
@@ -237,7 +271,7 @@ export class Player {
       if (reel && this.gas > 0) {
         const vr = v.dot(_n);
         if (vr < TUNE.reelMax) v.addScaledVector(_n, TUNE.reelAccel * dt / att.length * (att.length > 1 ? 1.35 : 1));
-        gasUse += 5 * dt / att.length; this.gasOn = true;
+        gasUse += 3.2 * dt / att.length; this.gasOn = true;
         // ease off close to the anchor so reeling into a wall doesn't splat you
         if (dist < 7 && vr > 0) v.addScaledVector(_n, -vr * Math.min(1, dt * (7 - dist) * 1.5));
       }
@@ -292,6 +326,8 @@ export class Player {
               this.applyFriction(_n, -vn, dt);
             }
             if (_n.y > 0.55) { this.grounded = true; this.groundN.copy(_n); }
+            // remember the last wall touched for wall-run / climb / kick-off
+            else if (Math.abs(_n.y) < 0.35 && !c.owner) { (this.wallN ||= new THREE.Vector3()).copy(_n); this.wallT = 0.2; }
           }
         }
       }
@@ -442,6 +478,9 @@ export class Player {
       if (fpView) { up.addScaledVector(fwd, -up.dot(fwd)); if (up.lengthSq() < 1e-4) up.set(0, 1, 0); up.normalize(); }
     }
     if (this.grabbedBy) { fwd.set(Math.sin(this.grabbedBy.heading), 0, Math.cos(this.grabbedBy.heading)).negate(); up.copy(UP); }
+    // climbing faces the wall; wall-running leans slightly away from it
+    else if (this.climbing && this.wallN) { fwd.set(-this.wallN.x, 0, -this.wallN.z).normalize(); up.copy(UP); }
+    else if (this.wallRun && this.wallN) { up.copy(UP).addScaledVector(this.wallN, 0.4).normalize(); }
     // orthonormalize
     const right = _n.crossVectors(up, fwd);
     if (right.lengthSq() < 1e-4) right.set(1, 0, 0);
@@ -453,6 +492,7 @@ export class Player {
     _v.set(0, this.grounded ? -0.05 : 0, 0).add(this.pos);
     this.model.update(dt, _v, this.quat, {
       grounded: this.grounded && !att.length, speed: this.grounded ? Math.hypot(v.x, v.z) : this.speed, vel: v,
+      wall: this.climbing ? 'climb' : this.wallRun ? 'run' : null,
       hooked: att.length > 0, spin: this.spin > 0 || this.charge > 0.45, slashT: this.slashT, grabbed: !!this.grabbedBy, fp: fpView, pitch: this.game.cam.pitch,
     });
   }
