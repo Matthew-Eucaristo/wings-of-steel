@@ -57,7 +57,7 @@ export class Post {
     this.resize();
   }
   resize() {
-    const pr = Math.min(devicePixelRatio, 1.5);
+    const pr = Math.min(devicePixelRatio, this.maxPR || 1.5);
     this.composer.setPixelRatio(pr);
     this.composer.setSize(innerWidth, innerHeight);
     this.u.uRes.value.set(innerWidth * pr, innerHeight * pr);

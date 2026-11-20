@@ -7,7 +7,7 @@ import { VFX } from './vfx.js';
 import { Audio } from './audio.js';
 import { HUD } from './hud.js';
 import { Post } from './post.js';
-import { clamp, damp, rand } from './util.js';
+import { clamp, damp, lerp, rand } from './util.js';
 
 const _v = new THREE.Vector3();
 
@@ -42,6 +42,7 @@ class Game {
     const renderer = (this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' }));
     renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     renderer.setSize(innerWidth, innerHeight);
+    this.quality = 2;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -179,9 +180,27 @@ class Game {
     if (why === 'eaten') { this.vfx.bloodSpray(this.player.pos, _v.set(0, 1, 0), 60, 0.8); this.player.model.setVisible(false); }
   }
 
+  setQuality(q) {
+    this.quality = q;
+    const pr = [0.6, 1.0, 1.5][q];
+    this.post.maxPR = pr;
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, pr));
+    this.post.resize();
+    this.post.bloom.enabled = q > 0;
+    this.world.sun.castShadow = q > 0;
+    this.hud.toast(`<span style="font-size:20px">Grafis: ${['RENDAH', 'SEDANG', 'TINGGI'][q]}</span>`, 1.2);
+  }
+
   frame() {
-    const rdt = Math.min(this.clock.getDelta(), 1 / 20);
+    const raw = this.clock.getDelta();
+    const rdt = Math.min(raw, 1 / 20);
     if (this.frozen) return;
+    if (this.started && !this.manualQuality) {
+      this.fpsAvg = lerp(this.fpsAvg || 60, 1 / Math.max(raw, 1e-3), 0.02);
+      this.lowT = this.fpsAvg < 32 ? (this.lowT || 0) + raw : 0;
+      if (this.lowT > 4 && this.quality > 0) { this.setQuality(this.quality - 1); this.lowT = 0; this.fpsAvg = 45; }
+    }
+    if (this.input.pressed('KeyG')) { this.manualQuality = true; this.setQuality((this.quality + 2) % 3); }
     this.step(rdt);
     this.post.render(this.elapsed);
     this.input.endFrame();
