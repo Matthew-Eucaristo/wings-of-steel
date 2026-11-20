@@ -9,6 +9,7 @@ varying vec2 vUv;
 varying vec4 vColor;
 varying float vFog;
 varying float vShade;
+varying float vNear;
 uniform float uFogDensity;
 void main(){
   vUv = uv;
@@ -28,6 +29,8 @@ void main(){
   vShade = 0.72 + 0.56 * (corner.y + 0.5) * 0.5 + 0.1;
   gl_Position = projectionMatrix * mv;
   float d = length(mv.xyz);
+  // fade puffs between the lens and the soldier so exhaust never blankets the chase camera
+  vNear = smoothstep(1.0, 5.0, -mv.z);
   vFog = 1.0 - exp(-uFogDensity * uFogDensity * d * d);
 }`;
 
@@ -39,10 +42,11 @@ varying vec2 vUv;
 varying vec4 vColor;
 varying float vFog;
 varying float vShade;
+varying float vNear;
 void main(){
   vec4 t = texture2D(uTex, vUv);
   vec3 col = vColor.rgb * t.rgb * mix(1.0, vShade, uLit);
-  float a = t.a * vColor.a;
+  float a = t.a * vColor.a * vNear;
   if (uLit > 0.5) col = mix(col, uFogColor, vFog);
   else a *= (1.0 - vFog);
   if (a < 0.003) discard;
