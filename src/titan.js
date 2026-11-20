@@ -586,10 +586,14 @@ export class Titan {
     if (t > 1.2) {
       this.steamT -= dt;
       if (this.steamT <= 0) {
-        this.steamT = 0.05;
-        const part = this.parts[Math.floor(Math.random() * this.parts.length)];
-        _v.lerpVectors(part.a, part.b, Math.random());
-        this.game.vfx.steam(_v, s * 2.2 * (1 - dead * 0.4), 3.5);
+        // corpse boils off: two puffs per tick plus tall wisps so the steam column scales with the body
+        this.steamT = 0.04;
+        for (let k = 0; k < 2; k++) {
+          const part = this.parts[Math.floor(Math.random() * this.parts.length)];
+          _v.lerpVectors(part.a, part.b, Math.random());
+          this.game.vfx.steam(_v, s * 2.2 * (1 - dead * 0.4), 3.5);
+          if (k === 0 && Math.random() < 0.35) this.game.vfx.wisp(_v, s * 2.5);
+        }
       }
     }
     if (t > 7) {
