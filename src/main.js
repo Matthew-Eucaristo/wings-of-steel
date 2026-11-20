@@ -177,7 +177,7 @@ class Game {
     this.audio.hookHit(h.tip, flesh);
     if (flesh) this.vfx.bloodSpray(h.tip, _v.set(0, 1, 0), 6, 0.5);
     else { this.vfx.sparks(h.tip, 8); this.vfx.dust(h.tip, 1, 4); }
-    this.microImpact(0.038, flesh ? 0.72 : 0.78); this.cam.shake(flesh ? 0.07 : 0.055); this.cam.impactFov = Math.max(this.cam.impactFov, 0.9);
+    this.cam.shake(flesh ? 0.07 : 0.055); this.cam.impactFov = Math.max(this.cam.impactFov, 0.9);
   }
   onSlashHit(t, result, dmg, point) {
     const p = this.player;
@@ -272,7 +272,7 @@ class Game {
   onLand(v) { if (v > 6) { this.audio.land(v); this.vfx.dust(_v.copy(this.player.pos).setY(this.player.pos.y - 0.9), 0.8, 6); } if (v > 14) this.cam.shake(v / 80); }
   onCrash(v) { this.cam.shake(0.8); this.flash = 0.2; this.hud.toast('<span style="font-size:20px">TABRAKAN!</span>', 0.8); }
   onBump(v) { this.cam.shake(v / 120); }
-  onDash(dir) { this.story.onDash(); this.audio.dash(); this.vfx.burst(this.player.pos, dir, 16); this.microImpact(0.026, 0.84); this.cam.shake(0.12); this.cam.impactFov = Math.max(this.cam.impactFov, 1.4); }
+  onDash(dir) { this.story.onDash(); this.audio.dash(); this.vfx.burst(this.player.pos, dir, 16); this.cam.shake(0.12); this.cam.impactFov = Math.max(this.cam.impactFov, 1.4); }
   onPlayerHurt(d) { this.hud.hurt(d); this.audio.hurt(); this.cam.shake(0.5); }
   onGrabbed() { this.audio.roar(this.player.pos, 10, 0.6); this.cam.shake(0.6); }
   onPlayerDeath(why) {

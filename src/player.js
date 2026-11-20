@@ -61,6 +61,7 @@ export class Player {
     const g = this.game;
     const aim = this.aim;
     const cam = g.cam;
+    let pairSource = null;
     if (!aim && !this.lock) { g.hud.flash('no-anchor'); g.audio.click(); return; }
     const from = this.model.gearPos(h.side, _v2);
     let hit;
@@ -100,10 +101,23 @@ export class Player {
         if (!hit || hit.t > TUNE.hookRange) hit = aim;
       }
     }
+    // Focus is the manual precision mode. Keep independently aimed hooks within
+    // a controllable span; automatic cycling may choose wider anchors freely.
+    if (this.hookMode === 'focus') {
+      const other = this.hooks.find((x) => x !== h && (x.state === 'fly' || x.state === 'attached'));
+      if (other) {
+        const otherAnchor = this.anchorOf(other, _v3);
+        if (hit.point.distanceTo(otherAnchor) > 28) {
+          pairSource = other;
+          hit = { point: otherAnchor.clone(), collider: null, surface: 'stone', lockOwner: other.owner || null };
+        }
+      }
+    }
     h.state = 'fly'; h.t = 0;
     h.tip.copy(from);
     h.target.copy(hit.point);
-    h.joint = null; h.owner = hit.lockOwner || null;
+    h.joint = pairSource?.joint || null; h.owner = pairSource?.owner || hit.lockOwner || null;
+    if (pairSource?.joint) h.local.copy(pairSource.local);
     const c = hit.collider;
     if (c && c.owner && c.ja) {
       h.joint = c.ja; h.owner = c.owner;
@@ -112,7 +126,7 @@ export class Player {
     }
     h.surface = hit.surface;
     g.audio.hookFire(h.side);
-    g.microImpact(0.022, 0.88); g.cam.shake(0.035); g.cam.impactFov = Math.max(g.cam.impactFov, 0.7);
+    g.cam.shake(0.035); g.cam.impactFov = Math.max(g.cam.impactFov, 0.7);
   }
 
   release(h) {
@@ -186,6 +200,31 @@ export class Player {
 
     // hooks: Q/E or RMB (both)
     const want = [inp.key('KeyQ') || inp.mouse.r, inp.key('KeyE') || inp.mouse.r];
+    this.autoCycleT = Math.max(0, (this.autoCycleT || 0) - dt);
+    // Automatic mode continuously refreshes one bad anchor at a time while RMB is held.
+    // The other cable stays attached, preserving momentum instead of dropping the player.
+    if (this.hookMode === 'auto' && want[0] && want[1] && this.speed > 8 && this.autoCycleT <= 0 && (!this.lock || this.pos.distanceTo(this.lock.nape.c) > 95)) {
+      const attached = this.hooks.filter((h) => h.state === 'attached');
+      if (attached.length === 2) {
+        const mx = (inp.key('KeyD') ? 1 : 0) - (inp.key('KeyA') ? 1 : 0);
+        const mz = (inp.key('KeyW') ? 1 : 0) - (inp.key('KeyS') ? 1 : 0);
+        _v4.copy(g.cam.forward);
+        if (mx || mz) _v4.addScaledVector(g.cam.rightFlat, mx * 0.85).addScaledVector(g.cam.forwardFlat, mz * 0.85);
+        _v4.normalize();
+        let worst = null, worstScore = Infinity, worstDist = 0;
+        for (const h of attached) {
+          _v3.subVectors(this.anchorOf(h, _v), this.pos);
+          const d = _v3.length();
+          const score = d > 0 ? _v3.divideScalar(d).dot(_v4) : -1;
+          if (score < worstScore) { worstScore = score; worstDist = d; worst = h; }
+        }
+        if (worst && (worstScore < 0.32 || worstDist < 6)) {
+          worst.state = 'none'; worst.joint = null; worst.owner = null; worst.cool = false; worst.tension = 0;
+          this.fire(worst); worst.cool = true;
+          this.autoCycleT = 0.28; g.cam.shake(0.025);
+        }
+      }
+    }
     for (let i = 0; i < 2; i++) {
       const h = this.hooks[i];
       if (want[i] && (h.state === 'none' || h.state === 'ret') && !h.cool) { this.fire(h); h.cool = true; }
@@ -356,12 +395,12 @@ export class Player {
       const tx = wish.x * sp, tz = wish.z * sp;
       const k = wish.lengthSq() > 0 ? 14 : (Math.hypot(v.x, v.z) > 14 ? 1.5 : 8);
       v.x = damp(v.x, tx, k, dt); v.z = damp(v.z, tz, k, dt);
-      if (control && inp.pressed('Space', true)) { v.y = TUNE.jump; this.grounded = false; g.audio.jump(); g.microImpact(0.018, 0.92); g.cam.shake(0.045); g.cam.impactFov = Math.max(g.cam.impactFov, 1.2); }
+      if (control && inp.pressed('Space', true)) { v.y = TUNE.jump; this.grounded = false; g.audio.jump(); g.cam.shake(0.045); g.cam.impactFov = Math.max(g.cam.impactFov, 1.2); }
     } else {
       const lowSpeedAssist = 1 + clamp((12 - v.length()) / 12, 0, 1) * 0.8;
       v.addScaledVector(wish, (att.length ? TUNE.swingSteer : TUNE.airSteer) * lowSpeedAssist * this.classDef.steer * dt);
       if (control && this.coyoteT > 0 && inp.pressed('Space', true) && !att.length) {
-        v.y = TUNE.jump; this.coyoteT = 0; g.audio.jump(); g.microImpact(0.018, 0.92); g.cam.shake(0.045); g.cam.impactFov = Math.max(g.cam.impactFov, 1.2);
+        v.y = TUNE.jump; this.coyoteT = 0; g.audio.jump(); g.cam.shake(0.045); g.cam.impactFov = Math.max(g.cam.impactFov, 1.2);
       }
     }
     // wall moves: run along it, climb it facing in, kick off with Space
@@ -526,9 +565,9 @@ export class Player {
       }
     }
     if (this.grounded && !wasGround) { this.game.onLand(maxHit); this.airTime = 0; }
-    if (maxHit > 14 && this.impactN) {
+    if (maxHit > 24 && this.impactN) {
       this.impactT = 0.25; this.impactSpeed = maxHit;
-      g.slowT = Math.max(g.slowT, 0.24); g.cam.impactFov = Math.max(g.cam.impactFov, 1.3);
+      g.cam.impactFov = Math.max(g.cam.impactFov, 1.3);
       g.vfx.flash(p, clamp(maxHit / 8, 1.8, 4), 0xd9efff);
     }
     if (!this.grounded) this.airTime += dt;
