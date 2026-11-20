@@ -60,7 +60,7 @@ button{font-family:Cinzel,serif;font-weight:800;letter-spacing:5px;font-size:20p
 button:hover{transform:scale(1.05);filter:brightness(1.1)}
 button:disabled{opacity:.4}
 #loading{margin-top:12px;font-size:14px;opacity:.6}
-#dead h1{background:linear-gradient(180deg,#ffd1c4,#b3261b 70%,#4a0a05);-webkit-background-clip:text}
+#dead h1{white-space:nowrap;font-size:min(76px,9vw);background:linear-gradient(180deg,#ffd1c4,#b3261b 70%,#4a0a05);-webkit-background-clip:text}
 #dead p{font-size:18px;margin:8px 0}
 #dead button{margin-top:18px}
 

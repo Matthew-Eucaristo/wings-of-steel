@@ -165,7 +165,7 @@ export class Titan {
     const head = G(neck, 0, 0.75, 0.05); this.head = head;
     const hs = P.head;
     const skull = mk(new THREE.SphereGeometry(0.85 * hs, 24, 18), mat, head); skull.scale.set(0.92, 1.12, 1.0); skull.position.set(0, 0.55 * hs, 0);
-    const jaw = mk(new THREE.SphereGeometry(0.7 * hs, 20, 14), mat, head); jaw.scale.set(0.95, 0.7, 1.0); jaw.position.set(0, 0.05 * hs, 0.12 * hs);
+    const jaw = mk(new THREE.SphereGeometry(0.7 * hs, 20, 14), mat, head); jaw.scale.set(0.95, 0.7, 1.0); jaw.position.set(0, 0.05 * hs, 0.12 * hs); this.jaw = jaw; this.jawY0 = jaw.position.y; this.jawDrop = 0.32 * hs;
     // brow ridge + nose + ears
     const brow = mk(new THREE.CapsuleGeometry(0.11 * hs, 0.7 * hs, 4, 10), mat, head); brow.rotation.z = Math.PI / 2; brow.position.set(0, 0.72 * hs, 0.72 * hs);
     const nose = mk(new THREE.ConeGeometry(0.13 * hs, 0.36 * hs, 10), mat, head); nose.position.set(0, 0.5 * hs, 0.86 * hs); nose.rotation.x = 0.35;
@@ -510,6 +510,12 @@ export class Titan {
     this.head.rotation.y = damp(this.head.rotation.y, yaw * look + (this.blind > 0 ? Math.sin(this.stateT * 5) * 0.6 : 0), 3, dt);
     this.head.rotation.x = damp(this.head.rotation.x, pitch * look, 3, dt);
     this.head.rotation.z = Math.sin(this.walkPhase * 0.5) * 0.12;
+    // jaw gapes as the victim nears the mouth, then snaps shut
+    const bt = this.state === 'grab' ? this.stateT : 0;
+    const jo = clamp((bt - 2.6) / 0.9, 0, 1) * (bt < 3.85 ? 1 : clamp((4 - bt) / 0.15, 0, 1));
+    this.jaw.position.y = this.jawY0 - jo * this.jawDrop;
+    this.jaw.rotation.x = jo * 0.35;
+    this.head.rotation.x -= jo * 0.25;
     // stoop and squat when reaching for something near the ground
     let stoopT = 0;
     if (this.state === 'reach') {
