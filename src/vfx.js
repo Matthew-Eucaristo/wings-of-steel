@@ -117,6 +117,7 @@ export class VFX {
     if (p.gasOn) for (const s of [-1, 1]) {
       const gp = p.model.gearPos(s, _v2);
       _d.copy(p.vel).normalize();
+      if (p.braking) _d.negate();
       this.gas(gp, _d.lengthSq() ? _d : _v.set(0, 1, 0), 0.7);
     }
     // wind streaks at high speed

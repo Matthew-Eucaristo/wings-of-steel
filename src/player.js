@@ -206,7 +206,17 @@ export class Player {
       v.addScaledVector(wish, (att.length ? TUNE.swingSteer : TUNE.airSteer) * dt);
     }
     // gas boost: thrust along camera look (or wish) while airborne
-    if (gasHeld && this.gas > 0 && (!this.grounded || att.length)) {
+    const brake = gasHeld && mz < 0 && mx === 0 && !this.grounded && Math.hypot(v.x, v.z) > 1.5;
+    this.braking = brake && this.gas > 0;
+    if (this.braking) {
+      // air brake: retro-burst against the velocity, never reversing it
+      // kills horizontal momentum; only softens a fall so it can't be used to hover
+      const rate = TUNE.gasThrust * 1.4 * dt, hs = Math.hypot(v.x, v.z);
+      if (hs > 1e-3) { const k = Math.max(0, hs - rate) / hs; v.x *= k; v.z *= k; }
+      if (v.y < 0) v.y += Math.min(-v.y, rate * 0.35);
+      else v.y = Math.max(0, v.y - rate);
+      gasUse += 8 * dt; this.gasOn = true;
+    } else if (gasHeld && this.gas > 0 && (!this.grounded || att.length)) {
       const dir = wish.lengthSq() > 0.01 ? _v.copy(wish).addScaledVector(cam.forward, 0.5).normalize() : _v.copy(cam.forward);
       v.addScaledVector(dir, TUNE.gasThrust * dt);
       gasUse += 7 * dt; this.gasOn = true;

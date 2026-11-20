@@ -98,3 +98,6 @@ button.ghost{background:rgba(255,255,255,.08);color:#f3e2bf;box-shadow:inset 0 0
 .stats span{display:flex;flex-direction:column;align-items:center;letter-spacing:2px}
 .stats b{font-size:26px;font-family:Cinzel,serif;color:#f6e2b0}
 #paused .controls{margin-top:10px}
+#depotm{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;color:#9effc4;font-size:12px;letter-spacing:2px;text-shadow:0 0 4px #000}
+#depotm i{width:16px;height:16px;border:2px solid #9effc4;transform:rotate(45deg);box-shadow:0 0 8px #3dff9a;animation:dpulse 1s ease-in-out infinite}
+@keyframes dpulse{50%{opacity:.4}}

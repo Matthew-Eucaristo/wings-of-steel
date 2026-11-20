@@ -7,7 +7,7 @@ export class HUD {
     this.game = game;
     this.el = { hud: $('hud'), cross: $('cross'), range: $('range'), lock: $('lock'), marks: $('marks'), pops: $('pops'), wave: $('wave'), obj: $('obj'), left: $('left'),
       kills: $('kills').querySelector('b'), combo: $('combo'), hpb: $('hpb'), gasb: $('gasb'), bladeb: $('bladeb'), sets: $('sets'), hl: $('hl'), hr: $('hr'), spd: $('spd'),
-      gear: $('gear'), toast: $('toast'), struggle: $('struggle'), strb: $('strb'), hurt: $('hurt'), help: $('help'), hk: document.querySelectorAll('#cross .hk') };
+      gear: $('gear'), toast: $('toast'), struggle: $('struggle'), strb: $('strb'), hurt: $('hurt'), help: $('help'), hk: document.querySelectorAll('#cross .hk'), depot: $('depotm') };
     this.marks = [];
     this.toastT = 0; this.hurtT = 0; this.comboT = 0; this.resT = 0;
   }
@@ -69,6 +69,17 @@ export class HUD {
       const sx = (Math.cos(a) * k * 0.5 + 0.5) * innerWidth, sy = (-Math.sin(a) * k * 0.5 + 0.5) * innerHeight;
       m.style.display = 'block'; m.style.left = sx + 'px'; m.style.top = sy + 'px';
       m.style.transform = `rotate(${-a + Math.PI / 4}rad)`;
+    }
+    // low gas: beacon on the nearest depot, clamped to the screen edge when off-screen
+    const nd = p.gas < 25 && !p.dead ? g.world.nearestDepot(p.pos) : null;
+    e.depot.classList.toggle('hidden', !nd || !nd.depot || nd.dist < 8);
+    if (nd && nd.depot && nd.dist >= 8) {
+      _v.copy(nd.depot.pos).project(g.cam.camera);
+      let x = _v.x, y = _v.y;
+      if (_v.z > 1) { x = -x; y = -y; if (Math.abs(x) < 0.9 && Math.abs(y) < 0.85) y = -0.85; }
+      const k = Math.max(1, Math.abs(x) / 0.9, Math.abs(y) / 0.85);
+      e.depot.style.left = ((x / k) * 0.5 + 0.5) * innerWidth + 'px'; e.depot.style.top = (-(y / k) * 0.5 + 0.5) * innerHeight + 'px';
+      e.depot.lastChild.textContent = 'DEPOT ' + Math.round(nd.dist) + 'm';
     }
     e.left.textContent = alive.length ? `${alive.length} TITAN TERSISA` : '';
     e.kills.textContent = g.kills;
