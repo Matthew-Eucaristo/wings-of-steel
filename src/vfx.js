@@ -72,7 +72,9 @@ export class VFX {
     this.flash(p, 6, HOT);
     this.bloodSpray(p, dir, 90, 1.6);
     this.sparks(p, 30, SLASH);
-    for (let i = 0; i < 26; i++) this.steam(_v.copy(p).add(_v2.set(rand(-2, 2), rand(-1, 2), rand(-2, 2))), 3, 3.5);
+    // wound vents a rising column instead of one opaque ball over the head
+    for (let i = 0; i < 14; i++) this.steam(_v.copy(p).add(_v2.set(rand(-1, 1), rand(0, 2.5), rand(-1, 1))), 2.2, 3.2);
+    for (let i = 0; i < 6; i++) this.wisp(_v.copy(p).add(_v2.set(rand(-0.6, 0.6), rand(0, 1), rand(-0.6, 0.6))), 2.5);
   }
 
   update(dt, rdt) {
