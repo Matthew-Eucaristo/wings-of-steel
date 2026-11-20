@@ -324,6 +324,14 @@ export class Player {
     const gasHeld = control && (inp.key('ShiftLeft') || inp.key('ShiftRight'));
     let gasUse = 0;
     this.gasOn = false;
+    this.impactT = Math.max(0, (this.impactT || 0) - dt);
+    if (control && this.impactT > 0 && inp.pressed('Space', true) && this.impactN) {
+      const kick = clamp((this.impactSpeed || 18) * 0.55, 9, 18);
+      v.addScaledVector(this.impactN, kick);
+      if (this.impactN.y < 0.5) v.y = Math.max(v.y, 4.5);
+      this.grounded = false; this.coyoteT = 0; this.impactT = 0;
+      g.vfx.burst(p, this.impactN, 12); g.audio.jump(); g.cam.shake(0.16); g.cam.impactFov = Math.max(g.cam.impactFov, 2.2);
+    }
     if (this.gasReload > 0) {
       this.gasReload -= dt;
       if (this.gasReload <= 0) {
@@ -482,7 +490,7 @@ export class Player {
         if (_v.y < r) {
           const pen = r - _v.y; p.y += pen; _v.y += pen;
           const vn = v.y;
-          if (vn < 0) { maxHit = Math.max(maxHit, -vn); v.y = 0; this.applyFriction(UP, -vn, dt); }
+          if (vn < 0) { if (-vn > maxHit) { maxHit = -vn; (this.impactN ||= new THREE.Vector3()).copy(UP); } v.y = 0; this.applyFriction(UP, -vn, dt); }
           this.grounded = true; this.groundN.copy(UP);
         }
         for (const c of near) {
@@ -491,7 +499,8 @@ export class Player {
             p.addScaledVector(_n, pen); _v.addScaledVector(_n, pen);
             const vn = v.dot(_n);
             if (vn < 0) {
-              maxHit = Math.max(maxHit, -vn * (c.owner ? 0.4 : 1));
+              const impact = -vn * (c.owner ? 0.4 : 1);
+              if (impact > maxHit) { maxHit = impact; (this.impactN ||= new THREE.Vector3()).copy(_n); }
               v.addScaledVector(_n, -vn * (c.owner ? 1.1 : 1.0));
               this.applyFriction(_n, -vn, dt);
             }
@@ -503,6 +512,11 @@ export class Player {
       }
     }
     if (this.grounded && !wasGround) { this.game.onLand(maxHit); this.airTime = 0; }
+    if (maxHit > 14 && this.impactN) {
+      this.impactT = 0.25; this.impactSpeed = maxHit;
+      g.slowT = Math.max(g.slowT, 0.24); g.cam.impactFov = Math.max(g.cam.impactFov, 1.3);
+      g.vfx.flash(p, clamp(maxHit / 8, 1.8, 4), 0xd9efff);
+    }
     if (!this.grounded) this.airTime += dt;
     // crashing into stuff at very high speed hurts (realism)
     if (maxHit > 46 && this.invuln <= 0) { this.damage(Math.round((maxHit - 46) * 1.6), 'crash'); this.game.onCrash(maxHit); this.invuln = 0.4; }

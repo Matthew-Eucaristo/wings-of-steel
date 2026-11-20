@@ -151,13 +151,13 @@ class Game {
       const base = spawns[Math.floor(Math.random() * spawns.length)];
       const pos = base.clone().add(new THREE.Vector3(rand(-20, 20), 0, rand(-20, 20)));
       const abn = this.wave >= 2 && Math.random() < 0.15 + this.wave * 0.05;
-      this.titans.push(new Titan(this, pos, { type: abn ? 'abnormal' : 'normal', height: abn ? rand(11, 16) : (Math.random() < 0.25 ? rand(16, 18) : rand(9, 15)) }));
+      this.titans.push(new Titan(this, pos, { type: abn ? 'abnormal' : 'normal', height: abn ? rand(13, 18) : (Math.random() < 0.25 ? rand(18, 20) : rand(11, 17)) }));
     }
     // first wave: one wandering titan close to start so there's action right away
     if (this.wave === 1) {
       const p = this.player.pos;
       const d = new THREE.Vector3(-p.x, 0, -p.z).normalize();
-      this.titans.push(new Titan(this, new THREE.Vector3(p.x + d.x * 55, 0, p.z + d.z * 55), { height: 11 }));
+      this.titans.push(new Titan(this, new THREE.Vector3(p.x + d.x * 55, 0, p.z + d.z * 55), { height: 13 }));
     }
     document.getElementById('wave').textContent = this.endless ? 'WAVE ' + this.wave : `WAVE ${this.wave} / ${this.maxWave}`;
     this.hud.toast(`WAVE ${this.wave}<br><span style="font-size:18px">${n + (this.wave === 1 ? 1 : 0)} titan mendekat</span>`, 2.2);
@@ -176,6 +176,7 @@ class Game {
   onSlashHit(t, result, dmg, point) {
     const p = this.player;
     const dir = p.vel.clone().normalize();
+    this.vfx.flash(point, result === 'kill' ? 7 : 2.4, result === 'kill' ? 0xffe2b0 : 0xfff4df);
     if (result === 'kill') {
       this.kills++; p.combo++; p.comboT = 6;
       this.vfx.napeKill(point, dir);
