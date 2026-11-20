@@ -78,9 +78,38 @@ export class VFX {
     for (let i = 0; i < 6; i++) this.wisp(_v.copy(p).add(_v2.set(rand(-0.6, 0.6), rand(0, 1), rand(-0.6, 0.6))), 2.5);
   }
 
+  // tumbling wood/stone chunks for collapses and explosions
+  debris(p, n = 10, power = 8) {
+    this._debris ||= { pool: [], live: [] };
+    const D = this._debris;
+    for (let i = 0; i < n; i++) {
+      let m = D.pool.pop();
+      if (!m) {
+        m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), this.debrisMat ||= new THREE.MeshStandardMaterial({ color: '#6b5a45', roughness: 0.95 }));
+        m.castShadow = true;
+        this.game.scene.add(m);
+      }
+      m.visible = true;
+      m.position.set(p.x + rand(-1, 1), p.y + rand(0, 2), p.z + rand(-1, 1));
+      const sc = rand(0.15, 0.9); m.scale.set(sc * rand(0.6, 1.6), sc, sc * rand(0.6, 1.6));
+      m.material.color.setHex(Math.random() < 0.4 ? 0x7a6a55 : Math.random() < 0.7 ? 0x4a3424 : 0x8a8078);
+      m.rotation.set(rand(0, 6), rand(0, 6), rand(0, 6));
+      D.live.push({ m, v: new THREE.Vector3(rand(-1, 1), rand(0.4, 1.4), rand(-1, 1)).multiplyScalar(power * rand(0.5, 1.2)), rv: new THREE.Vector3(rand(-6, 6), rand(-6, 6), rand(-6, 6)), t: rand(2.2, 3.4) });
+    }
+  }
+
   update(dt, rdt) {
     const g = this.game, p = g.player, cam = g.cam.camera;
     const wind = g.world.windDir;
+    if (this._debris) for (let i = this._debris.live.length - 1; i >= 0; i--) {
+      const d = this._debris.live[i];
+      d.t -= dt;
+      d.v.y -= 22 * dt;
+      d.m.position.addScaledVector(d.v, dt);
+      d.m.rotation.x += d.rv.x * dt; d.m.rotation.y += d.rv.y * dt; d.m.rotation.z += d.rv.z * dt;
+      if (d.m.position.y < 0.2) { d.m.position.y = 0.2; d.v.multiplyScalar(0.3); d.rv.multiplyScalar(0.4); }
+      if (d.t <= 0) { d.m.visible = false; this._debris.pool.push(d.m); this._debris.live.splice(i, 1); }
+    }
     this.smoke.update(dt, wind); this.add.update(dt, wind); this.blood.update(dt, wind);
     // cables
     for (let i = 0; i < 2; i++) {

@@ -77,6 +77,7 @@ class Game {
     this.scene = new THREE.Scene();
     this.playerClass = 'balanced';
     this.world = new World(this.scene, renderer);
+    this.world.gameRef = this;
     this.world.build();
     this.titans = [];
     this.cam = new CameraRig(this);

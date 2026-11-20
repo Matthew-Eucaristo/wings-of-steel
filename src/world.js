@@ -697,6 +697,7 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
         rr() * 6, rr() * 0.9 - 0.45, rr() * 0.9 - 0.45));
     }
     const mesh = new THREE.Mesh(mergeGeometries(list), this.townMats.trim);
+    if (this.gameRef) this.gameRef.vfx.debris(new THREE.Vector3(h.x, h.h * 0.5, h.z), 14, 9);
     mesh.castShadow = mesh.receiveShadow = true;
     this.scene.add(mesh);
     (this.rubble ||= []).push(mesh);
