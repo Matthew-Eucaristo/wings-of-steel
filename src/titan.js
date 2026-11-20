@@ -340,6 +340,7 @@ export class Titan {
     this.armCut[0] = Math.max(0, this.armCut[0] - dt); this.armCut[1] = Math.max(0, this.armCut[1] - dt);
     if (this.regen > 0) { this.regen -= dt; } else this.hp = Math.min(this.napeHP, this.hp + dt * 200);
     this.cooldown -= dt;
+    this.lungeCD = (this.lungeCD || 0) - dt;
     const pos = this.root.position;
     const s = this.s;
     let targetSpeed = 0;
@@ -411,8 +412,8 @@ export class Titan {
           g.audio.roar(pos, this.height, 0.35);
         }
         // abnormal lunge
-        if (abn && distH < 30 && distH > 10 && this.cooldown <= 0 && Math.random() < dt * 0.6 && pyRel < 8) {
-          this.lunge = 1.0; this.cooldown = 4;
+        if (abn && distH < 30 && distH > 10 && (this.lungeCD || 0) <= 0 && Math.random() < dt * 0.6 && pyRel < 8) {
+          this.lunge = 1.0; this.lungeCD = 4; this.cooldown = Math.min(this.cooldown, 0.3);
           g.audio.roar(pos, this.height, 1);
         }
       }
