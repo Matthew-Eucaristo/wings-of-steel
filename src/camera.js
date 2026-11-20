@@ -12,7 +12,7 @@ export class CameraRig {
     this.right = new THREE.Vector3(); this.rightFlat = new THREE.Vector3();
     this.dist = 4.5; this.fov = 72; this.trauma = 0; this.roll = 0; this.t = 0;
     this.target = new THREE.Vector3(); this.sens = +localStorage.getItem('odm-sens') || 0.0022;
-    this.killCam = 0; this.killPos = new THREE.Vector3();
+    this.killCam = 0; this.impactFov = 0; this.killPos = new THREE.Vector3();
     this.computeAxes();
   }
   look(dx, dy) {
@@ -81,7 +81,8 @@ export class CameraRig {
       cam.rotateY((Math.sin(t * 1.3 + 2) + Math.sin(t * 2.9)) * 0.012 * s);
       cam.rotateZ(Math.sin(t * 0.9 + 4) * 0.02 * s);
     }
-    const wantFov = clamp(70 + Math.max(0, sp - 8) * 0.5 + (fp ? 8 : 0), 70, fp ? 96 : 92) + (this.killCam > 0 ? -8 : 0);
+    const wantFov = clamp(70 + Math.max(0, sp - 8) * 0.5 + (fp ? 8 : 0), 70, fp ? 96 : 92) + (this.killCam > 0 ? -8 : 0) + this.impactFov;
+    this.impactFov = damp(this.impactFov, 0, 14, rdt);
     this.fov = this.fovOverride ?? damp(this.fov, wantFov, 4, rdt);
     if (Math.abs(cam.fov - this.fov) > 0.01) { cam.fov = this.fov; cam.updateProjectionMatrix(); }
     this.killCam = Math.max(0, this.killCam - rdt);
