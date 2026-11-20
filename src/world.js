@@ -402,6 +402,17 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
         roofs.push(place(boxGeo(w - 0.2, 0.2, d - 0.2, 4, 4, new THREE.Color('#8a7d6a')), x, h + 0.05, z, yaw));
         top = h + 0.2;
         this.col.add(new Convex(new THREE.Vector3(x, h + 0.1, z), yaw, boxPlanes(w / 2, 0.1, d / 2), Math.hypot(w, d) / 2, { surface: 'stone' }));
+        // rooftop clutter (chimney stack + hatch) so flat roofs aren't bare slabs; skipped on the HQ landing roof
+        if (!opts.plaster) {
+          // position hash instead of rr() so the city layout RNG sequence is unchanged
+          const hr = (k) => { const v = Math.sin(x * 12.9898 + z * 78.233 + k) * 43758.5453; return v - Math.floor(v); };
+          const cx = (hr(1) - 0.5) * (w - 3), cz = (hr(2) - 0.5) * (d - 3);
+          const [px, pz] = toW(cx, cz);
+          stones.push(place(boxGeo(1.2, 2.4, 1.2, 2, 4, stoneC), px, h + 1.4, pz, yaw));
+          this.col.add(new Convex(new THREE.Vector3(px, h + 1.4, pz), yaw, boxPlanes(0.6, 1.2, 0.6), 1.5, { surface: 'stone' }));
+          const [qx, qz] = toW(-cx * 0.8, -cz * 0.8);
+          roofs.push(place(boxGeo(1.8, 0.5, 1.8, 2, 2, new THREE.Color('#5a4a3a')), qx, h + 0.45, qz, yaw));
+        }
       } else {
         const rh = opts.rh ?? d * (0.32 + rr() * 0.18);
         roofs.push(place(roofGeo(w, rh, d, 0.6, roofC), x, h, z, yaw));
