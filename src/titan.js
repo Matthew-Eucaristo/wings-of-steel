@@ -221,7 +221,7 @@ export class Titan {
       const el = G(sh, 0, -2.0 * al, 0);
       mk(new THREE.SphereGeometry(0.34, 12, 10), mat, el).scale.set(0.82, 0.9, 0.78);
       mk(limbGeo(1.85 * al, 0.36, 0.24, 0.22, 0.2), mat, el);
-      const fa = mk(new THREE.SphereGeometry(0.26, 12, 10), mat, el); fa.scale.set(1.05, 2.0, 0.95); fa.position.set(sx * 0.08, -0.55 * al, 0.05);
+      const fa = mk(new THREE.SphereGeometry(0.26, 12, 10), mat, el); fa.scale.set(1.0, 2.0, 0.9); fa.position.set(sx * 0.03, -0.55 * al, 0.03);
       const wr = G(el, 0, -1.85 * al, 0);
       const palm = mk(new THREE.BoxGeometry(0.5, 0.62, 0.22), mat, wr); palm.position.set(0, -0.32, 0.03);
       for (let f = 0; f < 4; f++) {
