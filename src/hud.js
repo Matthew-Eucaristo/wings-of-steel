@@ -6,7 +6,7 @@ export class HUD {
   constructor(game) {
     this.game = game;
     this.el = { hud: $('hud'), cross: $('cross'), range: $('range'), lock: $('lock'), marks: $('marks'), pops: $('pops'), wave: $('wave'), obj: $('obj'), left: $('left'),
-      kills: $('kills').querySelector('b'), combo: $('combo'), hpb: $('hpb'), gasb: $('gasb'), bladeb: $('bladeb'), sets: $('sets'), gasarc: $('gasarc'), bladearc: $('bladearc'), gasnum: $('gasnum'), bladenum: $('bladenum'), gascyl: $('gascyl'), arcsets: $('arcsets'), spearnum: $('spearnum'), classlabel: $('classlabel'), hl: $('hl'), hr: $('hr'), spd: $('spd'),
+      kills: $('kills').querySelector('b'), combo: $('combo'), hpb: $('hpb'), gasb: $('gasb'), bladeb: $('bladeb'), sets: $('sets'), gasarc: $('gasarc'), bladearc: $('bladearc'), gasnum: $('gasnum'), bladenum: $('bladenum'), gaspips: $('gaspips'), bladepips: $('bladepips'), gaslvl: $('gaslvl'), spearnum: $('spearnum'), classlabel: $('classlabel'), hl: $('hl'), hr: $('hr'), spd: $('spd'),
       gear: $('gear'), toast: $('toast'), struggle: $('struggle'), strb: $('strb'), hurt: $('hurt'), help: $('help'), hk: document.querySelectorAll('#cross .hk'), depot: $('depotm') };
     this.marks = [];
     this.toastT = 0; this.hurtT = 0; this.comboT = 0; this.resT = 0;
@@ -40,7 +40,10 @@ export class HUD {
     e.sets.textContent = '×' + p.bladeSets;
     e.gasarc.style.strokeDashoffset = 100 - p.gas; e.bladearc.style.strokeDashoffset = 100 - p.blade;
     e.gasnum.textContent = p.gasReload > 0 ? p.gasReload.toFixed(1) + 's' : Math.round(p.gas);
-    e.bladenum.textContent = Math.round(p.blade); e.gascyl.textContent = p.gasCylinders + ' CYL'; e.arcsets.textContent = '×' + p.bladeSets; e.spearnum.textContent = p.spears;
+    e.bladenum.textContent = Math.round(p.blade); e.spearnum.textContent = p.spears;
+    e.gaslvl.style.opacity = 0.25 + 0.75 * p.gas / 100;
+    for (let i = 0; i < 6; i++) e.gaspips.children[i].classList.toggle('on', i < p.gasCylinders);
+    for (let i = 0; i < 8; i++) e.bladepips.children[i].classList.toggle('on', i < p.bladeSets);
     e.classlabel.textContent = { light: 'RINGAN', balanced: 'HP', heavy: 'BERAT' }[p.className] || 'HP';
     e.gear.classList.toggle('lowgas', p.gas < 20);
     e.spd.textContent = Math.round(p.speed);

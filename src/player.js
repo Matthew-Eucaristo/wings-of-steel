@@ -109,7 +109,7 @@ export class Player {
   release(h) {
     if (h.state === 'none' || h.state === 'ret') return;
     // cable whips back into the gear instead of vanishing
-    h.state = 'ret'; h.t = 0; h.joint = null; h.owner = null; h.tension = 0;
+    h.state = 'ret'; h.t = 0; h.joint = null; h.owner = null; h.tension = 0; h.wrap = null;
     this.game.audio.hookRetract(h.side);
   }
 
@@ -210,7 +210,7 @@ export class Player {
       _v2.subVectors(from, h.tip);
       const d = _v2.length(), step = (90 + h.t * 900) * dt;
       h.t += dt;
-      if (d <= step || h.t > 0.6) h.state = 'none';
+      if (d <= step || h.t > 0.6) { h.state = 'none'; h.wrap = null; }
       else h.tip.addScaledVector(_v2, step / d);
       return;
     }
@@ -268,6 +268,20 @@ export class Player {
         continue;
       }
       s.vel.y -= 8 * dt;
+      // soft-lock: once close and roughly on-target, home onto the nearest titan
+      if (!s.locked) {
+        let best = null, bd = 14;
+        for (const t of g.titans) {
+          if (!t.alive) continue;
+          const d = s.pos.distanceTo(t.nape.c);
+          if (d < bd) { bd = d; best = t; }
+        }
+        if (best) {
+          _v2.copy(best.nape.c).sub(s.pos).normalize();
+          const sp = s.vel.length();
+          s.vel.normalize().lerp(_v2, Math.min(1, 7 * dt)).normalize().multiplyScalar(sp);
+        }
+      }
       const len = s.vel.length() * dt;
       if (len > 0) {
         _v.copy(s.vel).normalize();
@@ -379,7 +393,22 @@ export class Player {
     }
     // cables
     for (const h of att) {
-      const a = this.anchorOf(h, _v);
+      // chain physics: the cable wraps around the first building between gear and anchor,
+      // so a blocked line swings you around the obstacle instead of pulling through it
+      h.wrapT = (h.wrapT || 0) - dt;
+      if (h.wrapT <= 0) {
+        h.wrapT = 0.12;
+        this.model.gearPos(h.side, _v3);
+        _v4.subVectors(this.anchorOf(h, _v), _v3);
+        const dlen = _v4.length();
+        if (dlen > 2) {
+          _v4.divideScalar(dlen);
+          const hit = g.world.col.raycast(_v3, _v4, dlen - 0.6, { dynamics: false });
+          if (hit.collider) { (h.wrap ||= new THREE.Vector3()).copy(hit.point).addScaledVector(hit.normal, 0.15); }
+          else h.wrap = null;
+        }
+      }
+      const a = h.wrap ? _v.copy(h.wrap) : this.anchorOf(h, _v);
       _n.subVectors(a, p);
       const dist = _n.length();
       if (dist < 1e-3) continue;
