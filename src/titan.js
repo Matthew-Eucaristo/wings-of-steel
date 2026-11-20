@@ -407,6 +407,7 @@ export class Titan {
           this.grabSide = local.x > 0 ? 1 : 0;
           if (this.armCut[this.grabSide] > 0) this.grabSide = 1 - this.grabSide;
           this.setState('reach');
+          this.lunge = 0;
           g.audio.roar(pos, this.height, 0.35);
         }
         // abnormal lunge
