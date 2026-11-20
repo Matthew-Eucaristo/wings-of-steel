@@ -46,7 +46,8 @@ export class Player {
     if (!aim) { g.hud.flash('no-anchor'); g.audio.click(); return; }
     // split anchors slightly so left/right cables diverge like real ODM
     const cam = g.cam;
-    const spread = clamp(aim.t * 0.07, 0.3, 4.5) * h.side;
+    // focus mode: both cables converge on the crosshair point for a straight hard pull
+    const spread = this.hookMode === 'focus' ? 0 : clamp(aim.t * 0.07, 0.3, 4.5) * h.side;
     _v.copy(aim.point).addScaledVector(cam.right, spread);
     const from = this.model.gearPos(h.side, _v2);
     _v3.subVectors(_v, from);
