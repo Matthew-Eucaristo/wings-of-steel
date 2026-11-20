@@ -85,11 +85,11 @@ class Game {
     renderer.setAnimationLoop(() => this.frame());
   }
 
-  beginPlay() {
+  beginPlay(quiet) {
     this.started = true;
     document.getElementById('title').classList.add('hidden');
     this.hud.show(true);
-    this.hud.toast('BERSIAP<br><span style="font-size:18px">Titan menerobos Gerbang Selatan!</span>', 2.5);
+    if (!quiet) this.hud.toast('BERSIAP<br><span style="font-size:18px">Titan menerobos Gerbang Selatan!</span>', 2.5);
   }
 
   restart() {

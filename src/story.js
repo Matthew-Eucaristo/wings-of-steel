@@ -109,7 +109,7 @@ export class Story {
     g.cam.yaw = this.endYaw; g.cam.pitch = -0.05; g.cam.target.copy(g.player.pos);
     this.el.bars.classList.remove('on'); this.el.skip.classList.add('hidden');
     this.el.cap.classList.remove('show'); this.el.fade.style.opacity = 0;
-    g.beginPlay();
+    g.beginPlay(true);
     this.startTutorial();
   }
 
@@ -118,6 +118,7 @@ export class Story {
     this.phase = 'tut'; this.step = -1;
     this.s = { lookAmt: 0, reelT: 0, airAttach: 0, gasT: 0, dashed: false, prevAtt: 0 };
     this.el.tut.classList.remove('hidden');
+    $('wave').textContent = 'PELATIHAN';
     this.next();
   }
   next() {
@@ -152,6 +153,7 @@ export class Story {
     this.el.tut.classList.add('hidden');
     g.waveT = quick ? 2 : 4;
     $('obj').textContent = 'Tebas tengkuk semua titan.';
+    if (g.wave === 0) $('wave').textContent = '';
   }
   onDash() { if (this.s) this.s.dashed = true; }
 
