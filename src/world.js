@@ -230,7 +230,8 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
   vec2 guv = vWPos.xz / 9.0;
   vec4 grassC = texture2D(map, guv);
   vec4 grassC2 = texture2D(map, vWPos.xz / 41.0 + 0.37);
-  vec4 cob = texture2D(uCobble, vWPos.xz / 6.0);
+  vec4 cob = texture2D(uCobble, vWPos.xz / 2.4);
+  cob.rgb *= vec3(1.15, 1.02, 0.86);
   float macro = fbm2(vWPos.xz * 0.012);
   float tm = townMask();
   vec3 g = mix(grassC.rgb, grassC2.rgb, 0.45) * mix(0.75, 1.2, macro);
@@ -248,12 +249,12 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
   {
     float tmN = townMask();
     vec3 nG = texture2D(normalMap, vWPos.xz / 9.0).xyz * 2.0 - 1.0;
-    vec3 nC = texture2D(uCobbleN, vWPos.xz / 6.0).xyz * 2.0 - 1.0;
-    vec3 mapN = normalize(mix(nG * vec3(0.6,0.6,1.0), nC * vec3(1.2,1.2,1.0), tmN));
+    vec3 nC = texture2D(uCobbleN, vWPos.xz / 2.4).xyz * 2.0 - 1.0;
+    vec3 mapN = normalize(mix(nG * vec3(0.6,0.6,1.0), nC * vec3(0.55,0.55,1.0), tmN));
     normal = normalize( tbn * mapN );
   }
 `);
-      sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(0.95, 0.8, townMask());');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(0.95, 0.9, townMask());');
     };
     // ground needs tangent frame for normal map: use USE_NORMALMAP_TANGENTSPACE with computed tbn from derivatives
     const g = new THREE.PlaneGeometry(9000, 9000, 1, 1);
@@ -445,8 +446,8 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     {
       const x = 0, z = -54, w = 26, d = 18, h = 20;
       addBuilding(x, z, Math.PI, w, d, h, { flat: true, plaster: new THREE.Color('#d9cfbc') });
-      this.playerSpawn = new THREE.Vector3(x, h + 1.4, z + 2);
-      this.addDepot(new THREE.Vector3(x - 6, h + 0.2, z), 'HQ');
+      this.playerSpawn = new THREE.Vector3(x + 5, h + 1.4, z + 4);
+      this.addDepot(new THREE.Vector3(x - 8, h + 0.2, z - 3), 'HQ');
     }
 
     const ringRadii = [50, 74, 98, 122, 146, 170, 194];
@@ -610,10 +611,10 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     const beamMat = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
       uniforms: { uTime: tu },
-      vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-      fragmentShader: 'varying vec2 vUv; uniform float uTime; void main(){ float a = pow(1.0-vUv.y, 2.0) * (0.35 + 0.1*sin(uTime*3.0 + vUv.y*20.0)); gl_FragColor = vec4(vec3(0.35,1.0,0.6)*a, a);}',
+      vertexShader: 'varying vec2 vUv; varying float vD; void main(){ vUv=uv; vec4 mv = modelViewMatrix*vec4(position,1.0); vD = -mv.z; gl_Position = projectionMatrix*mv;}',
+      fragmentShader: 'varying vec2 vUv; varying float vD; uniform float uTime; void main(){ float a = pow(1.0-vUv.y, 2.0) * (0.3 + 0.1*sin(uTime*3.0 + vUv.y*20.0)) * smoothstep(3.0, 25.0, vD); gl_FragColor = vec4(vec3(0.35,1.0,0.6)*a, a);}',
     });
-    const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.4, 60, 24, 1, true), beamMat);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.8, 60, 24, 1, true), beamMat);
     beam.position.set(0, 30, 0);
     g.add(beam);
     const ring = new THREE.Mesh(new THREE.RingGeometry(4.2, 4.6, 48), new THREE.MeshBasicMaterial({ color: '#7dffb0', transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }));

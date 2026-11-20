@@ -2,6 +2,26 @@ import * as THREE from 'three';
 import { Capsule } from './collision.js';
 import { clamp, damp, lerp, rand, randSign, mulberry32 } from './util.js';
 import { skinTextures } from './textures.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+
+// collapse static child meshes of every joint into one mesh per material (draw-call reduction)
+function mergeJoints(root) {
+  const groups = [];
+  root.traverse((o) => { if (o.isGroup) groups.push(o); });
+  for (const g of groups) {
+    const byMat = new Map();
+    for (const c of g.children) if (c.isMesh) { if (!byMat.has(c.material)) byMat.set(c.material, []); byMat.get(c.material).push(c); }
+    for (const [mat, list] of byMat) {
+      if (list.length < 2) continue;
+      const geos = list.map((m) => { m.updateMatrix(); const gg = m.geometry.index ? m.geometry.clone() : m.geometry.clone(); gg.applyMatrix4(m.matrix); return gg; });
+      const merged = mergeGeometries(geos.map((x) => (x.index ? x : x)), false);
+      if (!merged) continue;
+      for (const m of list) { g.remove(m); m.geometry.dispose(); }
+      geos.forEach((x) => x.dispose());
+      const mm = new THREE.Mesh(merged, mat); mm.castShadow = mm.receiveShadow = true; g.add(mm);
+    }
+  }
+}
 
 let SKIN = null;
 const _v = new THREE.Vector3();
@@ -202,6 +222,7 @@ export class Titan {
       foot.rotation.x = Math.PI / 2; foot.position.set(0, -0.12, 0.3); foot.scale.set(1.2, 1, 0.75);
       this.thighs.push(hp); this.knees.push(kn); this.ankles.push(an);
     }
+    mergeJoints(root);
   }
 
   makeHitboxes() {

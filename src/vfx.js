@@ -96,7 +96,7 @@ export class VFX {
         pts[k].y -= sag;
         if (h.state === 'fly') pts[k].x += Math.sin(u * 20 - t * 40) * 0.08 * Math.sin(u * Math.PI);
       }
-      rb.set(pts, cam.position, (k, nn) => 0.035 + (k === nn - 1 ? 0.05 : 0), 1);
+      rb.set(pts, cam.position, (k, nn) => 0.06 + (k === nn - 1 ? 0.08 : 0), 1);
       if (h.state === 'fly' && Math.random() < 0.5) this.add.spawn(h.tip, _d.set(0, 0, 0), { life: 0.08, size0: 0.25, size1: 0.1, color: SPARK, alpha: 0.8 });
     }
     // blade trails while slashing or fast

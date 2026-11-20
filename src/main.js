@@ -180,6 +180,20 @@ class Game {
 
   frame() {
     const rdt = Math.min(this.clock.getDelta(), 1 / 20);
+    if (this.frozen) return;
+    this.step(rdt);
+    this.post.render(this.elapsed);
+    this.input.endFrame();
+  }
+
+  // deterministic stepping for automated tests: game.sim(seconds)
+  sim(sec, dt = 1 / 60, each) {
+    this.frozen = true;
+    for (let t = 0; t < sec; t += dt) { this.step(dt); if (each) each(this); this.input.endFrame(); }
+    this.post.render(this.elapsed);
+  }
+
+  step(rdt) {
     this.elapsed += rdt;
     const inp = this.input;
     if (this.locked) this.cam.look(inp.mouse.dx, inp.mouse.dy);
@@ -219,9 +233,8 @@ class Game {
     this.flash = Math.max(0, this.flash - rdt * 2.5);
     u.uFlash.value = this.flash * this.flash;
     u.uSlow.value = damp(u.uSlow.value, this.slowT > 0 ? 1 : 0, 8, rdt);
-    this.post.render(this.elapsed);
-    inp.endFrame();
   }
 }
 
+window.THREE = THREE;
 window.game = new Game();
