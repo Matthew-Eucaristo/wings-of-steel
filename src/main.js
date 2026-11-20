@@ -184,8 +184,8 @@ class Game {
       this.hud.toast(lbl, 1.2);
       this.hud.combo(p.combo);
       this.stats.bestCombo = Math.max(this.stats.bestCombo, p.combo);
-      this.slowT = 0.9; this.hitstop = 0.08; this.flash = 0.35;
-      this.cam.shake(0.7); this.cam.killCam = 0.9;
+      this.slowT = 1.0; this.hitstop = 0.11; this.flash = 0.35;
+      this.cam.shake(0.9); this.cam.killCam = 1.0;
       t.root.updateMatrixWorld();
     } else if (result === 'nape') {
       this.vfx.bloodSpray(point, dir, 40, 1.1);
