@@ -90,12 +90,13 @@ class Game {
   spawnWave() {
     this.wave++;
     const n = Math.min(2 + this.wave, 9);
-    const spawns = this.world.titanSpawns;
+    const pp = this.player.pos;
+    const spawns = this.world.titanSpawns.slice().sort((a, b) => a.distanceToSquared(pp) - b.distanceToSquared(pp)).slice(0, 6);
     for (let i = 0; i < n; i++) {
       const base = spawns[Math.floor(Math.random() * spawns.length)];
       const pos = base.clone().add(new THREE.Vector3(rand(-20, 20), 0, rand(-20, 20)));
       const abn = this.wave >= 2 && Math.random() < 0.15 + this.wave * 0.05;
-      this.titans.push(new Titan(this, pos, { type: abn ? 'abnormal' : 'normal', height: abn ? rand(9, 14) : rand(6, 15) }));
+      this.titans.push(new Titan(this, pos, { type: abn ? 'abnormal' : 'normal', height: abn ? rand(10, 14) : (Math.random() < 0.2 ? 15 : rand(8, 13)) }));
     }
     // first wave: one wandering titan close to start so there's action right away
     if (this.wave === 1) {
@@ -189,7 +190,7 @@ class Game {
   // deterministic stepping for automated tests: game.sim(seconds)
   sim(sec, dt = 1 / 60, each) {
     this.frozen = true;
-    for (let t = 0; t < sec; t += dt) { this.step(dt); if (each) each(this); this.input.endFrame(); }
+    for (let t = 0; t < sec; t += dt) { if (each) each(this); this.step(dt); this.input.endFrame(); }
     this.post.render(this.elapsed);
   }
 
@@ -204,6 +205,8 @@ class Game {
     this.timeScale = damp(this.timeScale, ts, 25, rdt);
     const paused = this.started && !this.locked && !this.player.dead;
     const dt = paused ? 0 : rdt * this.timeScale;
+    if (inp.pressed('KeyH')) document.getElementById('help').classList.toggle('hidden');
+    if (inp.pressed('KeyM')) this.audio.musicOn = !this.audio.musicOn;
     if (dt > 0) {
       if (this.started) {
         const alive = this.titans.filter((t) => t.alive).length;

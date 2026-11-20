@@ -720,6 +720,9 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
           float sw = sin(uTime*1.3 + wp0.x*0.05 + wp0.z*0.04) * 0.5 + sin(uTime*2.7 + wp0.y*0.3)*0.2;
           transformed.x += sw * 0.6; transformed.z += sw * 0.4;
           transformed += normal * (sin(wp0.x*0.9)*sin(wp0.y*1.1)*sin(wp0.z*0.8)) * 1.2;`);
+      // fake light transmission so canopies don't read as black blobs
+      sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+          totalEmissiveRadiance += diffuseColor.rgb * vec3(0.32, 0.4, 0.18);`);
     };
     return mat;
   }

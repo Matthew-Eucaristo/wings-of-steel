@@ -8,7 +8,7 @@ const UP = new THREE.Vector3(0, 1, 0);
 const near = [];
 
 export const TUNE = {
-  gravity: 21, hookRange: 120, hookSpeed: 260, reelAccel: 52, reelMax: 62, gasThrust: 34, dashImpulse: 15,
+  gravity: 21, hookRange: 120, hookSpeed: 260, reelAccel: 46, reelMax: 46, gasThrust: 34, dashImpulse: 15,
   airSteer: 9, swingSteer: 16, runSpeed: 10, jump: 9, radius: 0.42, slashTime: 0.34, reach: 2.6,
 };
 
@@ -216,6 +216,8 @@ export class Player {
         const vr = v.dot(_n);
         if (vr < TUNE.reelMax) v.addScaledVector(_n, TUNE.reelAccel * dt / att.length * (att.length > 1 ? 1.35 : 1));
         gasUse += 5 * dt / att.length; this.gasOn = true;
+        // ease off close to the anchor so reeling into a wall doesn't splat you
+        if (dist < 7 && vr > 0) v.addScaledVector(_n, -vr * Math.min(1, dt * (7 - dist) * 1.5));
       }
       // rope only pulls (inextensible), slowly winches in for tension
       h.len = Math.min(h.len, dist);
@@ -232,6 +234,7 @@ export class Player {
     // quadratic air drag (gentle — keep momentum)
     const sp = v.length();
     if (!this.grounded) v.multiplyScalar(1 - Math.min(0.5, 0.00055 * sp * dt * 60) * dt * 2);
+    if (sp > 55) v.multiplyScalar(1 - Math.min(0.5, (sp - 55) * 0.03 * dt));
     p.addScaledVector(v, dt);
     this.collide(dt);
   }
@@ -274,7 +277,7 @@ export class Player {
     if (this.grounded && !wasGround) { this.game.onLand(maxHit); this.airTime = 0; }
     if (!this.grounded) this.airTime += dt;
     // crashing into stuff at very high speed hurts (realism)
-    if (maxHit > 34 && this.invuln <= 0) { this.damage(Math.round((maxHit - 34) * 2.2), 'crash'); this.game.onCrash(maxHit); this.invuln = 0.4; }
+    if (maxHit > 46 && this.invuln <= 0) { this.damage(Math.round((maxHit - 46) * 1.6), 'crash'); this.game.onCrash(maxHit); this.invuln = 0.4; }
     else if (maxHit > 16 && !this.grounded) this.game.onBump(maxHit);
   }
 
@@ -372,7 +375,7 @@ export class Player {
     t.handPos(t.grabSide, this.pos);
     this.vel.set(0, 0, 0);
     const inp = this.game.input;
-    if (inp.mouse.lPressed || inp.pressed('Space') ) { this.struggle += 0.11; this.game.audio.struggle(); this.game.cam.shake(0.25); }
+    if (inp.mouse.lPressed || inp.pressed('Space') ) { this.struggle += 0.14; this.game.audio.struggle(); this.game.cam.shake(0.25); }
     this.struggle = Math.max(0, this.struggle - dt * 0.12);
     if (this.struggle >= 1 && this.blade > 0) {
       // cut free: sever the fingers

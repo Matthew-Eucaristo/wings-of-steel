@@ -261,8 +261,14 @@ export class Titan {
   setState(s) { this.state = s; this.stateT = 0; }
 
   // aim an arm (shoulder joint) to a world target
-  aimArm(i, target, w) {
+  aimArm(i, target, w) { (this.armAim || (this.armAim = []))[i] = { t: target.clone(), w }; }
+  applyArmAim() {
+    if (!this.armAim) return;
+    for (let i = 0; i < 2; i++) { const a = this.armAim[i]; if (a) this._aim(i, a.t, a.w); this.armAim[i] = null; }
+  }
+  _aim(i, target, w) {
     const sh = this.shoulders[i];
+    sh.parent.updateMatrixWorld(true);
     const local = sh.parent.worldToLocal(_v.copy(target)).sub(sh.position).normalize();
     _q.setFromUnitVectors(DOWN, local);
     sh.quaternion.slerp(_q, w);
@@ -336,12 +342,12 @@ export class Titan {
     } else if (this.state === 'grab') {
       // hold player and bring to mouth
       const i = this.grabSide;
-      const t = clamp(this.stateT / 2.6, 0, 1);
+      const t = clamp(this.stateT / 3.6, 0, 1);
       const mouth = this.mouthPos(new THREE.Vector3());
       const front = new THREE.Vector3(Math.sin(this.heading), 0.2, Math.cos(this.heading)).multiplyScalar(2.6 * s);
       const tgt = mouth.add(front.multiplyScalar(1 - t));
       this.aimArm(i, tgt, 0.25);
-      if (this.stateT > 2.8) { p.eaten(this); this.setState('chase'); this.cooldown = 4; }
+      if (this.stateT > 4.0) { p.eaten(this); this.setState('chase'); this.cooldown = 4; }
     } else {
       // locomotion states
       if (!canSee || this.passive) {
@@ -370,7 +376,7 @@ export class Titan {
       } else {
         if (this.state !== 'chase') this.setState('chase');
         wantHeading = Math.atan2(toP.x, toP.z);
-        targetSpeed = (abn ? 7.5 : 1.7) * Math.sqrt(s) * (distH < reach * 1.3 ? 0.3 : 1);
+        targetSpeed = (abn ? 8.5 : 3.0) * Math.sqrt(s) * (distH < reach * 1.3 ? 0.3 : 1);
         lean = abn ? 0.55 : 0.08;
         const pyRel = p.pos.y - pos.y;
         if (distH < reach * 1.15 && pyRel < this.height * 1.05 && pyRel > -2 && this.cooldown <= 0) {
@@ -480,6 +486,7 @@ export class Titan {
     this.head.rotation.y = damp(this.head.rotation.y, yaw * look + (this.blind > 0 ? Math.sin(this.stateT * 5) * 0.6 : 0), 3, dt);
     this.head.rotation.x = damp(this.head.rotation.x, pitch * look, 3, dt);
     this.head.rotation.z = Math.sin(this.walkPhase * 0.5) * 0.12;
+    this.applyArmAim();
     // footsteps
     for (let i = 0; i < 2; i++) {
       const f = Math.sin(ph + (i ? Math.PI : 0));
