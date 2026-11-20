@@ -518,7 +518,7 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
 
     const facadeMat = new THREE.MeshStandardMaterial({
       map: t.facade.map, normalMap: t.facade.normalMap, emissiveMap: t.facade.emissiveMap,
-      emissive: new THREE.Color('#ffb066'), emissiveIntensity: 0.9, vertexColors: true, roughness: 0.88,
+      emissive: new THREE.Color('#ffb066'), emissiveIntensity: 0.35, vertexColors: true, roughness: 0.88,
     });
     facadeMat.normalScale.set(0.8, 0.8);
     const roofMat = new THREE.MeshStandardMaterial({ map: t.roof.map, normalMap: t.roof.normalMap, vertexColors: true, roughness: 0.75 });
