@@ -425,7 +425,7 @@ export class Player {
     const f2 = _v3.crossVectors(right, up).normalize();
     _m.makeBasis(right, up, f2);
     _q.setFromRotationMatrix(_m);
-    this.quat.slerp(_q, 1 - Math.exp(-(this.grounded ? 14 : 9) * dt));
+    this.quat.slerp(_q, 1 - Math.exp(-(this.grounded ? 18 : 9) * dt));
     _v.set(0, this.grounded ? -0.05 : 0, 0).add(this.pos);
     this.model.update(dt, _v, this.quat, {
       grounded: this.grounded && !att.length, speed: this.grounded ? Math.hypot(v.x, v.z) : this.speed, vel: v,

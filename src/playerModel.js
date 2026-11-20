@@ -187,13 +187,17 @@ export class PlayerModel {
     const ph = this.runPhase;
     const run = st.grounded ? clamp(st.speed / 9, 0, 1) : 0;
     const air = st.grounded ? 0 : 1;
+    // landing absorb: knees and spine fold on touchdown, scaled by impact speed
+    if (st.grounded && this.wasAir && (this.prevVy || 0) < -5) this.landK = clamp(-this.prevVy / 20, 0.3, 1);
+    this.wasAir = !st.grounded; this.prevVy = st.vel ? st.vel.y : 0;
+    const lk = this.landK = damp(this.landK || 0, 0, 4.5, dt);
     // legs
     for (let i = 0; i < 2; i++) {
       const sw = Math.sin(ph + i * Math.PI);
       const airTh = st.hooked ? -0.25 - i * 0.35 : -0.6 + i * 0.25;
       const airKn = st.hooked ? 0.5 + i * 0.4 : 1.1 - i * 0.2;
-      D(this.th[i].rotation, 'x', lerp(-sw * 0.9 * run, airTh, air));
-      D(this.kn[i].rotation, 'x', lerp(Math.max(0, -Math.sin(ph + i * Math.PI + 0.9)) * 1.3 * run + 0.05, airKn, air));
+      D(this.th[i].rotation, 'x', lerp(-sw * 0.9 * run, airTh, air) - lk * (1.0 + i * 0.25));
+      D(this.kn[i].rotation, 'x', lerp(Math.max(0, -Math.sin(ph + i * Math.PI + 0.9)) * 1.3 * run + 0.05, airKn, air) + lk * (1.6 + i * 0.3));
       D(this.th[i].rotation, 'z', (i ? -1 : 1) * (air * 0.12));
     }
     // arms
@@ -233,11 +237,11 @@ export class PlayerModel {
     }
     // blade glow when fast
     this.bladeMat.emissiveIntensity = damp(this.bladeMat.emissiveIntensity, st.speed > 25 || st.spin ? 1.2 : 0.05, 6, dt);
-    D(this.spine.rotation, 'x', lerp(run * 0.35, st.hooked ? 0.15 : 0.35, air));
+    D(this.spine.rotation, 'x', lerp(run * 0.35, st.hooked ? 0.15 : 0.35, air) + lk * 0.5);
     D(this.spine.rotation, 'y', sl >= 0 ? Math.sin(sl * Math.PI) * 0.7 : 0, 20);
     this.head.visible = !st.fp;
     D(this.head.rotation, 'x', -this.spine.rotation.x * 0.6);
-    this.pelvis.position.y = 0.02 + (st.grounded ? Math.abs(Math.cos(ph)) * 0.04 * run : 0);
+    this.pelvis.position.y = 0.02 + (st.grounded ? Math.abs(Math.cos(ph)) * 0.04 * run : 0) - lk * 0.34;
     r.updateMatrixWorld(true);
     this.updateCape(dt, st.vel);
   }
