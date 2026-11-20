@@ -123,6 +123,9 @@ export function facadeTextures() {
       const x0 = bx * 256, y0 = by * 256;
       // window
       const ww = 92, wh = 128, wx = x0 + 128 - ww / 2, wy = y0 + 72;
+      // one bay in four is bare plaster with a cross brace, so walls aren't a solid window grid
+      const plain = bx === 1 && by === 0;
+      if (!plain) {
       // shutters
       c.fillStyle = r() < 0.5 ? '#3d4a35' : '#5a3a26';
       c.fillRect(wx - 30, wy - 4, 26, wh + 8); c.fillRect(wx + ww + 4, wy - 4, 26, wh + 8);
@@ -161,6 +164,7 @@ export function facadeTextures() {
           c.beginPath(); c.arc(wx + 4 + k * 11, wy + wh + 14, 6, 0, Math.PI * 2); c.fill();
         }
       }
+      }
       // timber: posts & floor beams & braces
       both((ctx, s) => {
         ctx.fillStyle = s;
@@ -169,6 +173,10 @@ export function facadeTextures() {
         ctx.fillRect(x0, y0 + 222, 256, 10);
         ctx.strokeStyle = s; ctx.lineWidth = 12;
         const brace = r();
+        if (plain) {
+          ctx.beginPath(); ctx.moveTo(x0 + 10, y0 + 222); ctx.lineTo(x0 + 246, y0 + 12); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(x0 + 10, y0 + 12); ctx.lineTo(x0 + 246, y0 + 222); ctx.stroke();
+        }
         if (brace < 0.6) {
           ctx.beginPath(); ctx.moveTo(x0 + 8, y0 + 228); ctx.lineTo(x0 + 44, y0 + 12); ctx.stroke();
           ctx.beginPath(); ctx.moveTo(x0 + 248, y0 + 228); ctx.lineTo(x0 + 212, y0 + 12); ctx.stroke();
