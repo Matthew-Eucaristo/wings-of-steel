@@ -115,6 +115,8 @@ export class World {
     this.depots = [];
     this.titanSpawns = [];
     this.obstacles = []; // {x,z,r,h} footprints for titan steering
+    this.houses = [];      // destructible buildings {x,z,yaw,w,d,h,top,cols,lists,sec,dead}
+    this.houseSections = [];
     this.time = 0;
     this.uniformsTime = { value: 0 };
     this.rng = mulberry32(1337);
@@ -369,7 +371,8 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
 
   buildTown() {
     const t = this.textures;
-    const walls = [], roofs = [], trim = [], stones = [];
+    const _townWalls = [], _townRoofs = [], _townTrim = [], _townStones = [];
+    const walls = _townWalls, roofs = _townRoofs, trim = _townTrim, stones = _townStones;
     const rr = this.rng;
     const avenues = [0, Math.PI / 4, Math.PI / 2, (3 * Math.PI) / 4, Math.PI, (5 * Math.PI) / 4, (3 * Math.PI) / 2, (7 * Math.PI) / 4];
     const wood = new THREE.Color('#4a3424');
@@ -379,6 +382,9 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     const addBuilding = (x, z, yaw, w, d, h, opts = {}) => {
       const plaster = opts.plaster || PLASTER[Math.floor(rr() * PLASTER.length)];
       const roofC = opts.roofC || ROOFC[Math.floor(rr() * ROOFC.length)];
+      const own = opts.destructible === false ? null : { x, z, yaw, w, d, h, cols: [], lists: { walls: [], roofs: [], trim: [], stones: [] }, dead: false };
+      const walls = own ? own.lists.walls : _townWalls, roofs = own ? own.lists.roofs : _townRoofs, trim = own ? own.lists.trim : _townTrim, stones = own ? own.lists.stones : _townStones;
+      const addCol = (cc) => { const col = this.col.add(cc); if (own) own.cols.push(col); return col; };
       // stone foundation
       stones.push(place(boxGeo(w + 0.3, 1.2, d + 0.3, 8, 8, stoneC), x, 0.6, z, yaw));
       walls.push(place(boxGeo(w, h - 1.2, d, 8, 6.4, plaster), x, 1.2 + (h - 1.2) / 2, z, yaw));
@@ -391,7 +397,7 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
       }
       trim.push(place(boxGeo(w + 0.5, 0.35, d + 0.5, 1, 1, wood), x, h - 0.1, z, yaw));
       const bodyR = Math.hypot(w, h, d) / 2;
-      this.col.add(new Convex(new THREE.Vector3(x, h / 2, z), yaw, boxPlanes(w / 2, h / 2, d / 2), bodyR, { surface: 'wood' }));
+      addCol(new Convex(new THREE.Vector3(x, h / 2, z), yaw, boxPlanes(w / 2, h / 2, d / 2), bodyR, { surface: 'wood' }));
       let top = h;
       if (opts.flat) {
         // parapet
@@ -401,7 +407,7 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
         }
         roofs.push(place(boxGeo(w - 0.2, 0.2, d - 0.2, 4, 4, new THREE.Color('#8a7d6a')), x, h + 0.05, z, yaw));
         top = h + 0.2;
-        this.col.add(new Convex(new THREE.Vector3(x, h + 0.1, z), yaw, boxPlanes(w / 2, 0.1, d / 2), Math.hypot(w, d) / 2, { surface: 'stone' }));
+        addCol(new Convex(new THREE.Vector3(x, h + 0.1, z), yaw, boxPlanes(w / 2, 0.1, d / 2), Math.hypot(w, d) / 2, { surface: 'stone' }));
         // rooftop clutter (chimney stack + hatch) so flat roofs aren't bare slabs; skipped on the HQ landing roof
         if (!opts.plaster) {
           // position hash instead of rr() so the city layout RNG sequence is unchanged
@@ -409,7 +415,7 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
           const cx = (hr(1) - 0.5) * (w - 3), cz = (hr(2) - 0.5) * (d - 3);
           const [px, pz] = toW(cx, cz);
           stones.push(place(boxGeo(1.2, 2.4, 1.2, 2, 4, stoneC), px, h + 1.4, pz, yaw));
-          this.col.add(new Convex(new THREE.Vector3(px, h + 1.4, pz), yaw, boxPlanes(0.6, 1.2, 0.6), 1.5, { surface: 'stone' }));
+          addCol(new Convex(new THREE.Vector3(px, h + 1.4, pz), yaw, boxPlanes(0.6, 1.2, 0.6), 1.5, { surface: 'stone' }));
           const [qx, qz] = toW(-cx * 0.8, -cz * 0.8);
           roofs.push(place(boxGeo(1.8, 0.5, 1.8, 2, 2, new THREE.Color('#5a4a3a')), qx, h + 0.45, qz, yaw));
         }
@@ -417,7 +423,7 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
         const rh = opts.rh ?? d * (0.32 + rr() * 0.18);
         roofs.push(place(roofGeo(w, rh, d, 0.6, roofC), x, h, z, yaw));
         walls.push(place(gableGeo(w, rh, d, plaster), x, h, z, yaw));
-        this.col.add(new Convex(new THREE.Vector3(x, h, z), yaw, prismPlanes(w / 2 + 0.3, rh, d / 2 + 0.3), Math.hypot(w, rh, d) / 2 + 1, { surface: 'roof' }));
+        addCol(new Convex(new THREE.Vector3(x, h, z), yaw, prismPlanes(w / 2 + 0.3, rh, d / 2 + 0.3), Math.hypot(w, rh, d) / 2 + 1, { surface: 'roof' }));
         top = h + rh;
         // chimney
         if (rr() < 0.6) {
@@ -425,7 +431,15 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
           stones.push(place(boxGeo(1.0, rh + 1.6, 1.0, 8, 8, stoneC), px, h + (rh + 1.6) / 2, pz, yaw));
         }
       }
-      this.obstacles.push({ x, z, r: Math.max(w, d) * 0.55, h: top });
+      const ob = { x, z, r: Math.max(w, d) * 0.55, h: top, house: own };
+      this.obstacles.push(ob);
+      if (own) {
+        own.ob = ob; own.top = top;
+        let sec = this.houseSections[this.houseSections.length - 1];
+        if (!sec || sec.houses.length >= 8) { sec = { houses: [], meshes: [] }; this.houseSections.push(sec); }
+        own.sec = sec; sec.houses.push(own);
+        this.houses.push(own);
+      }
       return top;
     };
 
@@ -464,7 +478,7 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     // Survey HQ: start point and supply depot on the roof (towards -z)
     {
       const x = 0, z = -54, w = 26, d = 18, h = 20;
-      addBuilding(x, z, Math.PI, w, d, h, { flat: true, plaster: new THREE.Color('#d9cfbc') });
+      addBuilding(x, z, Math.PI, w, d, h, { flat: true, plaster: new THREE.Color('#d9cfbc'), destructible: false });
       this.playerSpawn = new THREE.Vector3(x + 5, h + 1.4, z + 4);
       this.addDepot(new THREE.Vector3(x - 8, h + 0.2, z - 3), 'HQ');
     }
@@ -506,7 +520,7 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     {
       const a = Math.PI / 2 + 0.2, r = 86;
       const x = r * Math.sin(a), z = r * Math.cos(a);
-      addBuilding(x, z, a + Math.PI / 2, 12, 30, 16, { plaster: new THREE.Color('#e9e4d8'), roofC: ROOFC[3], rh: 8 });
+      addBuilding(x, z, a + Math.PI / 2, 12, 30, 16, { plaster: new THREE.Color('#e9e4d8'), roofC: ROOFC[3], rh: 8, destructible: false });
       const tx = x + Math.sin(a) * 0, tz = z;
       const s = 8, th = 46;
       const ox = tx - Math.cos(a) * 0 - Math.sin(a) * 19, oz = tz - Math.cos(a) * 19;
@@ -537,12 +551,15 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     const trimMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
     const stoneMat = this.wallMaterial();
     stoneMat.vertexColors = true;
+    this.townMats = { walls: facadeMat, roofs: roofMat, trim: trimMat, stones: stoneMat };
     for (const [list, mat] of [[walls, facadeMat], [roofs, roofMat], [trim, trimMat], [stones, stoneMat]]) {
       const g = mergeGeometries(list);
       const mesh = new THREE.Mesh(g, mat);
       mesh.castShadow = true; mesh.receiveShadow = true;
       this.scene.add(mesh);
     }
+    for (const sec of this.houseSections) this.buildHouseSection(sec);
+
     this.buildProps();
   }
 
@@ -642,6 +659,62 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     g.add(ring);
     this.scene.add(g);
     this.depots.push({ pos: pos.clone(), name, radius: 6, group: g, ring });
+  }
+
+  // rebuild a destructible-house section's merged meshes, skipping dead houses
+  buildHouseSection(sec) {
+    for (const m of sec.meshes) { this.scene.remove(m); m.geometry.dispose(); }
+    sec.meshes.length = 0;
+    for (const key of ['walls', 'roofs', 'trim', 'stones']) {
+      const list = [];
+      for (const h of sec.houses) if (!h.dead) list.push(...h.lists[key]);
+      if (!list.length) continue;
+      const mesh = new THREE.Mesh(mergeGeometries(list), this.townMats[key]);
+      mesh.castShadow = mesh.receiveShadow = true;
+      this.scene.add(mesh);
+      sec.meshes.push(mesh);
+    }
+  }
+
+  destroyHouse(h) {
+    if (!h || h.dead) return false;
+    h.dead = true;
+    if (h.ob) h.ob.dead = true;
+    for (const c of h.cols) this.col.remove(c);
+    this.col.build();
+    this.buildHouseSection(h.sec);
+    // rubble: collapsed mound + fallen beams where the house stood
+    const list = [];
+    const moundC = new THREE.Color('#7a6a55'), wood = new THREE.Color('#4a3424');
+    const rub = new THREE.SphereGeometry(1, 10, 7, 0, Math.PI * 2, 0, Math.PI / 2);
+    rub.scale(h.w * 0.52, Math.min(h.h * 0.32, 4.5), h.d * 0.52);
+    list.push(place(colorize(rub, moundC), h.x, 0.1, h.z, h.yaw));
+    const rr = Math.random;
+    for (let i = 0; i < 7; i++) {
+      const bw = 0.4 + rr() * 0.9, bl = 2 + rr() * Math.min(h.w, h.d) * 0.4;
+      list.push(place(boxGeo(bw, bl, bw, 1, 1, i % 3 ? wood : moundC),
+        h.x + (rr() - 0.5) * h.w * 0.8, 0.5 + rr() * 1.4, h.z + (rr() - 0.5) * h.d * 0.8,
+        rr() * 6, rr() * 0.9 - 0.45, rr() * 0.9 - 0.45));
+    }
+    const mesh = new THREE.Mesh(mergeGeometries(list), this.townMats.trim);
+    mesh.castShadow = mesh.receiveShadow = true;
+    this.scene.add(mesh);
+    (this.rubble ||= []).push(mesh);
+    return true;
+  }
+
+  destroyNear(p, r) {
+    let n = 0;
+    for (const h of this.houses) {
+      if (h.dead) continue;
+      const dx = p.x - h.x, dz = p.z - h.z;
+      const rr = Math.hypot(h.w, h.d) / 2 + r;
+      if (dx * dx + dz * dz > rr * rr) continue;
+      if (p.y > h.top + 6) continue;
+      if (this.destroyHouse(h)) n++;
+    }
+    if (n) this.col.build();
+    return n;
   }
 
   buildForest() {

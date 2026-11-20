@@ -7,9 +7,9 @@ const _m = new THREE.Matrix4(), _q = new THREE.Quaternion();
 const UP = new THREE.Vector3(0, 1, 0);
 const near = [];
 const CLASSES = {
-  light: { cylinders: 2, blades: 4, speed: 1.12, steer: 1.15, thrust: 1.08, damage: 1.12 },
-  balanced: { cylinders: 4, blades: 6, speed: 1, steer: 1, thrust: 1, damage: 1 },
-  heavy: { cylinders: 6, blades: 8, speed: 0.86, steer: 0.82, thrust: 0.9, damage: 0.94 },
+  light: { cylinders: 2, blades: 4, spears: 1, speed: 1.12, steer: 1.15, thrust: 1.08, damage: 1.12 },
+  balanced: { cylinders: 4, blades: 6, spears: 2, speed: 1, steer: 1, thrust: 1, damage: 1 },
+  heavy: { cylinders: 6, blades: 8, spears: 4, speed: 0.86, steer: 0.82, thrust: 0.9, damage: 0.94 },
 };
 
 export const TUNE = {
@@ -29,6 +29,7 @@ export class Player {
     this.vel = new THREE.Vector3();
     this.quat = new THREE.Quaternion();
     this.hooks = [new Hook(-1), new Hook(1)];
+    this.spearShots = [];
     this.grounded = false; this.groundN = new THREE.Vector3(0, 1, 0);
     this.hp = 100; this.gas = 100; this.blade = 100; this.dead = false;
     this.slashT = -1; this.slashHits = new Set(); this.spin = 0; this.charge = 0;
@@ -43,7 +44,7 @@ export class Player {
     this.className = CLASSES[name] ? name : 'balanced';
     this.classDef = CLASSES[this.className];
     if (refill) {
-      this.gas = 100; this.gasCylinders = this.classDef.cylinders; this.bladeSets = this.classDef.blades;
+      this.gas = 100; this.gasCylinders = this.classDef.cylinders; this.bladeSets = this.classDef.blades; this.spears = this.classDef.spears;
       this.gasReload = 0;
     }
   }
@@ -190,6 +191,9 @@ export class Player {
       this.charge = 0;
     }
     if (inp.pressed('KeyR')) this.swapBlades();
+    if (inp.pressed('KeyX')) this.fireSpear();
+    this.spearCd = Math.max(0, (this.spearCd || 0) - dt);
+    this.updateSpears(dt);
 
     for (const h of this.hooks) this.updateHook(h, dt);
     const sub = 3;
@@ -232,6 +236,57 @@ export class Player {
         this.game.onHookHit(h);
       } else h.tip.addScaledVector(_v2, step / d);
     } else h.tip.copy(tgt);
+  }
+
+  fireSpear() {
+    const g = this.game;
+    if (this.spears <= 0) { g.hud.toast('<span style="font-size:18px">BOM HABIS — depot hijau</span>', 0.8); g.audio.click(); return; }
+    if (this.spearCd > 0) return;
+    this.spears--; this.spearCd = 0.7;
+    const dir = this.aim ? _v.copy(this.aim.point).sub(this.pos).normalize() : _v.copy(this.game.cam.forward);
+    const mesh = new THREE.Mesh(Player.spearGeo || (Player.spearGeo = (() => {
+      const g2 = new THREE.CylinderGeometry(0.05, 0.05, 1.6, 6); g2.rotateX(Math.PI / 2); return g2;
+    })()), Player.spearMat || (Player.spearMat = new THREE.MeshStandardMaterial({ color: '#3a3630', emissive: '#ff5226', emissiveIntensity: 0.7, roughness: 0.5 })));
+    mesh.position.copy(this.pos).addScaledVector(dir, 1.2).add(_v2.set(0, -0.2, 0));
+    mesh.lookAt(_v2.copy(mesh.position).add(dir));
+    g.scene.add(mesh);
+    this.spearShots.push({ pos: mesh.position.clone(), vel: dir.clone().multiplyScalar(55).addScaledVector(this.vel, 0.35), mesh, fuse: -1 });
+    g.audio.dash(); g.cam.shake(0.2);
+    g.vfx.gas(this.pos, dir.clone().negate(), 1.4); // recoil puff
+    this.vel.addScaledVector(dir, -3.5); // recoil
+  }
+
+  updateSpears(dt) {
+    const g = this.game;
+    for (let i = this.spearShots.length - 1; i >= 0; i--) {
+      const s = this.spearShots[i];
+      if (s.fuse >= 0) {
+        s.fuse -= dt;
+        if (s.owner && s.owner.alive) s.pos.copy(s.anchor);
+        if (s.fuse <= 0) { g.scene.remove(s.mesh); g.explode(s.pos, s.owner); this.spearShots.splice(i, 1); }
+        else s.mesh.position.copy(s.pos);
+        continue;
+      }
+      s.vel.y -= 8 * dt;
+      const len = s.vel.length() * dt;
+      if (len > 0) {
+        _v.copy(s.vel).normalize();
+        const hit = g.world.col.raycast(s.pos, _v, len, { dynamics: true, inflate: 1.6 });
+        if (hit) {
+          s.pos.copy(hit.point);
+          if (hit.collider?.owner) {
+            s.owner = hit.collider.owner; s.anchor = hit.point.clone(); s.fuse = 0.85;
+            if (hit.collider.ja) { s.ja = hit.collider.ja; s.local = hit.point.clone(); s.ja.worldToLocal(s.local); }
+            s.mesh.position.copy(s.pos); g.vfx.sparks(s.pos, 8);
+          } else {
+            g.scene.remove(s.mesh); g.explode(hit.point, null); this.spearShots.splice(i, 1); continue;
+          }
+        } else s.pos.addScaledVector(_v, len);
+      }
+      s.mesh.position.copy(s.pos);
+      s.mesh.lookAt(_v2.copy(s.pos).add(s.vel));
+      if (s.pos.y < 0.3) { g.scene.remove(s.mesh); g.explode(s.pos, null); this.spearShots.splice(i, 1); }
+    }
   }
 
   physics(dt, control) {
@@ -485,6 +540,7 @@ export class Player {
         const before = this.gas + this.gasCylinders * 100 + this.bladeSets + this.hp;
         this.gas = Math.min(100, this.gas + dt * 45);
         this.gasCylinders = this.classDef.cylinders; this.gasReload = 0;
+        this.spears = this.classDef.spears;
         this.hp = Math.min(100, this.hp + dt * 10);
         if (this.bladeSets < this.classDef.blades && (this._dt = (this._dt || 0) + dt) > 0.35) { this._dt = 0; this.bladeSets++; }
         if (this.blade < 100 && this.bladeSets > 0 && this.blade <= 0) this.swapBlades();

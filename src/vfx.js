@@ -122,6 +122,7 @@ export class VFX {
     }
     // gas exhaust
     if (p.gasOn) for (const s of [-1, 1]) {
+      if (p.gasSide && s !== p.gasSide) continue; // one-sided exhaust on lateral bursts
       const gp = p.model.gearPos(s, _v2);
       _d.copy(p.vel).normalize();
       if (p.braking) _d.negate();

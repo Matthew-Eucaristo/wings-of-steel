@@ -294,6 +294,8 @@ export class CollisionWorld {
     this.statics.push(c);
     return c;
   }
+  remove(c) { const i = this.statics.indexOf(c); if (i >= 0) this.statics.splice(i, 1); }
+  remove(c) { const i = this.statics.indexOf(c); if (i >= 0) this.statics.splice(i, 1); }
   // bucket convex/cyl/capsule colliders into a coarse grid for sphere queries
   build() {
     this.grid.clear();

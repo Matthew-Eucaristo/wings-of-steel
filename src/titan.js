@@ -471,8 +471,14 @@ export class Titan {
     const pos = this.root.position;
     const rad = 1.2 * this.s;
     for (const o of this.game.world.obstacles) {
+      if (o.dead) continue;
       const dx = pos.x - o.x, dz = pos.z - o.z;
       const d2 = dx * dx + dz * dz, rr = o.r + rad;
+      // stride straight through small buildings: they collapse under the titan's mass
+      if (o.house && !o.house.dead && o.h < this.height * 0.55 && d2 < rr * rr * 0.6) {
+        this.game.onHouseDown(o.house, pos);
+        continue;
+      }
       if (d2 < rr * rr && d2 > 1e-6) {
         const d = Math.sqrt(d2);
         pos.x += (dx / d) * (rr - d) * Math.min(1, dt * 8);

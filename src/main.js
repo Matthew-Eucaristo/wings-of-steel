@@ -11,6 +11,7 @@ import { Story } from './story.js';
 import { clamp, damp, lerp, rand } from './util.js';
 
 const _v = new THREE.Vector3();
+const _v2 = new THREE.Vector3();
 
 class Input {
   constructor(canvas, game) {
@@ -46,6 +47,7 @@ class Input {
       if (bt[1]?.pressed) next.add('KeyF');
       if (bt[3]?.pressed) next.add('KeyC');
       if (bt[12]?.pressed) next.add('KeyR');
+      if (bt[13]?.pressed) next.add('KeyX');
       if (bt[9]?.pressed) next.add('Escape');
       this.mouse.dx += Math.abs(ax[2] || 0) > dead ? ax[2] * 17 : 0;
       this.mouse.dy += Math.abs(ax[3] || 0) > dead ? ax[3] * 14 : 0;
@@ -213,6 +215,50 @@ class Game {
     this.vfx.dust(pos, t.s * 6, 30);
     this.audio.fall(pos, t.height);
     this.cam.shake(clamp(1 - pos.distanceTo(this.player.pos) / 120, 0.1, 0.8));
+    // the corpse's full length flattens what it lands on
+    const feet = t.root.position;
+    const dirV = _v2.set(Math.sin(t.fallDir), 0, Math.cos(t.fallDir));
+    for (let i = 0; i < 4; i++) {
+      _v.set(feet.x + dirV.x * t.height * i * 0.3, 0, feet.z + dirV.z * t.height * i * 0.3);
+      const n = this.world.destroyNear(_v, t.s * 2.5);
+      if (n) { this.vfx.dust(_v, t.s * 4, 16); this.audio.thunder(); }
+    }
+  }
+  explode(pos, owner) {
+    const R = 15;
+    // visual + audio punch
+    this.vfx.flash(pos, 9); this.vfx.burst(pos, _v.set(0, 1, 0), 60);
+    this.vfx.sparks(pos, 26); this.vfx.dust(pos, 12, 30); this.vfx.steam(pos, 7, 2.5);
+    this.audio.thunder(); this.audio.fall(pos, 8);
+    this.cam.shake(clamp(1.4 - pos.distanceTo(this.player.pos) / 40, 0.3, 1.4));
+    this.hitstop = 0.12; this.flash = 0.5;
+    // titans caught in the blast
+    for (const t of this.titans) {
+      if (!t.alive) continue;
+      const d = t.nape.c.distanceTo(pos);
+      const bodyD = Math.min(d, t.root.position.distanceTo(pos));
+      if (bodyD > R) continue;
+      const dmg = Math.round(520 * (1 - bodyD / R) + 140);
+      const r = t.hit('nape', dmg, t.nape.c.clone(), _v2.set(0, 1, 0));
+      if (r.result === 'kill') this.onSlashHit(t, 'kill', dmg, t.nape.c.clone());
+      else { this.vfx.bloodSpray(t.nape.c, _v2.set(0, 1, 0), 40, 1.1); this.hud.pop(t.nape.c, dmg); this.audio.flesh(t.nape.c, true); }
+    }
+    // flattened buildings
+    const n = this.world.destroyNear(pos, 10);
+    if (n) this.hud.toast(`<span style="font-size:18px">${n} RUMAH RATA</span>`, 0.8);
+    // self-damage if too close
+    const pd = this.player.pos.distanceTo(pos);
+    if (pd < R * 0.55) {
+      _v.copy(this.player.pos).sub(pos).normalize();
+      this.player.knockback(_v, 18, 30 * (1 - pd / (R * 0.55)));
+    }
+  }
+  onHouseDown(house, src) {
+    this.world.destroyHouse(house);
+    const p = _v.set(house.x, house.h * 0.5, house.z);
+    this.vfx.dust(p, 10, 24); this.vfx.sparks(p, 10);
+    this.audio.fall(p, 12);
+    this.cam.shake(clamp(1 - p.distanceTo(this.player.pos) / 90, 0.15, 0.6));
   }
   onLand(v) { if (v > 6) { this.audio.land(v); this.vfx.dust(_v.copy(this.player.pos).setY(this.player.pos.y - 0.9), 0.8, 6); } if (v > 14) this.cam.shake(v / 80); }
   onCrash(v) { this.cam.shake(0.8); this.flash = 0.2; this.hud.toast('<span style="font-size:20px">TABRAKAN!</span>', 0.8); }
