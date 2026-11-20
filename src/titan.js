@@ -161,6 +161,11 @@ export class Titan {
     if (P.belly > 0) { const b = mk(new THREE.SphereGeometry(1, 20, 14), mat, spine); b.scale.set(0.95 * g, 0.85, 0.55 + P.belly * 0.5); b.position.set(0, 0.75, 0.25 * g); }
     for (let i = 0; i < 3; i++) { const ab = mk(new THREE.SphereGeometry(0.22, 10, 8), mat, spine); ab.scale.set(1.8, 0.8, 0.6); ab.position.set(0, 0.5 + i * 0.36, 0.56 * g); }
     const chest = G(spine, 0, 2.3, 0); this.chest = chest;
+    // trapezius slopes from neck to shoulders, collarbones under the skin
+    for (const sx of [-1, 1]) {
+      const trap = mk(new THREE.SphereGeometry(0.5, 14, 10), mat, chest); trap.scale.set(1.3 * g, 0.55, 0.8); trap.position.set(sx * 0.48 * g, 0.28, -0.18); trap.rotation.z = -sx * 0.35;
+      const clav = mk(new THREE.CapsuleGeometry(0.07, 0.75 * g, 3, 8), mat, chest); clav.rotation.z = Math.PI / 2 + sx * 0.12; clav.position.set(sx * 0.5 * g, 0.2, 0.42 * g);
+    }
     const neck = G(chest, 0, 0.35, -0.05); this.neck = neck;
     mk(limbGeo(0.9, 0.42, 0.5, 0, 0.5, 14), mat, neck).rotation.x = Math.PI;
     const head = G(neck, 0, 0.75, 0.05); this.head = head;
@@ -210,9 +215,13 @@ export class Titan {
       const sh = G(chest, sx * 1.02 * g, 0.05, -0.05);
       const delt = mk(new THREE.SphereGeometry(0.52, 16, 12), mat, sh); delt.scale.set(1.0, 0.9, 0.95);
       mk(limbGeo(2.0 * al, 0.46, 0.33, 0.2, 0.35), mat, sh);
+      // biceps / triceps masses break the tube silhouette
+      const bi = mk(new THREE.SphereGeometry(0.3, 14, 10), mat, sh); bi.scale.set(0.95, 2.0, 1.0); bi.position.set(0, -0.85 * al, 0.14);
+      const tri = mk(new THREE.SphereGeometry(0.3, 14, 10), mat, sh); tri.scale.set(1.0, 2.2, 0.9); tri.position.set(0, -0.75 * al, -0.13);
       const el = G(sh, 0, -2.0 * al, 0);
       mk(new THREE.SphereGeometry(0.34, 12, 10), mat, el).scale.set(0.82, 0.9, 0.78);
       mk(limbGeo(1.85 * al, 0.36, 0.24, 0.22, 0.2), mat, el);
+      const fa = mk(new THREE.SphereGeometry(0.26, 12, 10), mat, el); fa.scale.set(1.05, 2.0, 0.95); fa.position.set(sx * 0.08, -0.55 * al, 0.05);
       const wr = G(el, 0, -1.85 * al, 0);
       const palm = mk(new THREE.BoxGeometry(0.5, 0.62, 0.22), mat, wr); palm.position.set(0, -0.32, 0.03);
       for (let f = 0; f < 4; f++) {
@@ -227,9 +236,12 @@ export class Titan {
     for (const sx of [-1, 1]) {
       const hp = G(hips, sx * 0.5 * g, -0.05, 0);
       mk(limbGeo(2.45, 0.62 * g, 0.4, 0.15, 0.25), mat, hp);
+      const quad = mk(new THREE.SphereGeometry(0.42, 14, 10), mat, hp); quad.scale.set(1.0 * g, 2.3, 0.9); quad.position.set(0, -1.15, 0.2);
+      const ham = mk(new THREE.SphereGeometry(0.4, 14, 10), mat, hp); ham.scale.set(1.0 * g, 2.0, 0.85); ham.position.set(0, -1.0, -0.18);
       const kn = G(hp, 0, -2.45, 0);
       const cap = mk(new THREE.SphereGeometry(0.33, 12, 10), mat, kn); cap.position.z = 0.06; cap.scale.set(0.85, 0.8, 0.62);
       mk(limbGeo(2.35, 0.45, 0.27, 0.25, 0.15), mat, kn);
+      const calf = mk(new THREE.SphereGeometry(0.34, 14, 10), mat, kn); calf.scale.set(0.95, 2.1, 0.95); calf.position.set(0, -0.75, -0.14);
       const an = G(kn, 0, -2.35, 0);
       const foot = mk(new THREE.CapsuleGeometry(0.24, 0.7, 4, 10), mat, an);
       foot.rotation.x = Math.PI / 2; foot.position.set(0, -0.12, 0.3); foot.scale.set(1.2, 1, 0.75);
