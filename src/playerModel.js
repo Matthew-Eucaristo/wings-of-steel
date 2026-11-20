@@ -211,7 +211,7 @@ export class PlayerModel {
       let ex = lerp(-0.6 * run - 0.2, -0.35, air);
       // wrist: blades down-forward on foot, trailing back while flying
       let hx = lerp(1.15 - 0.3 * run, 1.95, air);
-      if (st.fp) { sx = -1.05 - (st.pitch || 0) * 0.6 + Math.sin(ph + i * Math.PI) * 0.12 * run; sz = sg * 0.22; ex = -0.65; hx = 0.6 + air * 0.15; }
+      if (st.fp) { sx = -1.05 - air * 0.4 - (st.pitch || 0) * 0.6 + Math.sin(ph + i * Math.PI) * 0.12 * run; sz = sg * 0.22; ex = -0.65; hx = 0.6 + air * 0.15; }
       if (st.spin) { sx = -0.2; sz = sg * 1.45; ex = -0.05; hx = 0.1; }
       else if (sl >= 0 && st.fp) {
         // first-person cross slash: blades rise outside the view, then scissor across the centre

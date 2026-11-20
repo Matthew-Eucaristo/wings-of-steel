@@ -437,6 +437,8 @@ export class Player {
       up.addScaledVector(leanDir, clamp(this.speed / 32, 0, 0.85));
       if (up.lengthSq() < 1e-4) up.set(0, 1, 0);
       up.normalize();
+      // first person: drop fore/aft pitch (keep the sideways lean for camera roll) so the viewmodel arms stay in front of the lens
+      if (fpView) { up.addScaledVector(fwd, -up.dot(fwd)); if (up.lengthSq() < 1e-4) up.set(0, 1, 0); up.normalize(); }
     }
     if (this.grabbedBy) { fwd.set(Math.sin(this.grabbedBy.heading), 0, Math.cos(this.grabbedBy.heading)).negate(); up.copy(UP); }
     // orthonormalize
