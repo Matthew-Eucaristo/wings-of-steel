@@ -86,13 +86,14 @@ export class Player {
       this.aim = d <= TUNE.hookRange ? hit : null;
     } else this.aim = null;
     // nape lock-on for HUD and slash assist
-    let best = null, bestS = 0.965;
+    let best = null, bestS = 0.96;
     for (const t of g.titans) {
       if (!t.alive || t.state === 'emerge') continue;
       _v.subVectors(t.nape.c, cam.position);
       const d = _v.length();
       if (d > 140) continue;
-      const s = _v.dot(_n) / d;
+      // sticky lock: the current target keeps priority so the marker doesn't flicker between titans
+      const s = _v.dot(_n) / d + (t === this.lock ? 0.025 : 0);
       if (s > bestS) { bestS = s; best = t; }
     }
     this.lock = best;
