@@ -91,7 +91,7 @@ class Game {
     this.TitanClass = Titan;
     this.stats = { maxSpeed: 0, bestCombo: 0, time: 0 };
     this.maxWave = 5;
-    this.kills = 0; this.wave = 0; this.waveT = 3; this.timeScale = 1; this.slowT = 0; this.hitstop = 0; this.flash = 0; this.intensity = 0;
+    this.kills = 0; this.wave = 0; this.waveT = 3; this.timeScale = 1; this.slowT = 0; this.hitstop = 0; this.microT = 0; this.microScale = 1; this.flash = 0; this.intensity = 0;
     this.running = false; this.locked = false; this.started = false; this.elapsed = 0;
     this.cam.yaw = Math.atan2(-this.player.pos.x, -this.player.pos.z);
     this.cam.target.copy(this.player.pos);
@@ -165,13 +165,19 @@ class Game {
     this.cam.shake(0.5);
   }
 
+  microImpact(duration, scale) {
+    if (this.microT <= 0) this.microScale = scale;
+    else this.microScale = Math.min(this.microScale, scale);
+    this.microT = Math.max(this.microT, duration);
+  }
+
   // ---- events ----
   onHookHit(h) {
     const flesh = !!h.owner;
     this.audio.hookHit(h.tip, flesh);
     if (flesh) this.vfx.bloodSpray(h.tip, _v.set(0, 1, 0), 6, 0.5);
     else { this.vfx.sparks(h.tip, 8); this.vfx.dust(h.tip, 1, 4); }
-    this.cam.shake(flesh ? 0.07 : 0.055); this.cam.impactFov = Math.max(this.cam.impactFov, 0.9);
+    this.microImpact(0.038, flesh ? 0.72 : 0.78); this.cam.shake(flesh ? 0.07 : 0.055); this.cam.impactFov = Math.max(this.cam.impactFov, 0.9);
   }
   onSlashHit(t, result, dmg, point) {
     const p = this.player;
@@ -194,15 +200,15 @@ class Game {
       this.audio.flesh(point, false);
       this.hud.pop(point, dmg);
       this.hud.toast('<span style="font-size:20px">Kurang cepat! Tambah momentum</span>', 0.9);
-      this.hitstop = 0.06; this.cam.shake(0.35);
+      this.microImpact(0.065, 0.58); this.cam.shake(0.35);
     } else if (result === 'deflect') {
-      this.vfx.sparks(point, 10); this.audio.clang(point); this.hitstop = 0.03;
+      this.vfx.sparks(point, 10); this.audio.clang(point); this.microImpact(0.04, 0.72);
     } else {
       this.vfx.bloodSpray(point, dir, 28, 0.9);
       this.audio.flesh(point, false);
       const txt = { ankle: 'KAKI TERPOTONG', arm: 'LENGAN TERPOTONG', eyes: 'MATA BUTA' }[result] || dmg;
       this.hud.pop(point, txt, 'small');
-      this.hitstop = 0.05; this.cam.shake(0.3);
+      this.microImpact(0.055, 0.64); this.cam.shake(0.3);
     }
   }
   onTitanStep(t, i) {
@@ -266,7 +272,7 @@ class Game {
   onLand(v) { if (v > 6) { this.audio.land(v); this.vfx.dust(_v.copy(this.player.pos).setY(this.player.pos.y - 0.9), 0.8, 6); } if (v > 14) this.cam.shake(v / 80); }
   onCrash(v) { this.cam.shake(0.8); this.flash = 0.2; this.hud.toast('<span style="font-size:20px">TABRAKAN!</span>', 0.8); }
   onBump(v) { this.cam.shake(v / 120); }
-  onDash(dir) { this.story.onDash(); this.audio.dash(); this.vfx.burst(this.player.pos, dir, 16); this.cam.shake(0.12); }
+  onDash(dir) { this.story.onDash(); this.audio.dash(); this.vfx.burst(this.player.pos, dir, 16); this.microImpact(0.026, 0.84); this.cam.shake(0.12); this.cam.impactFov = Math.max(this.cam.impactFov, 1.4); }
   onPlayerHurt(d) { this.hud.hurt(d); this.audio.hurt(); this.cam.shake(0.5); }
   onGrabbed() { this.audio.roar(this.player.pos, 10, 0.6); this.cam.shake(0.6); }
   onPlayerDeath(why) {
@@ -337,6 +343,7 @@ class Game {
     // time dilation: hitstop + kill slow-motion
     let ts = 1;
     if (this.hitstop > 0) { this.hitstop -= rdt; ts = 0.04; }
+    else if (this.microT > 0) { this.microT -= rdt; ts = this.microScale; }
     else if (this.slowT > 0) { this.slowT -= rdt; ts = 0.28 + (1 - clamp(this.slowT / 0.9, 0, 1)) * 0.72; }
     this.timeScale = damp(this.timeScale, ts, 25, rdt);
     const paused = this.started && !this.locked && !this.player.dead && !(this.won && !this.endless);

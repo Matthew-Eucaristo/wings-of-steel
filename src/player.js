@@ -112,7 +112,7 @@ export class Player {
     }
     h.surface = hit.surface;
     g.audio.hookFire(h.side);
-    g.cam.shake(0.035); g.cam.impactFov = Math.max(g.cam.impactFov, 0.7);
+    g.microImpact(0.022, 0.88); g.cam.shake(0.035); g.cam.impactFov = Math.max(g.cam.impactFov, 0.7);
   }
 
   release(h) {
@@ -356,12 +356,12 @@ export class Player {
       const tx = wish.x * sp, tz = wish.z * sp;
       const k = wish.lengthSq() > 0 ? 14 : (Math.hypot(v.x, v.z) > 14 ? 1.5 : 8);
       v.x = damp(v.x, tx, k, dt); v.z = damp(v.z, tz, k, dt);
-      if (control && inp.pressed('Space', true)) { v.y = TUNE.jump; this.grounded = false; g.audio.jump(); g.cam.shake(0.045); g.cam.impactFov = Math.max(g.cam.impactFov, 1.2); }
+      if (control && inp.pressed('Space', true)) { v.y = TUNE.jump; this.grounded = false; g.audio.jump(); g.microImpact(0.018, 0.92); g.cam.shake(0.045); g.cam.impactFov = Math.max(g.cam.impactFov, 1.2); }
     } else {
       const lowSpeedAssist = 1 + clamp((12 - v.length()) / 12, 0, 1) * 0.8;
       v.addScaledVector(wish, (att.length ? TUNE.swingSteer : TUNE.airSteer) * lowSpeedAssist * this.classDef.steer * dt);
       if (control && this.coyoteT > 0 && inp.pressed('Space', true) && !att.length) {
-        v.y = TUNE.jump; this.coyoteT = 0; g.audio.jump(); g.cam.shake(0.045); g.cam.impactFov = Math.max(g.cam.impactFov, 1.2);
+        v.y = TUNE.jump; this.coyoteT = 0; g.audio.jump(); g.microImpact(0.018, 0.92); g.cam.shake(0.045); g.cam.impactFov = Math.max(g.cam.impactFov, 1.2);
       }
     }
     // wall moves: run along it, climb it facing in, kick off with Space
