@@ -126,9 +126,11 @@ export class Titan {
     const mat = skinMaterial(tone);
     this.mat = mat;
     const dark = new THREE.MeshStandardMaterial({ color: '#1a0c0a', roughness: 0.9 });
-    const teethM = new THREE.MeshStandardMaterial({ color: '#efe6d2', roughness: 0.4 });
+    const teethM = new THREE.MeshStandardMaterial({ color: '#d8cdb2', roughness: 0.55 });
     const eyeM = new THREE.MeshStandardMaterial({ color: '#cfc4b0', roughness: 0.15 });
     const irisM = new THREE.MeshStandardMaterial({ color: ['#3a2a1a', '#2c3a30', '#4a3a22'][Math.floor(this.r() * 3)], roughness: 0.1 });
+    // shadowed flesh around the eyes, not black goggles
+    const socketM = new THREE.MeshStandardMaterial({ color: '#4a302a', roughness: 0.85 });
     const hairM = new THREE.MeshStandardMaterial({ color: ['#2b1d14', '#4a3020', '#191512', '#6b4a2a'][Math.floor(this.r() * 4)], roughness: 0.8 });
     const mk = (g, m = mat, parent) => {
       const me = new THREE.Mesh(g, m);
@@ -161,10 +163,9 @@ export class Titan {
     if (P.belly > 0) { const b = mk(new THREE.SphereGeometry(1, 20, 14), mat, spine); b.scale.set(0.95 * g, 0.85, 0.55 + P.belly * 0.5); b.position.set(0, 0.75, 0.25 * g); }
     for (let i = 0; i < 3; i++) { const ab = mk(new THREE.SphereGeometry(0.22, 10, 8), mat, spine); ab.scale.set(1.8, 0.8, 0.6); ab.position.set(0, 0.5 + i * 0.36, 0.56 * g); }
     const chest = G(spine, 0, 2.3, 0); this.chest = chest;
-    // trapezius slopes from neck to shoulders, collarbones under the skin
+    // trapezius slopes from neck to shoulders
     for (const sx of [-1, 1]) {
       const trap = mk(new THREE.SphereGeometry(0.5, 14, 10), mat, chest); trap.scale.set(1.3 * g, 0.55, 0.8); trap.position.set(sx * 0.48 * g, 0.28, -0.18); trap.rotation.z = -sx * 0.35;
-      const clav = mk(new THREE.CapsuleGeometry(0.07, 0.75 * g, 3, 8), mat, chest); clav.rotation.z = Math.PI / 2 + sx * 0.12; clav.position.set(sx * 0.5 * g, 0.2, 0.42 * g);
     }
     const neck = G(chest, 0, 0.35, -0.05); this.neck = neck;
     mk(limbGeo(0.9, 0.42, 0.5, 0, 0.5, 14), mat, neck).rotation.x = Math.PI;
@@ -177,7 +178,7 @@ export class Titan {
     const nose = mk(new THREE.ConeGeometry(0.13 * hs, 0.36 * hs, 10), mat, head); nose.position.set(0, 0.5 * hs, 0.86 * hs); nose.rotation.x = 0.35;
     for (const sx of [-1, 1]) {
       const ear = mk(new THREE.SphereGeometry(0.2 * hs, 10, 8), mat, head); ear.scale.set(0.4, 1, 0.7); ear.position.set(sx * 0.8 * hs, 0.5 * hs, 0);
-      const socket = mk(new THREE.SphereGeometry(0.2 * hs, 12, 10), dark, head); socket.scale.set(1.1, 0.75, 0.5); socket.position.set(sx * 0.3 * hs, 0.6 * hs, 0.74 * hs);
+      const socket = mk(new THREE.SphereGeometry(0.17 * hs, 12, 10), socketM, head); socket.scale.set(1.1, 0.75, 0.5); socket.position.set(sx * 0.3 * hs, 0.6 * hs, 0.74 * hs);
       const eye = mk(new THREE.SphereGeometry(0.12 * hs, 14, 10), eyeM, head); eye.position.set(sx * 0.3 * hs, 0.6 * hs, 0.72 * hs);
       const look = (this.r() - 0.5) * 0.05 * hs;
       const iris = mk(new THREE.SphereGeometry(0.075 * hs, 12, 8), irisM, head); iris.scale.set(1, 1, 0.5); iris.position.set(sx * 0.3 * hs + look, 0.6 * hs, 0.815 * hs);
@@ -192,9 +193,10 @@ export class Titan {
     for (let i = 0; i < nt; i++) {
       const a = (i / (nt - 1) - 0.5) * grinW * 2.1;
       for (const row of [0, 1]) {
-        const tooth = mk(new THREE.BoxGeometry(0.075 * hs, 0.11 * hs, 0.05 * hs), teethM, head);
-        const rad = 0.66 * hs;
-        tooth.position.set(Math.sin(a) * rad * 0.95, (0.17 + row * 0.11 - Math.cos(a * 2) * 0.03) * hs, Math.cos(a) * rad * 0.92 + 0.08 * hs);
+        const tooth = mk(new THREE.BoxGeometry(0.058 * hs, (0.085 + this.r() * 0.03) * hs, 0.05 * hs), teethM, head);
+        // teeth sit on the face surface at the lips, upper row on top of the mouth slit, lower row under it
+        const rad = 0.8 * hs;
+        tooth.position.set(Math.sin(a) * rad, (0.2 + row * 0.14 - Math.cos(a * 2) * 0.02) * hs, Math.cos(a) * rad + 0.05 * hs);
         tooth.rotation.y = a;
       }
     }
