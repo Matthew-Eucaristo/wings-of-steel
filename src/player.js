@@ -53,35 +53,43 @@ export class Player {
 
   anchorOf(h, out) {
     if (h.joint) return out.copy(h.local).applyMatrix4(h.joint.matrixWorld);
+    if (h.owner?.alive && h.owner.nape) return out.copy(h.owner.nape.c);
     return out.copy(h.target);
   }
 
   fire(h) {
     const g = this.game;
     const aim = this.aim;
-    if (!aim) { g.hud.flash('no-anchor'); g.audio.click(); return; }
     const cam = g.cam;
+    if (!aim && !this.lock) { g.hud.flash('no-anchor'); g.audio.click(); return; }
     const from = this.model.gearPos(h.side, _v2);
     let hit;
-    if (this.hookMode === 'focus') {
-      // near-centre nape lock gets a gentle magnetic assist, but only with clear line of sight
-      if (this.lock) {
-        _v3.subVectors(this.lock.nape.c, from); const nd = _v3.length();
-        if (nd > 1e-3 && nd <= TUNE.hookRange) {
-          _v3.divideScalar(nd);
-          const flesh = g.world.col.raycast(from, _v3, nd + 1, { dynamics: true, inflate: 1.35 });
-          if (flesh?.collider?.owner === this.lock) hit = flesh;
+    // combat soft-lock: a nearby centered titan can be hooked even when the raw crosshair sees sky
+    if (this.lock) {
+      _v3.subVectors(this.lock.nape.c, from); const nd = _v3.length();
+      if (nd > 1e-3 && nd <= TUNE.hookRange) {
+        _v3.divideScalar(nd);
+        const flesh = g.world.col.raycast(from, _v3, nd + 2, { dynamics: true, inflate: 1.65 });
+        if (flesh?.collider?.owner === this.lock) hit = flesh;
+        else {
+          const wall = g.world.col.raycast(from, _v3, nd - 0.5, { dynamics: false });
+          if (!wall) hit = { point: this.lock.nape.c.clone(), collider: null, surface: 'flesh', lockOwner: this.lock };
         }
       }
+    }
+    if (this.hookMode === 'focus') {
       // otherwise both hooks share the exact crosshair anchor: strongest straight-line pull
       if (!hit) hit = aim;
     } else {
       // automatic navigation: each hook searches its half of the intended view for a useful independent anchor
-      cam.camera.getWorldDirection(_v3);
-      _v3.addScaledVector(cam.right, h.side * 0.16).normalize();
-      hit = g.world.col.raycast(cam.camera.position, _v3, TUNE.hookRange + 10, { dynamics: true, inflate: 1.15 });
+      if (hit) { /* keep combat lock */ } else cam.camera.getWorldDirection(_v3);
+      if (!hit) {
+        _v3.addScaledVector(cam.right, h.side * 0.16).normalize();
+        hit = g.world.col.raycast(cam.camera.position, _v3, TUNE.hookRange + 10, { dynamics: true, inflate: 1.15 });
+      }
       if (hit && hit.point.distanceTo(this.pos) > TUNE.hookRange) hit = null;
       // a narrow street may have no side anchor; fall back to a small split around the valid crosshair hit
+      if (!hit && !aim) { g.hud.flash('no-anchor'); g.audio.click(); return; }
       if (!hit) {
         const spread = clamp(aim.t * 0.07, 0.3, 4.5) * h.side;
         _v.copy(aim.point).addScaledVector(cam.right, spread);
@@ -95,7 +103,7 @@ export class Player {
     h.state = 'fly'; h.t = 0;
     h.tip.copy(from);
     h.target.copy(hit.point);
-    h.joint = null; h.owner = null;
+    h.joint = null; h.owner = hit.lockOwner || null;
     const c = hit.collider;
     if (c && c.owner && c.ja) {
       h.joint = c.ja; h.owner = c.owner;
@@ -124,18 +132,18 @@ export class Player {
       this.aim = d <= TUNE.hookRange ? hit : null;
     } else this.aim = null;
     // nape lock-on for HUD and slash assist
-    let best = null, bestS = 0.96;
+    let best = null, bestS = 0.88;
     // hysteresis: once the nape is acquired, keep it while it remains near the centre instead of flickering off
     if (this.lock?.alive && this.lock.state !== 'emerge') {
       _v.subVectors(this.lock.nape.c, cam.position);
       const d = _v.length(), s = d > 0 ? _v.dot(_n) / d : -1;
-      if (d <= 140 && s > 0.90) { best = this.lock; bestS = s + 0.04; }
+      if (d <= 160 && s > 0.78) { best = this.lock; bestS = s + 0.04; }
     }
     for (const t of g.titans) {
       if (!t.alive || t.state === 'emerge') continue;
       _v.subVectors(t.nape.c, cam.position);
       const d = _v.length();
-      if (d > 140) continue;
+      if (d > 160) continue;
       // sticky lock: the current target keeps priority so the marker doesn't flicker between titans
       const s = _v.dot(_n) / d + (t === this.lock ? 0.04 : 0);
       if (s > bestS) { bestS = s; best = t; }
@@ -325,17 +333,24 @@ export class Player {
       this.gas = 0; this.gasReload = this.className === 'light' ? 0.75 : this.className === 'heavy' ? 1.25 : 1;
       g.hud.toast('<span style="font-size:18px">MENGGANTI SILINDER GAS…</span>', this.gasReload);
     }
-    v.y -= TUNE.gravity * dt;
     const att = this.hooks.filter((h) => h.state === 'attached');
+    // cables and active gas provide support force; freefall keeps full gravity
+    const gravityScale = att.length ? 0.68 : (gasHeld && this.gas > 0 && !this.grounded ? 0.65 : 1);
+    v.y -= TUNE.gravity * gravityScale * dt;
+    this.coyoteT = this.grounded ? 0.12 : Math.max(0, (this.coyoteT || 0) - dt);
     if (this.grounded && !att.length) {
       // running
       const sp = TUNE.runSpeed * this.classDef.speed * (gasHeld && this.gas > 0 ? 1.6 : 1);
       const tx = wish.x * sp, tz = wish.z * sp;
-      const k = wish.lengthSq() > 0 ? 10 : (Math.hypot(v.x, v.z) > 14 ? 1.5 : 8);
+      const k = wish.lengthSq() > 0 ? 14 : (Math.hypot(v.x, v.z) > 14 ? 1.5 : 8);
       v.x = damp(v.x, tx, k, dt); v.z = damp(v.z, tz, k, dt);
       if (control && inp.pressed('Space', true)) { v.y = TUNE.jump; this.grounded = false; g.audio.jump(); }
     } else {
-      v.addScaledVector(wish, (att.length ? TUNE.swingSteer : TUNE.airSteer) * this.classDef.steer * dt);
+      const lowSpeedAssist = 1 + clamp((12 - v.length()) / 12, 0, 1) * 0.8;
+      v.addScaledVector(wish, (att.length ? TUNE.swingSteer : TUNE.airSteer) * lowSpeedAssist * this.classDef.steer * dt);
+      if (control && this.coyoteT > 0 && inp.pressed('Space', true) && !att.length) {
+        v.y = TUNE.jump; this.coyoteT = 0; g.audio.jump();
+      }
     }
     // wall moves: run along it, climb it facing in, kick off with Space
     this.wallRun = false; this.climbing = false;
@@ -383,12 +398,14 @@ export class Player {
       v.addScaledVector(_v, TUNE.gasThrust * this.classDef.thrust * 1.3 * dt);
       gasUse += 5 * dt; this.gasOn = true; this.diving = true;
     } else if (gasHeld && this.gas > 0 && (!this.grounded || att.length)) {
-      const dir = wish.lengthSq() > 0.01 ? _v.copy(wish).addScaledVector(cam.forward, 0.5).normalize() : _v.copy(cam.forward);
+      const dir = wish.lengthSq() > 0.01 ? _v.copy(wish).addScaledVector(cam.forward, 0.5) : _v.copy(cam.forward);
+      dir.y = Math.max(dir.y, 0.32); dir.normalize();
       v.addScaledVector(dir, TUNE.gasThrust * this.classDef.thrust * dt);
       gasUse += 4.5 * dt; this.gasOn = true;
     }
     if (control && inp.pressed('ShiftLeft', true) && this.dashCD <= 0 && this.gas > 3 && !this.grounded) {
-      const dir = wish.lengthSq() > 0.01 ? _v.copy(wish).normalize() : _v.copy(cam.forward);
+      const dir = wish.lengthSq() > 0.01 ? _v.copy(wish) : _v.copy(cam.forward);
+      dir.y += 0.12; dir.normalize();
       v.addScaledVector(dir, TUNE.dashImpulse * this.classDef.speed); this.dashCD = 0.4; gasUse += 2; g.onDash(dir);
     }
     // cables
@@ -503,7 +520,7 @@ export class Player {
     if (this.lock) {
       _v.subVectors(this.lock.nape.c, this.pos);
       const d = _v.length();
-      if (d < 14) this.vel.addScaledVector(_v.normalize(), clamp(14 - d, 0, 8));
+      if (d < 20) this.vel.addScaledVector(_v.normalize(), clamp((20 - d) * 0.8, 0, 10));
     }
   }
 
