@@ -15,6 +15,7 @@ export class PlayerModel {
     const boots = new THREE.MeshStandardMaterial({ color: '#3a271b', roughness: 0.55 });
     const strap = new THREE.MeshStandardMaterial({ color: '#2a1d15', roughness: 0.6 });
     const metal = new THREE.MeshStandardMaterial({ color: '#a8b0b8', roughness: 0.28, metalness: 0.9 });
+    const sheathM = new THREE.MeshStandardMaterial({ color: '#5d646c', roughness: 0.35, metalness: 0.75 });
     const hairM = new THREE.MeshStandardMaterial({ color: '#141210', roughness: 0.7 });
     this.bladeMat = new THREE.MeshStandardMaterial({ color: '#dfe7ef', roughness: 0.12, metalness: 1, emissive: '#3a5a7a', emissiveIntensity: 0.0 });
     const mk = (g, m, parent, x = 0, y = 0, z = 0) => { const me = new THREE.Mesh(g, m); me.position.set(x, y, z); me.castShadow = true; parent.add(me); return me; };
@@ -30,8 +31,9 @@ export class PlayerModel {
       box.rotation.x = 0.15;
       const tank = mk(new THREE.CylinderGeometry(0.06, 0.06, 0.5, 10), metal, pelvis, sx * 0.2, 0.08, -0.22);
       tank.rotation.x = Math.PI / 2 - 0.3;
-      const sheath = mk(new THREE.BoxGeometry(0.09, 0.14, 0.6), strap, pelvis, sx * 0.27, -0.12, -0.05);
-      sheath.rotation.x = 0.35;
+      const sheath = mk(new THREE.BoxGeometry(0.07, 0.13, 0.56), sheathM, pelvis, sx * 0.27, -0.2, -0.06);
+      sheath.rotation.x = -0.55;
+      mk(new THREE.BoxGeometry(0.075, 0.135, 0.06), strap, sheath, 0, 0, 0.22);
     }
     const spine = G(pelvis, 0, 0.1, 0); this.spine = spine;
     mk(new THREE.CapsuleGeometry(0.17, 0.28, 4, 12), jacket, spine, 0, 0.24, 0).scale.set(1.15, 1, 0.78);
@@ -60,10 +62,11 @@ export class PlayerModel {
       mk(new THREE.BoxGeometry(0.07, 0.09, 0.09), metal, hd, 0, -0.02, 0);
       // reverse-grip blade
       const bl = new THREE.Group(); hd.add(bl);
-      bl.position.set(sx * 0.03, 0, 0.02);
-      const bm = mk(new THREE.BoxGeometry(0.012, 0.95, 0.06), this.bladeMat, bl, 0, 0.47, 0.03);
-      bm.rotation.x = 0;
-      bl.rotation.set(0.25, 0, sx * 0.25);
+      // forward grip: blade leaves the fist along +z, wrist rotation aims it per pose
+      bl.position.set(0, -0.03, 0.03);
+      const bm = mk(new THREE.BoxGeometry(0.01, 0.9, 0.055), this.bladeMat, bl, 0, 0.5, 0.0);
+      mk(new THREE.BoxGeometry(0.03, 0.1, 0.07), strap, bl, 0, 0.02, 0);
+      bl.rotation.set(Math.PI / 2 - 0.1, sx * 0.08, 0);
       this.sh.push(sh); this.el.push(el); this.hand.push(hd); this.blades.push(bl);
     }
     // legs
@@ -166,8 +169,8 @@ export class PlayerModel {
     else { pa.addScaledVector(_v, diff * 0.5); pb.addScaledVector(_v, -diff * 0.5); }
   }
 
-  bladeTip(i, out) { return out.set(0, 0.95, 0.03).applyMatrix4(this.blades[i].matrixWorld); }
-  bladeBase(i, out) { return out.set(0, 0.1, 0.03).applyMatrix4(this.blades[i].matrixWorld); }
+  bladeTip(i, out) { return out.set(0, 0.95, 0).applyMatrix4(this.blades[i].matrixWorld); }
+  bladeBase(i, out) { return out.set(0, 0.12, 0).applyMatrix4(this.blades[i].matrixWorld); }
   gearPos(side, out) { return out.set(side * 0.26, 0, 0.12).applyMatrix4(this.pelvis.matrixWorld); }
 
   // st: {grounded, speed, vel, hooked, reeling, spin, slashT, grabbed, moveAmt, dt, ropeDir}
@@ -200,25 +203,39 @@ export class PlayerModel {
       let sx = lerp(Math.sin(ph + i * Math.PI) * 0.7 * run, 0.55, air);
       let sz = sg * lerp(0.15, 0.55, air);
       let ex = lerp(-0.6 * run - 0.2, -0.35, air);
-      if (st.spin) { sx = -0.2; sz = sg * 1.45; ex = -0.05; }
-      else if (sl >= 0) {
+      // wrist: blades down-forward on foot, trailing back while flying
+      let hx = lerp(1.15 - 0.3 * run, 1.95, air);
+      if (st.fp) { sx = -1.05 - (st.pitch || 0) * 0.6 + Math.sin(ph + i * Math.PI) * 0.12 * run; sz = sg * 0.22; ex = -0.65; hx = 0.6 + air * 0.15; }
+      if (st.spin) { sx = -0.2; sz = sg * 1.45; ex = -0.05; hx = 0.1; }
+      else if (sl >= 0 && st.fp) {
+        // first-person cross slash: blades rise outside the view, then scissor across the centre
+        const w = sl < 0.25 ? sl / 0.25 : 1;
+        const sweep = sl < 0.25 ? 0 : Math.min(1, (sl - 0.25) / 0.45);
+        sx = lerp(lerp(-1.1, -2.1, w), -0.7, sweep);
+        sz = sg * lerp(lerp(0.22, 0.95, w), -0.45, sweep);
+        ex = lerp(-0.9, -0.15, sweep);
+        hx = lerp(0.4, -0.5, sweep);
+      } else if (sl >= 0) {
         // two-blade cross slash: wind up back then sweep forward
         const k = sl < 0.25 ? sl / 0.25 : 1 - (sl - 0.25) / 0.75;
         const sweep = sl < 0.25 ? 0 : (sl - 0.25) / 0.75;
         sx = lerp(1.2, -1.9, sweep) * (sl < 0.25 ? k : 1);
         sz = sg * lerp(1.3, 0.2, sweep);
         ex = -0.2;
+        hx = lerp(1.9, -0.2, Math.min(1, sweep * 1.6));
       } else if (st.grabbed) {
         sx = Math.sin(performance.now() * 0.02 + i) * 0.8 - 1.5; sz = sg * 0.8;
       }
       D(this.sh[i].rotation, 'x', sx, sl >= 0 ? 40 : 14);
       D(this.sh[i].rotation, 'z', sz, sl >= 0 ? 40 : 14);
       D(this.el[i].rotation, 'x', ex, 20);
+      D(this.hand[i].rotation, 'x', hx, sl >= 0 ? 40 : 16);
     }
     // blade glow when fast
     this.bladeMat.emissiveIntensity = damp(this.bladeMat.emissiveIntensity, st.speed > 25 || st.spin ? 1.2 : 0.05, 6, dt);
     D(this.spine.rotation, 'x', lerp(run * 0.35, st.hooked ? 0.15 : 0.35, air));
     D(this.spine.rotation, 'y', sl >= 0 ? Math.sin(sl * Math.PI) * 0.7 : 0, 20);
+    this.head.visible = !st.fp;
     D(this.head.rotation, 'x', -this.spine.rotation.x * 0.6);
     this.pelvis.position.y = 0.02 + (st.grounded ? Math.abs(Math.cos(ph)) * 0.04 * run : 0);
     r.updateMatrixWorld(true);

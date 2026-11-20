@@ -46,20 +46,30 @@ export class CameraRig {
     const wantRoll = p.grounded ? 0 : clamp(-lat * 0.006, -0.18, 0.18);
     this.roll = damp(this.roll, wantRoll, 3, rdt);
     const cam = this.camera;
-    const desired = _v.copy(this.target).addScaledVector(this.forward, -this.dist).addScaledVector(this.right, 0.55);
-    desired.y += 0.35;
-    // collision pull-in
-    const d = _t.subVectors(desired, this.target);
-    const L = d.length(); d.divideScalar(L);
-    const hit = this.game.world.col.raycast(this.target, d, L + 0.3, { dynamics: false });
-    let dd = L;
-    if (hit && hit.t < L + 0.3) dd = Math.max(0.6, hit.t - 0.35);
-    cam.position.copy(this.target).addScaledVector(d, dd);
-    if (cam.position.y < 0.3) cam.position.y = 0.3;
-    // look slightly above the player so the crosshair leads
-    _v.copy(this.target).addScaledVector(this.right, 0.55).addScaledVector(this.forward, 10);
-    cam.lookAt(_v);
-    cam.rotateZ(this.roll);
+    // landing dip shared by both views
+    if (p.grounded && !this.wasGrounded) this.dip = clamp(-this.lastVy * 0.012, 0, 0.3);
+    this.wasGrounded = p.grounded; this.lastVy = p.vel.y;
+    this.dip = damp(this.dip || 0, 0, 7, rdt);
+    const fp = this.isFP();
+    if (cam.near !== (fp ? 0.04 : 0.1)) { cam.near = fp ? 0.04 : 0.1; cam.updateProjectionMatrix(); }
+    if (fp) this.updateFP(cam, rdt);
+    else {
+      const cam = this.camera;
+      const desired = _v.copy(this.target).addScaledVector(this.forward, -this.dist).addScaledVector(this.right, 0.55);
+      desired.y += 0.35;
+      // collision pull-in
+      const d = _t.subVectors(desired, this.target);
+      const L = d.length(); d.divideScalar(L);
+      const hit = this.game.world.col.raycast(this.target, d, L + 0.3, { dynamics: false });
+      let dd = L;
+      if (hit && hit.t < L + 0.3) dd = Math.max(0.6, hit.t - 0.35);
+      cam.position.copy(this.target).addScaledVector(d, dd);
+      if (cam.position.y < 0.3) cam.position.y = 0.3;
+      // look slightly above the player so the crosshair leads
+      _v.copy(this.target).addScaledVector(this.right, 0.55).addScaledVector(this.forward, 10);
+      cam.lookAt(_v);
+      cam.rotateZ(this.roll);
+    }
     // trauma shake
     this.trauma = Math.max(0, this.trauma - rdt * 1.6);
     const s = this.trauma * this.trauma;
@@ -69,10 +79,31 @@ export class CameraRig {
       cam.rotateY((Math.sin(t * 1.3 + 2) + Math.sin(t * 2.9)) * 0.012 * s);
       cam.rotateZ(Math.sin(t * 0.9 + 4) * 0.02 * s);
     }
-    const wantFov = clamp(70 + Math.max(0, sp - 8) * 0.55, 70, 100) + (this.killCam > 0 ? -8 : 0);
+    const wantFov = clamp(70 + Math.max(0, sp - 8) * 0.55, 70, 100) + (this.killCam > 0 ? -8 : 0) + (fp ? 8 : 0);
     this.fov = damp(this.fov, wantFov, 4, rdt);
     if (Math.abs(cam.fov - this.fov) > 0.01) { cam.fov = this.fov; cam.updateProjectionMatrix(); }
     this.killCam = Math.max(0, this.killCam - rdt);
+    if (this.debug) this.debug(cam);
+  }
+  isFP() { const p = this.game.player; return this.fp && this.game.started && !p.dead && !p.grabbedBy; }
+  updateFP(cam, rdt) {
+    const p = this.game.player, m = p.model;
+    m.root.updateMatrixWorld(true);
+    m.head.getWorldPosition(_v);
+    // the head rides the body: roll with its lean, bob with the stride, lag against acceleration
+    const bodyUp = _t.set(0, 1, 0).applyQuaternion(p.quat);
+    this.fpRoll = damp(this.fpRoll || 0, clamp(-bodyUp.dot(this.right) * 0.6, -0.45, 0.45), 7, rdt);
+    const run = p.grounded ? clamp(Math.hypot(p.vel.x, p.vel.z) / 10, 0, 1.3) : 0;
+    const ph = m.runPhase;
+    _v.y += Math.abs(Math.sin(ph)) * 0.045 * run - this.dip * 0.6;
+    _v.addScaledVector(this.right, Math.sin(ph) * 0.02 * run).addScaledVector(this.forwardFlat, 0.13);
+    const acc = p.accS || _t.set(0, 0, 0);
+    const aF = p.grounded ? 0 : acc.dot(this.forward);
+    this.fpKick = damp(this.fpKick || 0, clamp(aF * 0.0025, -0.07, 0.07), 6, rdt);
+    cam.position.copy(_v);
+    cam.lookAt(_t.copy(_v).add(this.forward));
+    cam.rotateZ(this.fpRoll + this.roll * 0.5);
+    cam.rotateX(this.fpKick + Math.sin(ph * 2) * 0.006 * run - this.dip * 0.15);
   }
   resize() { this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix(); }
 }

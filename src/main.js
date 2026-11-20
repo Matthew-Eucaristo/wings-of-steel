@@ -229,6 +229,10 @@ class Game {
       this.cam.sens = clamp(this.cam.sens * f, 0.0006, 0.008); localStorage.setItem('odm-sens', this.cam.sens);
       this.hud.toast(`<span style="font-size:20px">Sensitivitas mouse ${(this.cam.sens / 0.0022).toFixed(2)}x</span>`, 1);
     }
+    if (inp.pressed('KeyV')) {
+      this.cam.fp = !this.cam.fp;
+      this.hud.toast(`<span style="font-size:20px">Kamera: ${this.cam.fp ? 'ORANG PERTAMA' : 'ORANG KETIGA'}</span>`, 1.2);
+    }
     if (inp.pressed('KeyM')) this.audio.musicOn = !this.audio.musicOn;
     if (dt > 0) {
       if (this.started) {

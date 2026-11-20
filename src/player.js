@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { PlayerModel } from './playerModel.js';
 import { clamp, damp, lerp, closestPointOnSegment } from './util.js';
 
-const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _n = new THREE.Vector3();
+const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _v4 = new THREE.Vector3(), _n = new THREE.Vector3();
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion();
 const UP = new THREE.Vector3(0, 1, 0);
 const near = [];
@@ -396,12 +396,27 @@ export class Player {
     const fwd = _v.set(v.x, this.grounded ? 0 : v.y * 0.6, v.z);
     if (fwd.lengthSq() < 0.5) fwd.copy(this.game.cam.forwardFlat);
     fwd.normalize();
+    const fpView = this.game.cam.isFP();
+    const leanDir = fpView ? _v4.copy(fwd) : fwd;
+    if (fpView && !this.grabbedBy) fwd.copy(this.game.cam.forwardFlat);
+    // body aligns with the felt force (cable tension, thrust, centripetal pull) and leans into speed
+    if (dt > 0) {
+      if (!this.vPrev) { this.vPrev = v.clone(); this.accS = new THREE.Vector3(); }
+      _v3.subVectors(v, this.vPrev).divideScalar(dt);
+      if (_v3.lengthSq() > 40000) _v3.setLength(200);
+      this.accS.lerp(_v3, 1 - Math.exp(-10 * dt));
+      this.vPrev.copy(v);
+    }
     let up = _v2.copy(UP);
-    if (att.length && !this.grounded) {
-      up.set(0, 0, 0);
-      for (const h of att) up.add(_v3.subVectors(this.anchorOf(h, _v3), this.pos).normalize());
-      up.normalize().lerp(UP, 0.35).normalize();
-    } else if (!this.grounded) up.lerp(_v3.copy(fwd).multiplyScalar(-0.3), 0.3).add(UP).normalize();
+    if (!this.grounded && this.accS) {
+      const f = _v3.copy(this.accS); f.y += TUNE.gravity;
+      const fl = f.length();
+      up.multiplyScalar(0.55);
+      if (fl > 1e-3) up.addScaledVector(f, Math.min(fl / TUNE.gravity, 1.8) * 0.75 / fl);
+      up.addScaledVector(leanDir, clamp(this.speed / 32, 0, 0.85));
+      if (up.lengthSq() < 1e-4) up.set(0, 1, 0);
+      up.normalize();
+    }
     if (this.grabbedBy) { fwd.set(Math.sin(this.grabbedBy.heading), 0, Math.cos(this.grabbedBy.heading)).negate(); up.copy(UP); }
     // orthonormalize
     const right = _n.crossVectors(up, fwd);
@@ -410,11 +425,11 @@ export class Player {
     const f2 = _v3.crossVectors(right, up).normalize();
     _m.makeBasis(right, up, f2);
     _q.setFromRotationMatrix(_m);
-    this.quat.slerp(_q, 1 - Math.exp(-(this.grounded ? 14 : 7) * dt));
+    this.quat.slerp(_q, 1 - Math.exp(-(this.grounded ? 14 : 9) * dt));
     _v.set(0, this.grounded ? -0.05 : 0, 0).add(this.pos);
     this.model.update(dt, _v, this.quat, {
       grounded: this.grounded && !att.length, speed: this.grounded ? Math.hypot(v.x, v.z) : this.speed, vel: v,
-      hooked: att.length > 0, spin: this.spin > 0 || this.charge > 0.45, slashT: this.slashT, grabbed: !!this.grabbedBy,
+      hooked: att.length > 0, spin: this.spin > 0 || this.charge > 0.45, slashT: this.slashT, grabbed: !!this.grabbedBy, fp: fpView, pitch: this.game.cam.pitch,
     });
   }
 }

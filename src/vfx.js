@@ -106,9 +106,9 @@ export class VFX {
       if (swinging && p.blade > 0) {
         const tip = p.model.bladeTip(i, new THREE.Vector3());
         tr.unshift(tip);
-        if (tr.length > 18) tr.pop();
+        if (tr.length > 11) tr.pop();
       } else if (tr.length) tr.pop();
-      if (tr.length > 1) this.trails[i].set(tr, cam.position, (k, n) => 0.45 * (1 - k / n), (k, n) => (1 - k / n) * 0.85);
+      if (tr.length > 1) this.trails[i].set(tr, cam.position, (k, n) => 0.32 * (1 - k / n), (k, n) => (1 - k / n) ** 1.6 * 0.7);
       else this.trails[i].hide();
     }
     // gas exhaust
