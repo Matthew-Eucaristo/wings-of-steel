@@ -168,7 +168,7 @@ export class World {
     scene.environmentIntensity = 0.55;
     scene.add(sky);
 
-    scene.fog = new THREE.FogExp2(new THREE.Color('#c9b9a4'), 0.0019);
+    scene.fog = new THREE.FogExp2(new THREE.Color('#c9b9a4'), 0.0014);
 
     const sun = new THREE.DirectionalLight(new THREE.Color('#ffd7a8'), 3.2);
     sun.position.copy(this.sunDir).multiplyScalar(300);
