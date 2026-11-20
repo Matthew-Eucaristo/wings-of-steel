@@ -13,7 +13,7 @@ const CLASSES = {
 };
 
 export const TUNE = {
-  gravity: 21, hookRange: 120, hookSpeed: 260, reelAccel: 46, reelMax: 46, gasThrust: 34, dashImpulse: 15,
+  gravity: 21, hookRange: 160, hookSpeed: 260, reelAccel: 46, reelMax: 46, gasThrust: 34, dashImpulse: 15,
   airSteer: 9, swingSteer: 16, runSpeed: 10, jump: 9, radius: 0.42, slashTime: 0.34, reach: 2.6,
 };
 
@@ -412,10 +412,11 @@ export class Player {
       if (dist < 1e-3) continue;
       _n.divideScalar(dist);
       // spring-driven ODM spool: every attached cable pulls along its actual 3D direction; Space is the powered reel
-      v.addScaledVector(_n, 24 * dt / att.length * (att.length > 1 ? 1.2 : 1));
+      const rangePull = dist > 120 ? clamp(1 - (dist - 120) / 80, 0.5, 1) : 1;
+      v.addScaledVector(_n, 24 * rangePull * dt / att.length * (att.length > 1 ? 1.2 : 1));
       if (reel && this.gas > 0) {
         const vr = v.dot(_n);
-        if (vr < TUNE.reelMax) v.addScaledVector(_n, TUNE.reelAccel * this.classDef.thrust * dt / att.length * (att.length > 1 ? 1.35 : 1));
+        if (vr < TUNE.reelMax) v.addScaledVector(_n, TUNE.reelAccel * rangePull * this.classDef.thrust * dt / att.length * (att.length > 1 ? 1.35 : 1));
         gasUse += 3.2 * dt / att.length; this.gasOn = true;
         // ease off close to the anchor so reeling into a wall doesn't splat you
         if (dist < 7 && vr > 0) v.addScaledVector(_n, -vr * Math.min(1, dt * (7 - dist) * 1.5));
