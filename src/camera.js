@@ -36,7 +36,8 @@ export class CameraRig {
     if (p.grabbedBy) { p.grabbedBy.head.getWorldPosition(_v); tgt.lerp(_v, 0.4); }
     if (!this.game.started) tgt.y += 2.5;
     this.target.lerp(tgt, 1 - Math.exp(-30 * rdt));
-    let wantDist = clamp(4.2 + sp * 0.06, 4.2, 7.5);
+    // tighter follow at speed so the soldier stays readable; FOV and blur carry the speed instead
+    let wantDist = clamp(4.2 + sp * 0.04, 4.2, 6.2);
     if (p.grabbedBy) wantDist = 6 + p.grabbedBy.height * 0.9;
     if (p.dead) wantDist = 10;
     if (!this.game.started) wantDist = 15;
@@ -80,7 +81,7 @@ export class CameraRig {
       cam.rotateY((Math.sin(t * 1.3 + 2) + Math.sin(t * 2.9)) * 0.012 * s);
       cam.rotateZ(Math.sin(t * 0.9 + 4) * 0.02 * s);
     }
-    const wantFov = clamp(70 + Math.max(0, sp - 8) * 0.55, 70, 100) + (this.killCam > 0 ? -8 : 0) + (fp ? 8 : 0);
+    const wantFov = clamp(70 + Math.max(0, sp - 8) * 0.5, 70, 92) + (this.killCam > 0 ? -8 : 0) + (fp ? 8 : 0);
     this.fov = this.fovOverride ?? damp(this.fov, wantFov, 4, rdt);
     if (Math.abs(cam.fov - this.fov) > 0.01) { cam.fov = this.fov; cam.updateProjectionMatrix(); }
     this.killCam = Math.max(0, this.killCam - rdt);
