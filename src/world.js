@@ -705,6 +705,7 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
       }
     }
     const barkMat = new THREE.MeshStandardMaterial({ map: t.bark.map, normalMap: t.bark.normalMap, roughness: 0.95, vertexColors: true, color: '#c7b8a6' });
+    barkMat.normalScale.set(0.5, 0.5);
     this.canopyMat = this.leafMaterial();
     // merge per 90 m cell instead of one forest-wide mesh so camera and shadow frustum culling can skip far trees
     const chunked = (geos, mat) => {

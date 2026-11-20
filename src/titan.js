@@ -35,7 +35,7 @@ const SKIN_TONES = ['#b9998a', '#b08f80', '#a3857a', '#c2a497', '#94786c', '#b59
 
 function skinMaterial(tone) {
   if (!SKIN) SKIN = skinTextures();
-  const m = new THREE.MeshStandardMaterial({ color: tone, map: SKIN.map, normalMap: SKIN.normalMap, roughness: 0.58, metalness: 0 });
+  const m = new THREE.MeshStandardMaterial({ color: tone, map: SKIN.map, normalMap: SKIN.normalMap, roughness: 0.72, metalness: 0 });
   m.normalScale.set(0.9, 0.9);
   const u = { uHit: { value: 0 }, uDead: { value: 0 } };
   m.userData.u = u;
