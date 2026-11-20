@@ -30,7 +30,8 @@ const _v2 = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const DOWN = new THREE.Vector3(0, -1, 0);
 
-const SKIN_TONES = ['#c79c88', '#bf9480', '#b08572', '#cfa592', '#a07c6a', '#c29684', '#b89888'];
+// muted, slightly grey flesh: titans read as pale and unwell rather than cartoon pink
+const SKIN_TONES = ['#b9998a', '#b08f80', '#a3857a', '#c2a497', '#94786c', '#b59487', '#a99389'];
 
 function skinMaterial(tone) {
   if (!SKIN) SKIN = skinTextures();
@@ -52,7 +53,7 @@ function skinMaterial(tone) {
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         float rim = pow(1.0 - saturate(dot(normalize(normal), normalize(vViewPosition))), 2.5);
         // fake subsurface: warm reddish rim + soft wrap
-        totalEmissiveRadiance += vec3(0.55, 0.16, 0.1) * rim * 0.35;
+        totalEmissiveRadiance += vec3(0.5, 0.17, 0.12) * rim * 0.2;
         totalEmissiveRadiance += vec3(1.0, 0.2, 0.1) * uHit * (0.4 + rim);
         diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.45, 0.32, 0.3), uDead);
         totalEmissiveRadiance += vec3(0.9, 0.3, 0.1) * uDead * rim * 0.6;`);
@@ -210,7 +211,7 @@ export class Titan {
       const delt = mk(new THREE.SphereGeometry(0.52, 16, 12), mat, sh); delt.scale.set(1.0, 0.9, 0.95);
       mk(limbGeo(2.0 * al, 0.46, 0.33, 0.2, 0.35), mat, sh);
       const el = G(sh, 0, -2.0 * al, 0);
-      mk(new THREE.SphereGeometry(0.34, 12, 10), mat, el);
+      mk(new THREE.SphereGeometry(0.34, 12, 10), mat, el).scale.set(0.82, 0.9, 0.78);
       mk(limbGeo(1.85 * al, 0.36, 0.24, 0.22, 0.2), mat, el);
       const wr = G(el, 0, -1.85 * al, 0);
       const palm = mk(new THREE.BoxGeometry(0.5, 0.62, 0.22), mat, wr); palm.position.set(0, -0.32, 0.03);
@@ -227,7 +228,7 @@ export class Titan {
       const hp = G(hips, sx * 0.5 * g, -0.05, 0);
       mk(limbGeo(2.45, 0.62 * g, 0.4, 0.15, 0.25), mat, hp);
       const kn = G(hp, 0, -2.45, 0);
-      const cap = mk(new THREE.SphereGeometry(0.33, 12, 10), mat, kn); cap.position.z = 0.1;
+      const cap = mk(new THREE.SphereGeometry(0.33, 12, 10), mat, kn); cap.position.z = 0.06; cap.scale.set(0.85, 0.8, 0.62);
       mk(limbGeo(2.35, 0.45, 0.27, 0.25, 0.15), mat, kn);
       const an = G(kn, 0, -2.35, 0);
       const foot = mk(new THREE.CapsuleGeometry(0.24, 0.7, 4, 10), mat, an);
