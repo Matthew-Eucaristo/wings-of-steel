@@ -475,7 +475,7 @@ export class Titan {
       const dx = pos.x - o.x, dz = pos.z - o.z;
       const d2 = dx * dx + dz * dz, rr = o.r + rad;
       // stride straight through small buildings: they collapse under the titan's mass
-      if (o.house && !o.house.dead && o.h < this.height * 0.55 && d2 < rr * rr * 0.6) {
+      if (o.house && !o.house.dead && o.h < this.height * 1.05 && d2 < rr * rr * 0.6) {
         this.game.onHouseDown(o.house, pos);
         continue;
       }
