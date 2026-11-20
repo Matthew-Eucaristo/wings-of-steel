@@ -110,7 +110,11 @@ export class VFX {
         tr.unshift(tip);
         if (tr.length > 11) tr.pop();
       } else if (tr.length) tr.pop();
-      if (tr.length > 1) this.trails[i].set(tr, cam.position, (k, n) => 0.32 * (1 - k / n), (k, n) => (1 - k / n) ** 1.6 * 0.7);
+      if (tr.length > 1) {
+        // first person: the trail sweeps right past the lens, so keep it a thin streak instead of a whiteout
+        const fpk = this.game.cam.isFP() ? 0.3 : 1;
+        this.trails[i].set(tr, cam.position, (k, n) => 0.32 * fpk * (1 - k / n), (k, n) => (1 - k / n) ** 1.6 * 0.7 * fpk);
+      }
       else this.trails[i].hide();
     }
     // gas exhaust
@@ -118,6 +122,7 @@ export class VFX {
       const gp = p.model.gearPos(s, _v2);
       _d.copy(p.vel).normalize();
       if (p.braking) _d.negate();
+      if (this.game.cam.isFP()) gp.addScaledVector(cam.getWorldDirection(_v), -1.2);
       this.gas(gp, _d.lengthSq() ? _d : _v.set(0, 1, 0), 0.7);
     }
     // wind streaks at high speed
