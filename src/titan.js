@@ -237,8 +237,8 @@ export class Titan {
     this.thighs = []; this.knees = []; this.ankles = [];
     for (const sx of [-1, 1]) {
       const hp = G(hips, sx * 0.5 * g, -0.05, 0);
-      mk(limbGeo(2.45, 0.62 * g, 0.4, 0.15, 0.25), mat, hp);
-      const quad = mk(new THREE.SphereGeometry(0.42, 14, 10), mat, hp); quad.scale.set(1.0 * g, 2.3, 0.9); quad.position.set(0, -1.15, 0.2);
+      mk(limbGeo(2.45, 0.68 * g, 0.44, 0.16, 0.25), mat, hp);
+      const quad = mk(new THREE.SphereGeometry(0.42, 14, 10), mat, hp); quad.scale.set(1.1 * g, 2.4, 0.95); quad.position.set(0, -1.1, 0.22);
       const ham = mk(new THREE.SphereGeometry(0.4, 14, 10), mat, hp); ham.scale.set(1.0 * g, 2.0, 0.85); ham.position.set(0, -1.0, -0.18);
       const kn = G(hp, 0, -2.45, 0);
       const cap = mk(new THREE.SphereGeometry(0.33, 12, 10), mat, kn); cap.position.z = 0.06; cap.scale.set(0.85, 0.8, 0.62);
