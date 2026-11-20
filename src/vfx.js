@@ -124,7 +124,10 @@ export class VFX {
       const t = performance.now() * 0.001;
       for (let k = 0; k < n; k++) {
         const u = k / (n - 1);
-        pts[k].lerpVectors(from, h.tip, u);
+        if (h.bend) {
+          if (u < 0.5) pts[k].lerpVectors(from, h.bend, u * 2);
+          else pts[k].lerpVectors(h.bend, h.tip, (u - 0.5) * 2);
+        } else pts[k].lerpVectors(from, h.tip, u);
         const sag = Math.sin(u * Math.PI) * L * slack * 0.08;
         pts[k].y -= sag;
         if (h.state === 'fly') pts[k].x += Math.sin(u * 20 - t * 40) * 0.08 * Math.sin(u * Math.PI);

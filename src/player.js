@@ -109,7 +109,7 @@ export class Player {
   release(h) {
     if (h.state === 'none' || h.state === 'ret') return;
     // cable whips back into the gear instead of vanishing
-    h.state = 'ret'; h.t = 0; h.joint = null; h.owner = null; h.tension = 0;
+    h.state = 'ret'; h.t = 0; h.joint = null; h.owner = null; h.tension = 0; h.bend = null;
     this.game.audio.hookRetract(h.side);
   }
 
@@ -393,8 +393,20 @@ export class Player {
     }
     // cables
     for (const h of att) {
-      // lightweight cable steering: pull toward the real anchor; collision stays on the player body
-      const a = this.anchorOf(h, _v);
+      // lightweight rope constraint: at most one bend point, scanned only 8x/sec
+      h.bendScan = (h.bendScan || 0) - dt;
+      if (h.bendScan <= 0) {
+        h.bendScan = 0.125;
+        _v4.subVectors(this.anchorOf(h, _v), p);
+        const lineLen = _v4.length();
+        if (lineLen > 2) {
+          _v4.divideScalar(lineLen);
+          const hit = g.world.col.raycast(p, _v4, lineLen - 0.8, { dynamics: false });
+          if (hit && hit.collider) (h.bend ||= new THREE.Vector3()).copy(hit.point).addScaledVector(hit.normal, 0.12);
+          else h.bend = null;
+        }
+      }
+      const a = h.bend ? _v.copy(h.bend) : this.anchorOf(h, _v);
       _n.subVectors(a, p);
       const dist = _n.length();
       if (dist < 1e-3) continue;
