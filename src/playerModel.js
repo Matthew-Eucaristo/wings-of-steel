@@ -237,6 +237,8 @@ export class PlayerModel {
       D(this.el[i].rotation, 'x', ex, 20);
       D(this.hand[i].rotation, 'x', hx, sl >= 0 ? 40 : 16);
     }
+    // first person: shorter visible blades so they read as held steel, not screen-wide bars
+    for (const bl of this.blades) bl.scale.y = damp(bl.scale.y, st.fp ? 0.62 : 1, 10, dt);
     // blade glow when fast
     this.bladeMat.emissiveIntensity = damp(this.bladeMat.emissiveIntensity, st.speed > 25 || st.spin ? 1.2 : 0.05, 6, dt);
     D(this.spine.rotation, 'x', lerp(run * 0.35, st.hooked ? 0.15 : 0.35, air) + lk * 0.5);
