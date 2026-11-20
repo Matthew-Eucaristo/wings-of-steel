@@ -218,8 +218,8 @@ export class Titan {
       const delt = mk(new THREE.SphereGeometry(0.52, 16, 12), mat, sh); delt.scale.set(1.0, 0.9, 0.95);
       mk(limbGeo(2.0 * al, 0.46, 0.33, 0.2, 0.35), mat, sh);
       // biceps / triceps masses break the tube silhouette
-      const bi = mk(new THREE.SphereGeometry(0.3, 14, 10), mat, sh); bi.scale.set(0.95, 2.0, 1.0); bi.position.set(0, -0.85 * al, 0.14);
-      const tri = mk(new THREE.SphereGeometry(0.3, 14, 10), mat, sh); tri.scale.set(1.0, 2.2, 0.9); tri.position.set(0, -0.75 * al, -0.13);
+      const bi = mk(new THREE.SphereGeometry(0.3, 14, 10), mat, sh); bi.scale.set(0.9, 2.0, 0.9); bi.position.set(0, -0.85 * al, 0.1);
+      const tri = mk(new THREE.SphereGeometry(0.3, 14, 10), mat, sh); tri.scale.set(0.9, 2.2, 0.85); tri.position.set(0, -0.75 * al, -0.1);
       const el = G(sh, 0, -2.0 * al, 0);
       mk(new THREE.SphereGeometry(0.34, 12, 10), mat, el).scale.set(0.82, 0.9, 0.78);
       mk(limbGeo(1.85 * al, 0.36, 0.24, 0.22, 0.2), mat, el);
@@ -241,11 +241,11 @@ export class Titan {
       const hp = G(hips, sx * 0.5 * g, -0.05, 0);
       mk(limbGeo(2.45, 0.68 * g, 0.44, 0.16, 0.25), mat, hp);
       const quad = mk(new THREE.SphereGeometry(0.42, 14, 10), mat, hp); quad.scale.set(1.1 * g, 2.4, 0.95); quad.position.set(0, -1.1, 0.22);
-      const ham = mk(new THREE.SphereGeometry(0.4, 14, 10), mat, hp); ham.scale.set(1.0 * g, 2.0, 0.85); ham.position.set(0, -1.0, -0.18);
+      const ham = mk(new THREE.SphereGeometry(0.4, 14, 10), mat, hp); ham.scale.set(1.0 * g, 2.0, 0.8); ham.position.set(0, -1.0, -0.14);
       const kn = G(hp, 0, -2.45, 0);
       const cap = mk(new THREE.SphereGeometry(0.33, 12, 10), mat, kn); cap.position.z = 0.06; cap.scale.set(0.85, 0.8, 0.62);
       mk(limbGeo(2.35, 0.45, 0.27, 0.25, 0.15), mat, kn);
-      const calf = mk(new THREE.SphereGeometry(0.34, 14, 10), mat, kn); calf.scale.set(0.95, 2.1, 0.95); calf.position.set(0, -0.75, -0.14);
+      const calf = mk(new THREE.SphereGeometry(0.34, 14, 10), mat, kn); calf.scale.set(0.9, 2.1, 0.9); calf.position.set(0, -0.75, -0.11);
       const an = G(kn, 0, -2.35, 0);
       const foot = mk(new THREE.CapsuleGeometry(0.24, 0.7, 4, 10), mat, an);
       foot.rotation.x = Math.PI / 2; foot.position.set(0, -0.12, 0.3); foot.scale.set(1.2, 1, 0.75);
