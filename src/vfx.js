@@ -47,10 +47,10 @@ export class VFX {
   bloodSpray(p, dir, n = 30, big = 1) {
     for (let i = 0; i < n; i++) {
       _d.copy(dir).normalize().multiplyScalar(rand(4, 16) * big).add(_v.set(rand(-4, 4), rand(-1, 6), rand(-4, 4)));
-      this.blood.spawn(p, _d, { life: rand(0.6, 1.4), size0: rand(0.12, 0.3) * big, size1: 0.05, color: BLOOD, colorEnd: BLOOD_E, alpha: 1, drag: 0.4, buoy: -1.2, stretch: 0.06, fadeIn: 0.01 });
+      this.blood.spawn(p, _d, { life: rand(0.6, 1.4), size0: rand(0.22, 0.5) * big, size1: 0.12, color: BLOOD, colorEnd: BLOOD_E, alpha: 1, drag: 0.4, buoy: -1.2, stretch: 0.09, fadeIn: 0.01 });
     }
     // blood instantly evaporates as steam (titan biology)
-    for (let i = 0; i < n * 0.4; i++) this.steam(_v.copy(p).add(_v2.set(rand(-1, 1), rand(-1, 1), rand(-1, 1))), 1.2 * big, 2);
+    for (let i = 0; i < n * 0.18; i++) this.steam(_v.copy(p).add(_v2.set(rand(-1, 1), rand(-1, 1), rand(-1, 1))), 1.2 * big, 2);
   }
   sparks(p, n = 14, col = SPARK) {
     for (let i = 0; i < n; i++) {
