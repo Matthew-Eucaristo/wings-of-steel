@@ -87,7 +87,8 @@ export class VFX {
       const pts = this.cablePts[i];
       const n = pts.length;
       const L = from.distanceTo(h.tip);
-      const slack = h.state === 'fly' ? 0.25 : clamp(1 - h.tension * 0.2, 0, 1) * 0.06;
+      const ret = h.state === 'ret';
+      const slack = h.state === 'fly' ? 0.25 : ret ? 1.2 : clamp(1 - h.tension * 0.2, 0, 1) * 0.06;
       const t = performance.now() * 0.001;
       for (let k = 0; k < n; k++) {
         const u = k / (n - 1);
@@ -95,6 +96,7 @@ export class VFX {
         const sag = Math.sin(u * Math.PI) * L * slack * 0.08;
         pts[k].y -= sag;
         if (h.state === 'fly') pts[k].x += Math.sin(u * 20 - t * 40) * 0.08 * Math.sin(u * Math.PI);
+        else if (ret) { const w = Math.sin(u * 9 - t * 55) * 0.25 * Math.sin(u * Math.PI); pts[k].x += w; pts[k].z += w * 0.6; }
       }
       rb.set(pts, cam.position, (k, nn) => 0.06 + (k === nn - 1 ? 0.08 : 0), 1);
       if (h.state === 'fly' && Math.random() < 0.5) this.add.spawn(h.tip, _d.set(0, 0, 0), { life: 0.08, size0: 0.25, size1: 0.1, color: SPARK, alpha: 0.8 });

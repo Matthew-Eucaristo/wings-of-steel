@@ -69,8 +69,9 @@ export class Player {
   }
 
   release(h) {
-    if (h.state === 'none') return;
-    h.state = 'none'; h.joint = null; h.owner = null;
+    if (h.state === 'none' || h.state === 'ret') return;
+    // cable whips back into the gear instead of vanishing
+    h.state = 'ret'; h.t = 0; h.joint = null; h.owner = null; h.tension = 0;
     this.game.audio.hookRetract(h.side);
   }
 
@@ -133,7 +134,7 @@ export class Player {
     const want = [inp.key('KeyQ') || inp.mouse.r, inp.key('KeyE') || inp.mouse.r];
     for (let i = 0; i < 2; i++) {
       const h = this.hooks[i];
-      if (want[i] && h.state === 'none' && !h.cool) { this.fire(h); h.cool = true; }
+      if (want[i] && (h.state === 'none' || h.state === 'ret') && !h.cool) { this.fire(h); h.cool = true; }
       if (!want[i]) { h.cool = false; this.release(h); }
     }
     // slash / spin charge
@@ -156,6 +157,15 @@ export class Player {
 
   updateHook(h, dt) {
     if (h.state === 'none') return;
+    if (h.state === 'ret') {
+      const from = this.model.gearPos(h.side, _v);
+      _v2.subVectors(from, h.tip);
+      const d = _v2.length(), step = (90 + h.t * 900) * dt;
+      h.t += dt;
+      if (d <= step || h.t > 0.6) h.state = 'none';
+      else h.tip.addScaledVector(_v2, step / d);
+      return;
+    }
     if (h.owner && (h.owner.remove || (!h.owner.alive && h.owner.deadT > 10))) { this.release(h); return; }
     const tgt = this.anchorOf(h, _v);
     if (h.state === 'fly') {

@@ -41,7 +41,7 @@ export class HUD {
     e.gear.classList.toggle('lowgas', p.gas < 20);
     e.spd.textContent = Math.round(p.speed);
     for (let i = 0; i < 2; i++) {
-      const on = p.hooks[i].state !== 'none';
+      const on = p.hooks[i].state === 'fly' || p.hooks[i].state === 'attached';
       (i ? e.hr : e.hl).classList.toggle('on', on); e.hk[i].classList.toggle('on', on);
     }
     const aim = p.aim;
