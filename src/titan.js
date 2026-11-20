@@ -24,6 +24,7 @@ function mergeJoints(root) {
 }
 
 let SKIN = null;
+const _qIK = new THREE.Quaternion(), AX_X = new THREE.Vector3(1, 0, 0);
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _q = new THREE.Quaternion();
@@ -272,18 +273,28 @@ export class Titan {
   setState(s) { this.state = s; this.stateT = 0; }
 
   // aim an arm (shoulder joint) to a world target
-  aimArm(i, target, w) { (this.armAim || (this.armAim = []))[i] = { t: target.clone(), w }; }
+  aimArm(i, target, w, ik = false) { (this.armAim || (this.armAim = []))[i] = { t: target.clone(), w, ik }; }
   applyArmAim() {
     if (!this.armAim) return;
-    for (let i = 0; i < 2; i++) { const a = this.armAim[i]; if (a) this._aim(i, a.t, a.w); this.armAim[i] = null; }
+    for (let i = 0; i < 2; i++) { const a = this.armAim[i]; if (a) this._aim(i, a.t, a.w, a.ik); this.armAim[i] = null; }
   }
-  _aim(i, target, w) {
-    const sh = this.shoulders[i];
+  _aim(i, target, w, ik) {
+    const sh = this.shoulders[i], el = this.elbows[i];
     sh.parent.updateMatrixWorld(true);
-    const local = sh.parent.worldToLocal(_v.copy(target)).sub(sh.position).normalize();
-    _q.setFromUnitVectors(DOWN, local);
+    const local = sh.parent.worldToLocal(_v.copy(target)).sub(sh.position);
+    const d = local.length();
+    _q.setFromUnitVectors(DOWN, local.normalize());
+    let bend = 0.15;
+    if (ik) {
+      // two-bone solve so the hand lands on the target instead of overshooting it
+      const a = el.position.length(), b = this.wrists[i].position.length() + 0.55;
+      const dc = clamp(d, Math.abs(a - b) + 0.05, a + b - 0.05);
+      bend = Math.PI - Math.acos(clamp((a * a + b * b - dc * dc) / (2 * a * b), -1, 1));
+      _qIK.setFromAxisAngle(AX_X, Math.acos(clamp((a * a + dc * dc - b * b) / (2 * a * dc), -1, 1)));
+      _q.multiply(_qIK);
+    }
     sh.quaternion.slerp(_q, w);
-    this.elbows[i].rotation.x = lerp(this.elbows[i].rotation.x, -0.15, w);
+    el.rotation.x = lerp(el.rotation.x, -bend, w);
   }
 
   hit(part, dmg, point, dir, side = 0) {
@@ -357,7 +368,7 @@ export class Titan {
       const mouth = this.mouthPos(new THREE.Vector3());
       const front = new THREE.Vector3(Math.sin(this.heading), 0.2, Math.cos(this.heading)).multiplyScalar(2.6 * s);
       const tgt = mouth.add(front.multiplyScalar(1 - t));
-      this.aimArm(i, tgt, 0.25);
+      this.aimArm(i, tgt, lerp(0.6, 1, Math.min(1, t * 2)), true);
       if (this.stateT > 4.0) { p.eaten(this); this.setState('chase'); this.cooldown = 4; }
     } else {
       // locomotion states
