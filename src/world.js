@@ -705,13 +705,24 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
       }
     }
     const barkMat = new THREE.MeshStandardMaterial({ map: t.bark.map, normalMap: t.bark.normalMap, roughness: 0.95, vertexColors: true, color: '#c7b8a6' });
-    const tm = new THREE.Mesh(mergeGeometries(trunks), barkMat);
-    tm.castShadow = tm.receiveShadow = true;
-    this.scene.add(tm);
     this.canopyMat = this.leafMaterial();
-    const cm = new THREE.Mesh(mergeGeometries(canopies), this.canopyMat);
-    cm.castShadow = true; cm.receiveShadow = true;
-    this.scene.add(cm);
+    // merge per 90 m cell instead of one forest-wide mesh so camera and shadow frustum culling can skip far trees
+    const chunked = (geos, mat) => {
+      const cells = new Map();
+      for (const g of geos) {
+        g.computeBoundingSphere();
+        const c = g.boundingSphere.center, key = Math.floor(c.x / 90) + ':' + Math.floor(c.z / 90);
+        if (!cells.has(key)) cells.set(key, []);
+        cells.get(key).push(g);
+      }
+      for (const list of cells.values()) {
+        const m = new THREE.Mesh(mergeGeometries(list), mat);
+        m.castShadow = m.receiveShadow = true;
+        this.scene.add(m);
+      }
+    };
+    chunked(trunks, barkMat);
+    chunked(canopies, this.canopyMat);
   }
 
   leafMaterial() {

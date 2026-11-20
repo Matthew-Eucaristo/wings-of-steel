@@ -18,8 +18,11 @@ const GradeShader = {
       vec3 col = vec3(0.0);
       float blur = uSpeed * 0.035 * smoothstep(0.15, 0.7, r);
       const int N = 8;
+      // at rest the blur/aberration is sub-pixel: one tap instead of eight
+      int taps = (uSpeed > 0.02 || uHurt > 0.02) ? N : 1;
       for (int i = 0; i < N; i++) {
-        float t = float(i) / float(N - 1);
+        if (i >= taps) break;
+        float t = taps > 1 ? float(i) / float(N - 1) : 0.0;
         vec2 u = uv - c * blur * t;
         // chromatic aberration grows with speed and hits
         float ca = (0.0015 + uSpeed * 0.003 + uHurt * 0.006) * r;
@@ -27,7 +30,7 @@ const GradeShader = {
         col.g += texture2D(tDiffuse, u).g;
         col.b += texture2D(tDiffuse, u - c * ca).b;
       }
-      col /= float(N);
+      col /= float(taps);
       // grade: warm highlights, cool shadows, gentle s-curve
       float l = dot(col, vec3(0.299, 0.587, 0.114));
       col = mix(col, col * vec3(0.92, 0.98, 1.08), (1.0 - smoothstep(0.0, 0.45, l)) * 0.6);
