@@ -171,7 +171,7 @@ class Game {
     this.audio.hookHit(h.tip, flesh);
     if (flesh) this.vfx.bloodSpray(h.tip, _v.set(0, 1, 0), 6, 0.5);
     else { this.vfx.sparks(h.tip, 8); this.vfx.dust(h.tip, 1, 4); }
-    this.hitstop = Math.max(this.hitstop, 0.022); this.cam.shake(flesh ? 0.07 : 0.055); this.cam.impactFov = Math.max(this.cam.impactFov, 0.9);
+    this.cam.shake(flesh ? 0.07 : 0.055); this.cam.impactFov = Math.max(this.cam.impactFov, 0.9);
   }
   onSlashHit(t, result, dmg, point) {
     const p = this.player;

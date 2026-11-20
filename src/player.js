@@ -112,7 +112,7 @@ export class Player {
     }
     h.surface = hit.surface;
     g.audio.hookFire(h.side);
-    g.hitstop = Math.max(g.hitstop, 0.012); g.cam.shake(0.035); g.cam.impactFov = Math.max(g.cam.impactFov, 0.7);
+    g.cam.shake(0.035); g.cam.impactFov = Math.max(g.cam.impactFov, 0.7);
   }
 
   release(h) {
@@ -324,6 +324,7 @@ export class Player {
     const gasHeld = control && (inp.key('ShiftLeft') || inp.key('ShiftRight'));
     let gasUse = 0;
     this.gasOn = false;
+    this.mantleCD = Math.max(0, (this.mantleCD || 0) - dt);
     this.impactT = Math.max(0, (this.impactT || 0) - dt);
     if (control && this.impactT > 0 && inp.pressed('Space', true) && this.impactN) {
       const kick = clamp((this.impactSpeed || 18) * 0.55, 9, 18);
@@ -355,12 +356,12 @@ export class Player {
       const tx = wish.x * sp, tz = wish.z * sp;
       const k = wish.lengthSq() > 0 ? 14 : (Math.hypot(v.x, v.z) > 14 ? 1.5 : 8);
       v.x = damp(v.x, tx, k, dt); v.z = damp(v.z, tz, k, dt);
-      if (control && inp.pressed('Space', true)) { v.y = TUNE.jump; this.grounded = false; g.audio.jump(); g.hitstop = Math.max(g.hitstop, 0.014); g.cam.shake(0.045); g.cam.impactFov = Math.max(g.cam.impactFov, 1.2); }
+      if (control && inp.pressed('Space', true)) { v.y = TUNE.jump; this.grounded = false; g.audio.jump(); g.cam.shake(0.045); g.cam.impactFov = Math.max(g.cam.impactFov, 1.2); }
     } else {
       const lowSpeedAssist = 1 + clamp((12 - v.length()) / 12, 0, 1) * 0.8;
       v.addScaledVector(wish, (att.length ? TUNE.swingSteer : TUNE.airSteer) * lowSpeedAssist * this.classDef.steer * dt);
       if (control && this.coyoteT > 0 && inp.pressed('Space', true) && !att.length) {
-        v.y = TUNE.jump; this.coyoteT = 0; g.audio.jump(); g.hitstop = Math.max(g.hitstop, 0.014); g.cam.shake(0.045); g.cam.impactFov = Math.max(g.cam.impactFov, 1.2);
+        v.y = TUNE.jump; this.coyoteT = 0; g.audio.jump(); g.cam.shake(0.045); g.cam.impactFov = Math.max(g.cam.impactFov, 1.2);
       }
     }
     // wall moves: run along it, climb it facing in, kick off with Space
@@ -506,7 +507,20 @@ export class Player {
             }
             if (_n.y > 0.55) { this.grounded = true; this.groundN.copy(_n); }
             // remember the last wall touched for wall-run / climb / kick-off
-            else if (Math.abs(_n.y) < 0.35 && !c.owner) { (this.wallN ||= new THREE.Vector3()).copy(_n); this.wallT = 0.2; }
+            else if (Math.abs(_n.y) < 0.35 && !c.owner) {
+              (this.wallN ||= new THREE.Vector3()).copy(_n); this.wallT = 0.2;
+              // roof-lip assist: if the wall ends just above the player, carry momentum over it
+              if ((this.mantleCD || 0) <= 0 && g.input.key('KeyW') && (v.y > 0.5 || this.hooked)) {
+                _v3.copy(p).addScaledVector(_n, 0.25); _v3.y += 1.45;
+                _v4.copy(_n).negate();
+                const upper = col.raycast(_v3, _v4, 1.25, { dynamics: false });
+                if (!upper) {
+                  p.y += 0.65; p.addScaledVector(_n, -0.55);
+                  v.y = Math.max(v.y, 4.5); v.addScaledVector(_n, -2.5);
+                  this.mantleCD = 0.35; g.cam.shake(0.045); g.cam.impactFov = Math.max(g.cam.impactFov, 0.8);
+                }
+              }
+            }
           }
         }
       }
