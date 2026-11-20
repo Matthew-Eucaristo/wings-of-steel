@@ -497,6 +497,24 @@ export class Titan {
     this.head.rotation.y = damp(this.head.rotation.y, yaw * look + (this.blind > 0 ? Math.sin(this.stateT * 5) * 0.6 : 0), 3, dt);
     this.head.rotation.x = damp(this.head.rotation.x, pitch * look, 3, dt);
     this.head.rotation.z = Math.sin(this.walkPhase * 0.5) * 0.12;
+    // stoop and squat when reaching for something near the ground
+    let stoopT = 0;
+    if (this.state === 'reach') {
+      const rel = (p.pos.y - this.root.position.y) / this.height;
+      const t = this.stateT / 1.3;
+      stoopT = clamp((0.62 - rel) / 0.45, 0, 1) * (t < 0.85 ? Math.min(1, t / 0.3) : clamp((1 - t) / 0.15, 0, 1));
+    }
+    const st = this.stoopW = damp(this.stoopW || 0, stoopT, 6, dt);
+    if (st > 1e-3) {
+      this.spine.rotation.x += st * 0.85;
+      this.chest.rotation.x += st * 0.2;
+      this.hips.position.y -= st * 1.6;
+      for (let i = 0; i < 2; i++) {
+        this.thighs[i].rotation.x -= st * 0.9;
+        this.knees[i].rotation.x += st * 1.5;
+        this.ankles[i].rotation.x -= st * 0.5;
+      }
+    }
     this.applyArmAim();
     // footsteps
     for (let i = 0; i < 2; i++) {

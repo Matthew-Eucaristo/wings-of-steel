@@ -60,6 +60,7 @@ class Game {
     this.hud = new HUD(this);
     this.post = new Post(renderer, this.scene, this.cam.camera);
     this.story = new Story(this);
+    this.TitanClass = Titan;
     this.stats = { maxSpeed: 0, bestCombo: 0, time: 0 };
     this.maxWave = 5;
     this.kills = 0; this.wave = 0; this.waveT = 3; this.timeScale = 1; this.slowT = 0; this.hitstop = 0; this.flash = 0; this.intensity = 0;
