@@ -262,6 +262,7 @@ export class Titan {
       }
       const pupil = mk(new THREE.SphereGeometry(0.035 * hs, 6, 6), S.dark, head); pupil.scale.set(1, 1, 0.4); pupil.position.set(sx * 0.3 * hs + look, 0.6 * hs, 0.845 * hs);
       const lid = mk(new THREE.SphereGeometry(0.135 * hs, 10, 6, 0, Math.PI * 2, 0, Math.PI * (0.38 + this.r() * 0.1)), mat, head); lid.position.copy(eye.position); lid.rotation.x = 0.35;
+      (this.lids ||= []).push(lid);
     }
     const grinW = lerp(0.35, 0.75, P.grin);
     const mouth = mk(new THREE.SphereGeometry(0.5 * hs, 16, 8, -grinW * 1.2 + Math.PI / 2, grinW * 2.4, Math.PI * 0.52, Math.PI * 0.14), S.dark, head);
@@ -875,6 +876,13 @@ export class Titan {
     this.hips.rotation.y = Math.sin(ph) * 0.08 * amp;
     this.spine.rotation.set(lean + k * 0.5 + this.hitTilt, -Math.sin(ph) * 0.1 * amp + this.hitTwist, Math.sin(ph) * 0.04 * amp);
     this.chest.rotation.x = abn ? 0.25 : 0.05;
+    const idleW = clamp(1 - this.speed / (1.2 * s), 0, 1);
+    if (idleW > 0.01) {
+      const br = this.game.elapsed;
+      this.spine.rotation.z += Math.sin(br * 1.3 + this.walkPhase) * 0.035 * idleW;
+      this.chest.rotation.x += Math.sin(br * 1.7) * 0.03 * idleW;
+      this.hips.position.y += Math.sin(br * 1.7) * 0.06 * idleW;
+    }
     const p = this.game.player;
     this.head.updateMatrixWorld(true);
     const hl = this.neck.worldToLocal(_v.copy(p.pos));
@@ -890,6 +898,14 @@ export class Titan {
     this.jaw.position.y = this.jawY0 - jo * this.jawDrop;
     this.jaw.rotation.x = jo * 0.35;
     this.head.rotation.x -= jo * 0.3;
+    this.blinkT = (this.blinkT ?? rand(1.5, 4.5)) - dt;
+    let lidRot = 0.35;
+    if (this.blinkT < 0) {
+      if (this.blinkT < -0.14) this.blinkT = rand(2.2, 5.5);
+      else lidRot = 0.35 + Math.sin((-this.blinkT / 0.14) * Math.PI) * 1.2;
+    }
+    if (this.blind > 0) lidRot = 0.35 + 1.5;
+    if (this.lids) for (const l of this.lids) l.rotation.x = lidRot;
     let stoopT = 0;
     if (this.state === 'reach' || (this.state === 'throw' && this.stateT < 0.55)) {
       const rel = this.state === 'throw' ? 0.1 : (p.pos.y - this.root.position.y) / this.height;
