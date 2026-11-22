@@ -409,7 +409,7 @@ export class HUD {
     e.gaslvl.style.opacity = 0.25 + 0.75 * (p.gas / 100);
     for (let i = 0; i < 6; i++) e.gaspips.children[i].classList.toggle('on', i < p.gasCylinders);
     for (let i = 0; i < 8; i++) e.bladepips.children[i].classList.toggle('on', i < p.bladeSets);
-    this.setText(e.classlabel, 'cls', { light: 'RINGAN', balanced: 'HP', heavy: 'BERAT' }[p.className] || 'HP');
+    this.setText(e.classlabel, 'cls', { light: 'RINGAN', balanced: 'SEIMBANG', heavy: 'BERAT' }[p.className] || 'SEIMBANG');
     e.gear.classList.toggle('lowgas', p.gas < 20);
     this.setText(e.spd, 'spd', String(Math.round(p.speed)));
 

@@ -398,6 +398,7 @@ class Game {
     b.age = 0;
     b.pos.copy(from);
     b.m.position.copy(from);
+    b.m.rotation.set(0, 0, 0);
     b.m.scale.setScalar(radius);
     b.m.visible = true;
     const dx = targetPos.x - from.x, dy = targetPos.y - from.y, dz = targetPos.z - from.z;

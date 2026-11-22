@@ -863,7 +863,10 @@ export class Player {
     const wasGround = this.grounded;
     this.grounded = false;
     col.nearby(p, near);
-    for (let i = 0; i < col.dynamics.length; i++) near.push(col.dynamics[i]);
+    for (let i = 0; i < col.dynamics.length; i++) {
+      const c = col.dynamics[i];
+      if (!c.owner || c.owner.root.position.distanceToSquared(p) < 3600) near.push(c);
+    }
     const r = TUNE.radius;
     let maxHit = 0;
     let hitHouse = null;
