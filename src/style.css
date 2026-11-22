@@ -32,6 +32,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:Raj
 #cross .hk.l{left:-30px;border-right:none}#cross .hk.r{left:22px;border-left:none}
 #cross .hk.on{border-color:#ffd27a;box-shadow:0 0 8px #ffb347}
 #range{position:absolute;left:24px;top:12px;font-size:12px;font-weight:700;color:rgba(255,255,255,.7);text-shadow:0 1px 2px #000;white-space:nowrap}
+#spinbar{position:absolute;left:-26px;top:30px;width:52px;height:4px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.28);border-radius:2px;opacity:0;transition:opacity .12s;overflow:hidden}
+#spinbar.on{opacity:1}
+#spinbar i{display:block;height:100%;width:0;background:#ffd27a;transition:width .05s linear}
+#spinbar.ready{border-color:#ffe7a8;box-shadow:0 0 8px rgba(255,205,110,.7)}
+#spinbar.ready i{background:#fff3c4}
+#rebound{position:absolute;left:50%;top:42px;transform:translateX(-50%);padding:2px 9px;border:1px solid rgba(175,230,255,.8);background:rgba(12,26,38,.78);color:#c7eeff;font-size:11px;font-weight:700;letter-spacing:2px;white-space:nowrap;border-radius:3px;box-shadow:0 0 10px rgba(120,210,255,.45)}
 #lock{position:absolute;width:0;height:0;display:none}
 #lock div{position:absolute;left:-22px;top:-22px;width:44px;height:44px;border:2px solid #ff4d3a;transform:rotate(45deg);box-shadow:0 0 12px rgba(255,60,40,.7);animation:lk 1s infinite}
 #lock span{position:absolute;left:-20px;top:26px;width:40px;text-align:center;font-size:11px;font-weight:700;color:#ff7a66;letter-spacing:2px}
@@ -59,35 +65,45 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:Raj
 #gear.lowgas .bar.gas i{background:#ff5530;animation:bl .4s infinite}
 @keyframes bl{50%{opacity:.4}}
 #sets{font-weight:700;width:34px;text-align:right}
-.hooks{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);width:180px;display:flex;justify-content:space-between;align-items:center;margin-top:8px;text-shadow:0 2px 3px #000}
+.hooks{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);min-width:210px;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px 12px;text-shadow:0 2px 3px #000}
 .hooks span{font-weight:700;font-size:15px;padding:1px 8px;border:1px solid rgba(255,255,255,.3);opacity:.5}
 .hooks span.on{opacity:1;border-color:#ffd27a;color:#ffd27a;box-shadow:0 0 8px rgba(255,180,70,.5)}
+#hmode{flex:0 0 100%;text-align:center;font-size:11px!important;letter-spacing:2px;padding:2px 10px!important;opacity:.92!important;border-radius:2px;background:rgba(14,12,10,.58)}
+#hmode.auto{border-color:rgba(130,220,255,.55)!important;color:#b8ebff}
+#hmode.focus{border-color:rgba(255,208,120,.75)!important;color:#ffe4a6}
 #spd{border:none!important;opacity:1!important;font-family:Cinzel,serif;font-size:26px!important}
 #spd:after{content:' m/s';font-size:12px;font-family:Rajdhani}
 #toast{position:absolute;left:50%;top:30%;transform:translateX(-50%);font-family:Cinzel,serif;font-size:30px;letter-spacing:4px;color:#fff;text-shadow:0 0 14px rgba(255,180,80,.9),0 2px 3px #000;opacity:0;transition:opacity .3s;text-align:center}
-#struggle{position:absolute;left:50%;top:62%;transform:translateX(-50%);width:420px;text-align:center;font-weight:700;font-size:20px;color:#ff8a72;text-shadow:0 2px 3px #000}
+#struggle{position:absolute;left:50%;top:62%;transform:translateX(-50%);width:min(420px,88vw);text-align:center;font-weight:700;font-size:20px;color:#ff8a72;text-shadow:0 2px 3px #000}
 #struggle .bar{height:14px;margin-top:8px}
-#help{position:absolute;bottom:10px;right:20px;font-size:13px;opacity:.55;text-shadow:0 1px 2px #000;max-width:56%;text-align:right}
-#title,#dead,#paused{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(10,8,6,.35),rgba(0,0,0,.85));text-align:center}
-.logo small{letter-spacing:6px;font-size:12px;opacity:.6}
-.logo h1,#dead h1,#paused h1{font-family:Cinzel,serif;font-weight:800;font-size:76px;letter-spacing:10px;background:linear-gradient(180deg,#fff2d4,#c59a4f 60%,#7a5524);-webkit-background-clip:text;color:transparent;filter:drop-shadow(0 4px 10px rgba(0,0,0,.8))}
-.logo h2{font-family:Cinzel,serif;letter-spacing:14px;font-size:20px;color:#c9b089;margin-top:-6px}
-.controls{display:grid;grid-template-columns:1fr 1fr;gap:6px 36px;margin:30px 0 14px;font-size:16px;text-align:left}
-kbd{display:inline-block;min-width:26px;padding:1px 7px;margin-right:4px;border:1px solid rgba(255,255,255,.35);border-bottom-width:3px;border-radius:4px;font-family:Rajdhani;font-weight:700;text-align:center;background:rgba(255,255,255,.06)}
-.tip{color:#e8c98a;font-size:16px;margin-bottom:22px}
-button{font-family:Cinzel,serif;font-weight:800;letter-spacing:5px;font-size:20px;padding:14px 38px;color:#1a120a;background:linear-gradient(180deg,#f6e2b0,#c59a4f);border:none;cursor:pointer;clip-path:polygon(6% 0,100% 0,94% 100%,0 100%);transition:transform .15s,filter .15s}
-button:hover{transform:scale(1.05);filter:brightness(1.1)}
+#help{position:fixed;top:96px;right:18px;width:min(460px,calc(100vw - 36px));padding:12px 14px;background:rgba(12,10,8,.86);border:1px solid rgba(215,180,115,.38);border-left:3px solid #c9a96a;backdrop-filter:blur(4px);text-align:left;text-shadow:0 1px 2px #000;box-shadow:0 8px 24px rgba(0,0,0,.55);z-index:12}
+.help-title{display:flex;justify-content:space-between;align-items:baseline;font-family:Cinzel,serif;font-size:13px;letter-spacing:3px;color:#f0d7a2;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid rgba(255,255,255,.12)}
+.help-title small{font-family:Rajdhani,sans-serif;font-size:11px;letter-spacing:1px;opacity:.7}
+.help-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px 14px;font-size:13px;line-height:1.35}
+.help-pad{margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.1);font-size:12px;color:#d6cbb8;line-height:1.35}
+#title,#dead,#paused,#win{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 24px;overflow-y:auto;background:radial-gradient(ellipse at center,rgba(10,8,6,.42),rgba(0,0,0,.88));text-align:center}
+.logo small{letter-spacing:6px;font-size:12px;opacity:.65}
+.logo h1,#dead h1,#paused h1{font-family:Cinzel,serif;font-weight:800;font-size:clamp(38px,6.2vw,76px);letter-spacing:clamp(4px,0.9vw,10px);background:linear-gradient(180deg,#fff2d4,#c59a4f 60%,#7a5524);-webkit-background-clip:text;color:transparent;filter:drop-shadow(0 4px 10px rgba(0,0,0,.8))}
+.logo h2{font-family:Cinzel,serif;letter-spacing:clamp(6px,1.2vw,14px);font-size:clamp(14px,1.8vw,20px);color:#c9b089;margin-top:-4px}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:6px 28px;margin:20px 0 10px;max-width:min(820px,94vw);font-size:15px;text-align:left}
+.pad-note{max-width:min(820px,94vw);font-size:13px;color:#cfc2ac;opacity:.85;margin-bottom:10px}
+kbd{display:inline-block;min-width:24px;padding:1px 6px;margin-right:4px;border:1px solid rgba(255,255,255,.35);border-bottom-width:3px;border-radius:4px;font-family:Rajdhani;font-weight:700;text-align:center;background:rgba(255,255,255,.07)}
+.tip{color:#e8c98a;font-size:15px;margin-bottom:14px;max-width:min(760px,92vw)}
+button{font-family:Cinzel,serif;font-weight:800;letter-spacing:4px;font-size:18px;padding:13px 32px;color:#1a120a;background:linear-gradient(180deg,#f6e2b0,#c59a4f);border:none;cursor:pointer;clip-path:polygon(6% 0,100% 0,94% 100%,0 100%);transition:transform .15s,filter .15s}
+button:hover{transform:scale(1.04);filter:brightness(1.1)}
+button:focus-visible{outline:2px solid #ffe4a6;outline-offset:3px}
 button:disabled{opacity:.4}
-#loading{margin-top:12px;font-size:14px;opacity:.6}
-#dead h1{white-space:nowrap;font-size:min(76px,9vw);background:linear-gradient(180deg,#ffd1c4,#b3261b 70%,#4a0a05);-webkit-background-clip:text}
+#loading{margin-top:10px;font-size:14px;opacity:.65}
+#dead h1{white-space:nowrap;font-size:clamp(36px,7vw,74px);background:linear-gradient(180deg,#ffd1c4,#b3261b 70%,#4a0a05);-webkit-background-clip:text}
 #dead p{font-size:18px;margin:8px 0}
-#dead button{margin-top:18px}
+#dead .btns{margin-top:14px}
 
-.btns{display:flex;gap:18px;justify-content:center}
-#classes{display:flex;gap:8px;margin:8px 0 16px}
-#classes button{min-width:132px;padding:8px 12px;background:rgba(18,16,13,.62);border:1px solid rgba(255,255,255,.22);color:#d8cfbe;font:700 13px Rajdhani;letter-spacing:1.5px;cursor:pointer}
-#classes button small{display:block;margin-top:3px;font-size:10px;letter-spacing:.4px;opacity:.7}
-#classes button.selected{border-color:#ffd27a;color:#fff4d5;box-shadow:0 0 12px rgba(255,190,90,.3);background:rgba(74,55,30,.72)}
+.btns{display:flex;flex-wrap:wrap;gap:14px;justify-content:center}
+.pause-btns{margin-bottom:10px}
+#classes{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:6px 0 16px;max-width:min(760px,94vw)}
+#classes button{min-width:170px;padding:10px 14px;background:rgba(18,16,13,.68);border:1px solid rgba(255,255,255,.22);color:#d8cfbe;font:700 14px Rajdhani;letter-spacing:1.5px;cursor:pointer;clip-path:none;border-radius:3px}
+#classes button small{display:block;margin-top:3px;font-size:11px;letter-spacing:.3px;opacity:.78;font-weight:500}
+#classes button.selected{border-color:#ffd27a;color:#fff4d5;box-shadow:0 0 14px rgba(255,190,90,.35);background:rgba(78,58,31,.78)}
 button.ghost{background:rgba(255,255,255,.08);color:#f3e2bf;box-shadow:inset 0 0 0 2px rgba(246,226,176,.5)}
 .sub{margin-top:14px;font-size:14px;opacity:.65}
 #title{transition:opacity .6s}
@@ -113,14 +129,37 @@ button.ghost{background:rgba(255,255,255,.08);color:#f3e2bf;box-shadow:inset 0 0
 #tut em{font-size:12px;opacity:.55;font-style:normal}
 #tut.done{border-left-color:#7dffbf}
 #tut.done h3::after{content:'  ✓';color:#7dffbf}
-#win{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(10,8,6,.3),rgba(0,0,0,.85));text-align:center}
-#win small{letter-spacing:6px;font-size:12px;opacity:.6}
-#win h1{font-family:Cinzel,serif;font-weight:800;font-size:64px;letter-spacing:8px;background:linear-gradient(180deg,#fff2d4,#c59a4f 60%,#7a5524);-webkit-background-clip:text;color:transparent}
-#win p{font-size:18px;margin:6px 0 4px;opacity:.85}
-.stats{display:flex;gap:26px;justify-content:center;margin:18px 0 22px;font-size:15px;opacity:.9}
+#win small{letter-spacing:6px;font-size:12px;opacity:.65}
+#win h1{font-family:Cinzel,serif;font-weight:800;font-size:clamp(36px,6vw,64px);letter-spacing:clamp(4px,0.8vw,8px);background:linear-gradient(180deg,#fff2d4,#c59a4f 60%,#7a5524);-webkit-background-clip:text;color:transparent}
+#win p{font-size:18px;margin:6px 0 4px;opacity:.85;max-width:min(680px,92vw)}
+.stats{display:flex;flex-wrap:wrap;gap:18px 26px;justify-content:center;margin:18px 0 22px;font-size:15px;opacity:.9}
 .stats span{display:flex;flex-direction:column;align-items:center;letter-spacing:2px}
 .stats b{font-size:26px;font-family:Cinzel,serif;color:#f6e2b0}
 #paused .controls{margin-top:10px}
 #depotm{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;color:#9effc4;font-size:12px;letter-spacing:2px;text-shadow:0 0 4px #000}
 #depotm i{width:16px;height:16px;border:2px solid #9effc4;transform:rotate(45deg);box-shadow:0 0 8px #3dff9a;animation:dpulse 1s ease-in-out infinite}
 @keyframes dpulse{50%{opacity:.4}}
+
+@media (max-width:900px){
+  .controls{gap:5px 16px;font-size:13px}
+  .help-grid{gap:4px 10px;font-size:12px}
+  #classes button{min-width:140px;flex:1 1 140px}
+  button{font-size:15px;letter-spacing:3px;padding:11px 22px}
+  #tut{width:min(300px,calc(100vw - 32px));left:16px;top:84px;padding:12px 14px}
+  #gear{left:14px;top:14px;width:200px;padding:8px 10px}
+  #kills{top:14px;right:14px}
+  #kills b{font-size:34px}
+  .resource-label{width:144px;gap:6px}
+  .resource-label.gas{right:66px}
+  .resource-label.blade{left:66px}
+}
+@media (max-width:680px){
+  .controls,.help-grid{grid-template-columns:1fr}
+}
+@media (max-height:760px){
+  #title,#paused{justify-content:flex-start;padding-top:18px}
+  .controls{margin:12px 0 8px;gap:4px 24px;font-size:13.5px}
+  .tip{margin-bottom:10px;font-size:14px}
+  #classes{margin:4px 0 12px}
+  button{padding:10px 26px;font-size:16px}
+}

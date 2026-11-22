@@ -146,21 +146,33 @@ export class Player {
       hit.t = d;
       this.aim = d <= TUNE.hookRange ? hit : null;
     } else this.aim = null;
-    // nape lock-on for HUD and slash assist
-    let best = null, bestS = 0.88;
+    // nape lock-on for HUD, hooks, spear and slash assist (wider cone when approaching from below)
+    let best = null, bestS = -1;
+    const lockScore = (t) => {
+      _v.subVectors(t.nape.c, cam.position);
+      const d = _v.length();
+      if (d < 1e-3 || d > 160) return { d, s: -1, thresh: 0.88 };
+      let s = _v.dot(_n) / d;
+      const below = this.pos.y < t.nape.c.y - 3 && d < 120;
+      if (below) {
+        // from below, aiming at the titan's upper body/chest also acquires the nape lock
+        _v2.set(t.root.position.x, t.root.position.y + (t.nape.c.y - t.root.position.y) * 0.65, t.root.position.z).sub(cam.position);
+        const db = _v2.length();
+        if (db > 1e-3) s = Math.max(s, _v2.dot(_n) / db);
+      }
+      return { d, s, thresh: below ? 0.80 : 0.87 };
+    };
     // hysteresis: once the nape is acquired, keep it while it remains near the centre instead of flickering off
     if (this.lock?.alive && this.lock.state !== 'emerge') {
-      _v.subVectors(this.lock.nape.c, cam.position);
-      const d = _v.length(), s = d > 0 ? _v.dot(_n) / d : -1;
-      if (d <= 160 && s > 0.78) { best = this.lock; bestS = s + 0.04; }
+      const r = lockScore(this.lock);
+      if (r.d <= 160 && r.s > r.thresh - 0.1) { best = this.lock; bestS = r.s + 0.04; }
     }
     for (const t of g.titans) {
       if (!t.alive || t.state === 'emerge') continue;
-      _v.subVectors(t.nape.c, cam.position);
-      const d = _v.length();
-      if (d > 160) continue;
+      const r = lockScore(t);
+      if (r.d > 160 || r.s < r.thresh) continue;
       // sticky lock: the current target keeps priority so the marker doesn't flicker between titans
-      const s = _v.dot(_n) / d + (t === this.lock ? 0.04 : 0);
+      const s = r.s + (t === this.lock ? 0.04 : 0);
       if (s > bestS) { bestS = s; best = t; }
     }
     this.lock = best;
@@ -291,7 +303,15 @@ export class Player {
     if (this.spears <= 0) { g.hud.toast('<span style="font-size:18px">BOM HABIS — depot hijau</span>', 0.8); g.audio.click(); return; }
     if (this.spearCd > 0) return;
     this.spears--; this.spearCd = 0.7;
-    const dir = this.aim ? _v.copy(this.aim.point).sub(this.pos).normalize() : _v.copy(this.game.cam.forward);
+    let dir = this.aim ? _v.copy(this.aim.point).sub(this.pos).normalize() : _v.copy(this.game.cam.forward);
+    if (this.lock?.alive && (!this.aim || this.aim.collider?.owner !== this.lock)) {
+      _v2.subVectors(this.lock.nape.c, this.pos);
+      const ld = _v2.length();
+      if (ld > 2 && ld < 120) {
+        _v2.divideScalar(ld);
+        if (_v2.dot(dir) > 0.72) dir.lerp(_v2, 0.65).normalize();
+      }
+    }
     const mesh = new THREE.Mesh(Player.spearGeo || (Player.spearGeo = (() => {
       const g2 = new THREE.CylinderGeometry(0.05, 0.05, 1.6, 6); g2.rotateX(Math.PI / 2); return g2;
     })()), Player.spearMat || (Player.spearMat = new THREE.MeshStandardMaterial({ color: '#3a3630', emissive: '#ff5226', emissiveIntensity: 0.7, roughness: 0.5 })));
@@ -318,16 +338,18 @@ export class Player {
       s.vel.y -= 8 * dt;
       // soft-lock: once close and roughly on-target, home onto the nearest titan
       if (!s.locked) {
-        let best = null, bd = 14;
+        let best = null, bd = 18;
+        _v.copy(s.vel).normalize();
         for (const t of g.titans) {
           if (!t.alive) continue;
-          const d = s.pos.distanceTo(t.nape.c);
-          if (d < bd) { bd = d; best = t; }
+          _v2.subVectors(t.nape.c, s.pos);
+          const d = _v2.length();
+          if (d < bd && d > 1e-3 && _v2.dot(_v) / d > 0.55) { bd = d; best = t; }
         }
         if (best) {
           _v2.copy(best.nape.c).sub(s.pos).normalize();
           const sp = s.vel.length();
-          s.vel.normalize().lerp(_v2, Math.min(1, 7 * dt)).normalize().multiplyScalar(sp);
+          s.vel.normalize().lerp(_v2, Math.min(1, 8.5 * dt)).normalize().multiplyScalar(sp);
         }
       }
       const len = s.vel.length() * dt;
@@ -468,8 +490,19 @@ export class Player {
       v.addScaledVector(dir, TUNE.gasThrust * this.classDef.thrust * dt);
       gasUse += 4.5 * dt; this.gasOn = true;
     }
-    if (control && inp.pressed('ShiftLeft', true) && this.dashCD <= 0 && this.gas > 3 && !this.grounded) {
-      const dir = combatBoost ? _v.subVectors(this.lock.nape.c, p) : (wish.lengthSq() > 0.01 ? _v.copy(wish) : _v.copy(cam.forward));
+    if (control && (inp.pressed('ShiftLeft', true) || inp.pressed('ShiftRight', true)) && this.dashCD <= 0 && this.gas > 3 && !this.grounded) {
+      let dir;
+      if (combatBoost) {
+        const t = this.lock;
+        const front = _v2.set(Math.sin(t.heading), 0, Math.cos(t.heading));
+        const fromTitan = _v3.subVectors(p, t.root.position); fromTitan.y = 0;
+        if (fromTitan.dot(front) > 0.15 * Math.max(1, fromTitan.length()) && lockDist > 12) {
+          const side = _v4.set(front.z, 0, -front.x);
+          if (fromTitan.dot(side) < 0) side.negate();
+          _v.copy(t.nape.c).addScaledVector(side, 7 * t.s); _v.y += 1.8 * t.s;
+          dir = _v.sub(p);
+        } else dir = _v.subVectors(t.nape.c, p);
+      } else dir = wish.lengthSq() > 0.01 ? _v.copy(wish) : _v.copy(cam.forward);
       if (!combatBoost) dir.y += 0.12;
       dir.normalize();
       v.addScaledVector(dir, TUNE.dashImpulse * this.classDef.speed); this.dashCD = 0.4; gasUse += 2; g.onDash(dir);

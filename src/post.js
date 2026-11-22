@@ -37,10 +37,10 @@ const GradeShader = {
       col = mix(col, col * vec3(1.06, 1.0, 0.9), smoothstep(0.5, 1.0, l) * 0.5);
       col = mix(vec3(l), col, 1.08 - uSlow * 0.55);
       col = col * col * (3.0 - 2.0 * col) * 0.35 + col * 0.65;
-      // slow-mo tint
-      col = mix(col, col * vec3(1.1, 0.95, 0.85), uSlow * 0.4);
+      // slow-mo tint (kept bright enough that kill slow-mo never crushes to black)
+      col = mix(col, col * vec3(1.06, 0.97, 0.9), uSlow * 0.28);
       // vignette
-      col *= 1.0 - smoothstep(0.45, 0.95, r) * (0.45 + uSlow * 0.3);
+      col *= 1.0 - smoothstep(0.48, 0.98, r) * (0.42 + uSlow * 0.16);
       col += vec3(1.0, 0.9, 0.8) * uFlash;
       col += (hash(uv * uRes + fract(uTime) * 100.0) - 0.5) * 0.035;
       gl_FragColor = vec4(col, 1.0);

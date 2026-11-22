@@ -37,6 +37,31 @@ export class Story {
   get active() { return this.phase === 'intro'; }
   allowWaves() { return this.phase === 'play'; }
 
+  reset(phase = 'title') {
+    const g = this.game;
+    this.removeColossus();
+    if (this.introTitans) {
+      for (const ti of this.introTitans) {
+        const i = g.titans.indexOf(ti);
+        if (i >= 0) g.titans.splice(i, 1);
+        ti.dispose();
+      }
+      this.introTitans = [];
+    }
+    this.phase = phase;
+    this.t = 0; this.breached = false; this.colGone = false; this.cap = null;
+    this.step = -1; this.doneT = 0; this.s = null; this.endYaw = undefined;
+    g.cam.override = null; g.cam.fovOverride = null;
+    g.world.breachPlug.visible = phase === 'title';
+    this.el.bars.classList.remove('on');
+    this.el.skip.classList.add('hidden');
+    this.el.cap.classList.remove('show');
+    this.el.cap.innerHTML = '';
+    this.el.fade.style.opacity = 0;
+    this.el.tut.classList.add('hidden');
+    this.el.tut.classList.remove('in', 'done');
+  }
+
   begin(full) {
     const g = this.game;
     g.audio.init();

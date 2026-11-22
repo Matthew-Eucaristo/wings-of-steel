@@ -96,11 +96,15 @@ class Game {
     this.cam.yaw = Math.atan2(-this.player.pos.x, -this.player.pos.z);
     this.cam.target.copy(this.player.pos);
     addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); this.cam.resize(); this.post.resize(); });
-    this.syncPause = () => document.getElementById('paused').classList.toggle('hidden', this.locked || !this.started || this.player.dead || this.won && !this.endless);
+    this.syncPause = () => {
+      const hide = this.locked || !this.started || this.story.active || this.player.dead || (this.won && !this.endless);
+      document.getElementById('paused').classList.toggle('hidden', hide);
+      if (!hide && this.hud?.el?.help) this.hud.el.help.classList.add('hidden');
+    };
     document.addEventListener('pointerlockchange', () => { this.locked = document.pointerLockElement === canvas; this.syncPause(); });
     // lock can be refused (e.g. re-requested right after Esc); show the resume overlay instead of a silently frozen game
     document.addEventListener('pointerlockerror', () => { this.locked = false; this.syncPause(); });
-    const lock = () => canvas.requestPointerLock();
+    const lock = () => { try { const p = canvas.requestPointerLock?.(); if (p && p.catch) p.catch(() => {}); } catch {} };
     this.lock = lock;
     for (const b of document.querySelectorAll('#classes button')) b.onclick = () => {
       this.playerClass = b.dataset.class;
@@ -111,34 +115,74 @@ class Game {
     document.getElementById('quick').onclick = () => { lock(); this.story.begin(false); };
     document.getElementById('cont').onclick = () => { this.endless = true; document.getElementById('win').classList.add('hidden'); this.hud.show(true); this.syncPause(); lock(); };
     document.getElementById('again').onclick = () => { this.restart(); lock(); };
-    document.getElementById('paused').onclick = lock;
+    document.getElementById('winmenu').onclick = () => this.returnToMenu();
     document.getElementById('retry').onclick = () => { this.restart(); lock(); };
-    canvas.addEventListener('click', () => { if (this.started && !this.locked && !this.player.dead) lock(); });
+    document.getElementById('deadmenu').onclick = () => this.returnToMenu();
+    document.getElementById('resume').onclick = (e) => { e.stopPropagation(); lock(); };
+    document.getElementById('prestart').onclick = (e) => { e.stopPropagation(); this.restart(); lock(); };
+    document.getElementById('pmenu').onclick = (e) => { e.stopPropagation(); this.returnToMenu(); };
+    document.getElementById('paused').onclick = (e) => { if (e.target.closest('button')) return; lock(); };
+    canvas.addEventListener('click', () => { if (this.started && !this.locked && !this.player.dead && !(this.won && !this.endless)) lock(); });
     document.getElementById('loading').textContent = '';
     this.clock = new THREE.Clock();
     renderer.setAnimationLoop(() => this.frame());
   }
 
-  beginPlay(quiet) {
-    this.started = true;
-    document.getElementById('title').classList.add('hidden');
-    this.hud.show(true);
-    if (!quiet) this.hud.toast('BERSIAP<br><span style="font-size:18px">Titan menerobos Gerbang Selatan!</span>', 2.5);
-  }
-
-  restart() {
-    this.endless = false; this.won = false; this.stats = { maxSpeed: 0, bestCombo: 0, time: 0 };
-    document.getElementById('win').classList.add('hidden');
+  clearTransientState() {
+    if (this.deathTimer) { clearTimeout(this.deathTimer); this.deathTimer = null; }
+    this.hitstop = 0; this.microT = 0; this.microScale = 1; this.slowT = 0; this.timeScale = 1; this.flash = 0; this.intensity = 0;
+    const u = this.post.u;
+    u.uSlow.value = 0; u.uFlash.value = 0; u.uHurt.value = 0; u.uSpeed.value = 0;
     for (const t of this.titans) t.dispose();
     this.titans = [];
     const old = this.player;
+    if (old?.spearShots) { for (const s of old.spearShots) this.scene.remove(s.mesh); old.spearShots.length = 0; }
     this.scene.remove(old.model.root); this.scene.remove(old.model.cape);
     this.player = new Player(this);
-    this.kills = 0; this.wave = 0; this.waveT = 2;
+    this.cam.yaw = Math.atan2(-this.player.pos.x, -this.player.pos.z);
+    this.cam.pitch = 0.08;
+    this.cam.target.copy(this.player.pos);
+    this.cam.killCam = 0; this.cam.impactFov = 0; this.cam.shakeT = 0;
+    this.hud.reset();
+  }
+
+  beginPlay(quiet) {
+    this.started = true;
+    document.getElementById('title').classList.add('hidden');
     document.getElementById('dead').classList.add('hidden');
+    document.getElementById('win').classList.add('hidden');
+    this.hud.show(true);
+    if (!quiet) this.hud.toast('BERSIAP<br><span style="font-size:18px">Titan menerobos Gerbang Selatan!</span>', 2.5);
+    this.syncPause();
+  }
+
+  restart() {
+    this.endless = false; this.won = false; this.started = true;
+    this.stats = { maxSpeed: 0, bestCombo: 0, time: 0 };
+    document.getElementById('title').classList.add('hidden');
+    document.getElementById('win').classList.add('hidden');
+    document.getElementById('dead').classList.add('hidden');
+    this.story.reset('play');
+    this.clearTransientState();
+    this.kills = 0; this.wave = 0; this.waveT = 2;
     this.story.toPlay(true);
     this.hud.show(true);
     this.hud.toast('BERSIAP<br><span style="font-size:18px">Titan datang dalam hitungan detik</span>', 2);
+    this.syncPause();
+  }
+
+  returnToMenu() {
+    this.started = false; this.endless = false; this.won = false;
+    this.stats = { maxSpeed: 0, bestCombo: 0, time: 0 };
+    this.kills = 0; this.wave = 0; this.waveT = 3;
+    this.story.reset('title');
+    this.clearTransientState();
+    document.getElementById('dead').classList.add('hidden');
+    document.getElementById('win').classList.add('hidden');
+    document.getElementById('paused').classList.add('hidden');
+    this.hud.show(false);
+    document.getElementById('title').classList.remove('hidden');
+    if (document.pointerLockElement) document.exitPointerLock();
     this.syncPause();
   }
 
@@ -277,12 +321,16 @@ class Game {
   onGrabbed() { this.audio.roar(this.player.pos, 10, 0.6); this.cam.shake(0.6); }
   onPlayerDeath(why) {
     const msg = { eaten: 'Dimakan titan.', crash: 'Menabrak dengan kecepatan terlalu tinggi.', swat: 'Terhempas tangan titan.' }[why] || '';
-    setTimeout(() => {
+    if (this.deathTimer) clearTimeout(this.deathTimer);
+    this.deathTimer = setTimeout(() => {
+      this.deathTimer = null;
+      if (!this.started || !this.player.dead) return;
       document.getElementById('deadwhy').textContent = msg;
       document.getElementById('deadstats').innerHTML = this.statsHTML();
       document.getElementById('dead').classList.remove('hidden');
+      document.getElementById('paused').classList.add('hidden');
       this.hud.show(false);
-      document.exitPointerLock();
+      if (document.pointerLockElement) document.exitPointerLock();
     }, why === 'eaten' ? 400 : 1600);
     if (why === 'eaten') { this.vfx.bloodSpray(this.player.pos, _v.set(0, 1, 0), 60, 0.8); this.player.model.setVisible(false); }
   }
@@ -296,8 +344,9 @@ class Game {
     document.getElementById('winstats').innerHTML = this.statsHTML();
     document.getElementById('win').classList.remove('hidden');
     this.hud.show(false);
+    this.syncPause();
     this.audio.thunder();
-    document.exitPointerLock();
+    if (document.pointerLockElement) document.exitPointerLock();
   }
 
   setQuality(q) {
@@ -362,7 +411,10 @@ class Game {
       this.cam.fp = !this.cam.fp;
       this.hud.toast(`<span style="font-size:20px">Kamera: ${this.cam.fp ? 'ORANG PERTAMA' : 'ORANG KETIGA'}</span>`, 1.2);
     }
-    if (inp.pressed('KeyM')) this.audio.musicOn = !this.audio.musicOn;
+    if (inp.pressed('KeyM')) {
+      this.audio.musicOn = !this.audio.musicOn;
+      this.hud.toast(`<span style="font-size:20px">Musik: ${this.audio.musicOn ? 'AKTIF' : 'MATI'}</span>`, 1);
+    }
     if (dt > 0) {
       if (this.started) {
         const alive = this.titans.filter((t) => t.alive).length;

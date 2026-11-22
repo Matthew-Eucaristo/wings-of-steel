@@ -6,7 +6,7 @@ export class HUD {
   constructor(game) {
     this.game = game;
     this.el = { hud: $('hud'), cross: $('cross'), range: $('range'), lock: $('lock'), marks: $('marks'), pops: $('pops'), wave: $('wave'), obj: $('obj'), left: $('left'),
-      kills: $('kills').querySelector('b'), combo: $('combo'), hpb: $('hpb'), gasb: $('gasb'), bladeb: $('bladeb'), sets: $('sets'), gasarc: $('gasarc'), bladearc: $('bladearc'), gasnum: $('gasnum'), bladenum: $('bladenum'), gaspips: $('gaspips'), bladepips: $('bladepips'), gaslvl: $('gaslvl'), spearnum: $('spearnum'), classlabel: $('classlabel'), hl: $('hl'), hr: $('hr'), spd: $('spd'),
+      kills: $('kills').querySelector('b'), combo: $('combo'), hpb: $('hpb'), gasb: $('gasb'), bladeb: $('bladeb'), sets: $('sets'), gasarc: $('gasarc'), bladearc: $('bladearc'), gasnum: $('gasnum'), bladenum: $('bladenum'), gaspips: $('gaspips'), bladepips: $('bladepips'), gaslvl: $('gaslvl'), spearnum: $('spearnum'), classlabel: $('classlabel'), hl: $('hl'), hr: $('hr'), spd: $('spd'), hmode: $('hmode'), spinbar: $('spinbar'), spinfill: $('spinbar')?.querySelector('i'), rebound: $('rebound'),
       gear: $('gear'), toast: $('toast'), struggle: $('struggle'), strb: $('strb'), hurt: $('hurt'), help: $('help'), hk: document.querySelectorAll('#cross .hk'), depot: $('depotm') };
     this.marks = [];
     this.toastT = 0; this.hurtT = 0; this.comboT = 0; this.resT = 0;
@@ -34,6 +34,21 @@ export class HUD {
   resupply(name) { if (this.resT <= 0) this.toast(`<span style="font-size:20px;color:#9effc4">RESUPPLY — ${name}</span>`, 0.8); this.resT = 0.6; }
   hurt(d) { this.hurtT = Math.min(1, this.hurtT + d / 35 + 0.2); }
   combo(n) { if (n >= 2) { this.el.combo.textContent = `${n}× COMBO`; this.el.combo.style.opacity = 1; this.comboT = 3; } }
+  reset() {
+    this.toastT = 0; this.hurtT = 0; this.comboT = 0; this.resT = 0;
+    const e = this.el;
+    e.toast.style.opacity = 0; e.toast.innerHTML = '';
+    e.hurt.style.opacity = 0;
+    e.combo.style.opacity = 0; e.combo.textContent = '';
+    e.lock.style.display = 'none';
+    e.depot.classList.add('hidden');
+    e.struggle.classList.add('hidden');
+    e.help.classList.add('hidden');
+    if (e.rebound) e.rebound.classList.add('hidden');
+    if (e.spinbar) e.spinbar.classList.remove('on');
+    e.pops.innerHTML = '';
+    for (const m of this.marks) m.style.display = 'none';
+  }
   update(dt) {
     const g = this.game, p = g.player, e = this.el;
     e.hpb.style.width = p.hp + '%'; e.gasb.style.width = p.gas + '%'; e.bladeb.style.width = p.blade + '%';
@@ -47,6 +62,20 @@ export class HUD {
     e.classlabel.textContent = { light: 'RINGAN', balanced: 'HP', heavy: 'BERAT' }[p.className] || 'HP';
     e.gear.classList.toggle('lowgas', p.gas < 20);
     e.spd.textContent = Math.round(p.speed);
+    if (e.hmode) {
+      const focus = p.hookMode === 'focus';
+      e.hmode.textContent = focus ? 'FOKUS [F]' : 'OTOMATIS [F]';
+      e.hmode.classList.toggle('focus', focus);
+      e.hmode.classList.toggle('auto', !focus);
+    }
+    if (e.spinbar && e.spinfill) {
+      const ch = Math.min(1, p.charge || 0);
+      const showSpin = ch > 0.05 && !p.grounded && !p.dead;
+      e.spinbar.classList.toggle('on', showSpin);
+      e.spinbar.classList.toggle('ready', ch >= 0.45);
+      if (showSpin) e.spinfill.style.width = (ch * 100) + '%';
+    }
+    if (e.rebound) e.rebound.classList.toggle('hidden', !((p.impactT || 0) > 0 && !p.dead));
     for (let i = 0; i < 2; i++) {
       const on = p.hooks[i].state === 'fly' || p.hooks[i].state === 'attached';
       (i ? e.hr : e.hl).classList.toggle('on', on); e.hk[i].classList.toggle('on', on);
