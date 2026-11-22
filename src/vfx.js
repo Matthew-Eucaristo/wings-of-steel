@@ -383,6 +383,7 @@ export class VFX {
       }
       rb.set(pts, cam.position, (k, nn) => 0.06 + (k === nn - 1 ? 0.08 : 0), 1);
       if (h.state === 'fly' && Math.random() < 0.5) this.add.spawn(h.tip, _d.set(0, 0, 0), { life: 0.08, size0: 0.25, size1: 0.1, color: SPARK, alpha: 0.8 });
+      if (h.state === 'attached' && Math.random() < dt * 20) this.add.spawn(h.tip, _d.set(0, 0, 0), { life: 0.18, size0: 0.32, size1: 0.06, color: SPARK, alpha: 0.5 });
     }
     const swinging = p.slashT >= 0 || p.spin > 0 || p.charge > 0.35;
     for (let i = 0; i < 2; i++) {
@@ -414,6 +415,15 @@ export class VFX {
         if (p.braking) _d.negate();
         if (g.cam.isFP()) gp.addScaledVector(cam.getWorldDirection(_v), -1.2);
         this.gas(gp, _d.lengthSq() ? _d : _v.set(0, 1, 0), 0.7);
+      }
+    }
+    if (g.intensity > 0.25 && dt > 0) {
+      this.emberT = (this.emberT || 0) + dt * g.intensity * 12;
+      while (this.emberT > 1) {
+        this.emberT -= 1;
+        _v.copy(p.pos).add(_v2.set(rand(-20, 20), rand(0, 10), rand(-20, 20)));
+        _d.set(rand(-1, 1), rand(0.2, 1.5), rand(-1, 1));
+        this.add.spawn(_v, _d, { life: rand(1.2, 2.4), size0: 0.09, size1: 0.02, color: HOT, colorEnd: SPARK_E, alpha: 0.5, drag: 0.7, buoy: 0.7, fadeIn: 0.2 });
       }
     }
     const sp = p.speed;

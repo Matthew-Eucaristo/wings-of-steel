@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Capsule } from './collision.js';
-import { clamp, damp, lerp, rand, randSign, mulberry32 } from './util.js';
+import { clamp, damp, lerp, rand, randSign, mulberry32, angleDiff } from './util.js';
 import { skinTextures } from './textures.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -508,11 +508,11 @@ export class Titan {
     return null;
   }
 
-  die() {
+  die(dir) {
     this.alive = false;
     this.squadMarked = false;
     this.setState('dead');
-    this.fallDir = this.root.rotation.y;
+    this.fallDir = dir && dir.lengthSq() > 1e-4 ? Math.atan2(dir.x, dir.z) : this.root.rotation.y;
     if (this.game.player.grabbedBy === this) this.game.player.releaseGrab(this);
   }
 
@@ -594,7 +594,12 @@ export class Titan {
         _v.set(pos.x + rand(-3, 3) * s, pos.y + rand(2, 9) * s, pos.z + rand(-3, 3) * s);
         g.vfx.steam(_v, s * 2.5, 1.5);
       }
-      if (this.stateT > 1.8) { this.body.position.y = 0; this.setState(this.passive ? 'wander' : 'chase'); }
+      if (this.stateT > 1.8) {
+        this.body.position.y = 0;
+        this.setState(this.passive ? 'wander' : 'chase');
+        g.vfx.debris(pos, 8, 8);
+        g.vfx.dust(pos, s * 3, 14);
+      }
     } else if (this.state === 'dead') {
       this.updateDead(dt);
       return;
@@ -925,6 +930,7 @@ export class Titan {
       this.thighs[i].rotation.x = lerp(this.thighs[i].rotation.x, -e * 1.2, dt * 2);
     }
     this.head.rotation.x = lerp(this.head.rotation.x, 0.3, dt);
+    this.root.rotation.y += clamp(angleDiff(this.fallDir, this.root.rotation.y), -dt * 2.2, dt * 2.2);
     if (fall >= 1 && !this.landed) {
       this.landed = true;
       this.game.onTitanFall(this);

@@ -379,6 +379,7 @@ class Game {
   clearBoulders() {
     for (let i = this.boulders.length - 1; i >= 0; i--) {
       this.boulders[i].m.visible = false;
+      if (this.boulders[i].mark) { this.boulders[i].mark.visible = false; this.boulders[i].mark = null; }
       this.boulderPool.push(this.boulders[i]);
     }
     this.boulders.length = 0;
@@ -407,6 +408,26 @@ class Game {
     b.vel.set(dx / flightT, (dy + 0.5 * 18 * flightT * flightT) / flightT, dz / flightT);
     b.rv.set(rand(-5, 5), rand(-5, 5), rand(-5, 5));
     this.boulders.push(b);
+    if (!this.boulderMarks) {
+      this.boulderMarkGeo = new THREE.RingGeometry(0.72, 1, 36);
+      this.boulderMarkGeo.rotateX(-Math.PI / 2);
+      this.boulderMarks = [];
+      for (let i = 0; i < 12; i++) {
+        const m = new THREE.Mesh(this.boulderMarkGeo, new THREE.MeshBasicMaterial({ color: 0xff4526, transparent: true, opacity: 0, depthWrite: false }));
+        m.visible = false;
+        m.renderOrder = 3;
+        this.scene.add(m);
+        this.boulderMarks.push(m);
+      }
+    }
+    const vy = b.vel.y, py = b.pos.y;
+    const tLand = (vy + Math.sqrt(Math.max(0, vy * vy + 36 * py))) / 18;
+    b.mark = this.boulderMarks.find((m) => !m.visible) || null;
+    if (b.mark) {
+      b.mark.position.set(b.pos.x + b.vel.x * tLand, 0.12, b.pos.z + b.vel.z * tLand);
+      b.mark.scale.setScalar(b.r * 4.5);
+      b.mark.visible = true;
+    }
   }
 
   updateBoulders(dt) {
@@ -436,6 +457,7 @@ class Game {
       b.m.position.copy(b.pos);
       b.m.rotation.x += b.rv.x * dt;
       b.m.rotation.y += b.rv.y * dt;
+      if (b.mark) b.mark.material.opacity = 0.4 + Math.sin(b.age * 9) * 0.18 + Math.min(0.3, b.age * 0.06);
       if (Math.random() < dt * 16) this.vfx.dust(b.pos, b.r * 1.2, 2);
 
       if (hit || b.age > 6) {
@@ -446,6 +468,7 @@ class Game {
         this.world.destroyNear(b.pos, b.r * 3.5);
         this.cam.shake(clamp(0.8 - b.pos.distanceTo(p.pos) / 90, 0.08, 0.55));
         b.m.visible = false;
+        if (b.mark) { b.mark.visible = false; b.mark = null; }
         this.boulderPool.push(b);
         this.boulders.splice(i, 1);
       }
