@@ -6,22 +6,22 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:Raj
 #vignette{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.45) 100%)}
 #hurt{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 40%,rgba(160,0,0,.75) 100%);opacity:0;transition:opacity .25s}
 #cross{position:absolute;left:50%;top:50%;width:0;height:0}
-#resource-arcs{position:absolute;left:-82px;top:-82px;width:164px;height:164px;overflow:visible;filter:drop-shadow(0 2px 3px rgba(0,0,0,.8))}
+#resource-arcs{position:absolute;left:-90px;top:-90px;width:180px;height:180px;overflow:visible;filter:drop-shadow(0 2px 3px rgba(0,0,0,.8))}
 #resource-arcs path{fill:none;stroke-linecap:round}
 #resource-arcs .arc-track{stroke:rgba(255,255,255,.11);stroke-width:3}
 #resource-arcs .arc-value{stroke-width:4;stroke-dasharray:100;stroke-dashoffset:0;transition:stroke-dashoffset .15s}
 #resource-arcs .arc-value.gas{stroke:#b9e8ff}
 #resource-arcs .arc-value.blade{stroke:#f4eee0}
-.resource-label{display:flex;align-items:center;gap:7px}
-.resource-label svg.icon{width:18px;height:18px;stroke:rgba(255,255,255,.85);fill:none;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}
+.resource-label{position:absolute;top:66px;width:176px;display:flex;align-items:center;gap:9px;font-size:10px;font-weight:700;letter-spacing:1.4px;color:rgba(255,255,255,.68);text-shadow:0 1px 3px #000}
+.resource-label svg.icon{width:22px;height:22px;flex:0 0 auto;stroke:rgba(255,255,255,.9);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
 .resource-label .pips{display:flex;gap:3px}
-.resource-label .pips i{width:4px;height:10px;border:1px solid rgba(255,255,255,.28);border-radius:1px}
-.resource-label .pips i.on{background:rgba(255,255,255,.85);border-color:rgba(255,255,255,.85)}
+.resource-label .pips i{width:4px;height:11px;border:1px solid rgba(255,255,255,.28);border-radius:1px}
+.resource-label .pips i.on{background:rgba(255,255,255,.88);border-color:rgba(255,255,255,.88)}
 .resource-label.blade .pips i.on{background:#ffd28a;border-color:#ffd28a}
-.resource-label{position:absolute;top:62px;width:130px;font-size:9px;font-weight:700;letter-spacing:1.5px;color:rgba(255,255,255,.62);text-shadow:0 1px 3px #000}
-.resource-label b{display:block;font-family:Cinzel,serif;font-size:14px;color:#fff;letter-spacing:0}
-.resource-label.gas{right:62px;justify-content:flex-end;text-align:right;color:#9fdfff}
-.resource-label.blade{left:62px;justify-content:flex-start;text-align:left}
+.resource-label b{display:block;font-family:Cinzel,serif;font-size:15px;color:#fff;letter-spacing:0}
+.resource-label.gas{right:76px;justify-content:flex-end;text-align:right;color:#9fdfff}
+.resource-label.blade{left:76px;justify-content:flex-start;text-align:left}
+.resource-label.blade #spearnum{color:#ff9e7d;margin-left:-3px}
 .resource-label small{display:block;font-size:11px;color:#ffd27a;letter-spacing:0}
 .resource-label.gas small{color:#9fdfff}
 #cross .dot{position:absolute;left:-2px;top:-2px;width:4px;height:4px;border-radius:50%;background:#fff;box-shadow:0 0 4px #000}
