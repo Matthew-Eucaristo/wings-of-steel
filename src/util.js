@@ -8,7 +8,9 @@ export const smoothstep = (a, b, x) => {
   return t * t * (3 - 2 * t);
 };
 export const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+export const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4);
 export const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+export const angleDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 
 export function mulberry32(seed) {
   let a = seed >>> 0;
@@ -48,7 +50,6 @@ const _d2 = new THREE.Vector3();
 const _r = new THREE.Vector3();
 const _c1 = new THREE.Vector3();
 const _c2 = new THREE.Vector3();
-// squared distance between segments p1q1 and p2q2
 export function segSegDist2(p1, q1, p2, q2, outA, outB) {
   _d1.subVectors(q1, p1);
   _d2.subVectors(q2, p2);
@@ -78,4 +79,20 @@ export function segSegDist2(p1, q1, p2, q2, outA, outB) {
   if (outA) outA.copy(_c1);
   if (outB) outB.copy(_c2);
   return _c1.distanceToSquared(_c2);
+}
+
+const STORAGE_KEY = 'wos-prefs-v1';
+export function loadPrefs(defaults) {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? { ...defaults, ...JSON.parse(raw) } : { ...defaults };
+  } catch {
+    return { ...defaults };
+  }
+}
+
+export function savePrefs(prefs) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+  } catch {}
 }

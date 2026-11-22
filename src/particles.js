@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 
-const VERT = /* glsl */ `
+const VERT = `
 attribute vec3 iOffset;
 attribute vec4 iColor;
-attribute vec3 iSizeRot; // size, rotation, stretch
+attribute vec3 iSizeRot;
 attribute vec3 iVel;
 varying vec2 vUv;
 varying vec4 vColor;
@@ -19,22 +19,21 @@ void main(){
   vec2 corner = position.xy;
   vec2 rc = vec2(c*corner.x - s*corner.y, s*corner.x + c*corner.y) * iSizeRot.x;
   if (iSizeRot.z > 0.0) {
-    // velocity-stretched streak in view space
     vec3 vv = (viewMatrix * vec4(iVel, 0.0)).xyz;
-    vec2 dir = length(vv.xy) > 1e-4 ? normalize(vv.xy) : vec2(1.0, 0.0);
+    float vLen = length(vv.xy);
+    vec2 dir = vLen > 1e-4 ? (vv.xy / vLen) : vec2(1.0, 0.0);
     vec2 perp = vec2(-dir.y, dir.x);
-    rc = dir * corner.x * iSizeRot.x * (1.0 + iSizeRot.z * length(vv.xy)) + perp * corner.y * iSizeRot.x * 0.35;
+    rc = dir * corner.x * iSizeRot.x * (1.0 + iSizeRot.z * vLen) + perp * corner.y * iSizeRot.x * 0.35;
   }
   mv.xy += rc;
   vShade = 0.72 + 0.56 * (corner.y + 0.5) * 0.5 + 0.1;
   gl_Position = projectionMatrix * mv;
   float d = length(mv.xyz);
-  // fade puffs between the lens and the soldier so exhaust never blankets the chase camera
-  vNear = smoothstep(1.0, 5.0, -mv.z);
+  vNear = smoothstep(0.6, 3.8, -mv.z);
   vFog = 1.0 - exp(-uFogDensity * uFogDensity * d * d);
 }`;
 
-const FRAG = /* glsl */ `
+const FRAG = `
 uniform sampler2D uTex;
 uniform vec3 uFogColor;
 uniform float uLit;
@@ -45,13 +44,30 @@ varying float vShade;
 varying float vNear;
 void main(){
   vec4 t = texture2D(uTex, vUv);
-  vec3 col = vColor.rgb * t.rgb * mix(1.0, vShade, uLit);
-  float a = t.a * vColor.a * vNear;
+  vec3 col = max(vec3(0.0), vColor.rgb * t.rgb * mix(1.0, vShade, uLit));
+  float a = clamp(t.a * vColor.a * vNear, 0.0, 1.0);
   if (uLit > 0.5) col = mix(col, uFogColor, vFog);
   else a *= (1.0 - vFog);
   if (a < 0.003) discard;
   gl_FragColor = vec4(col, a);
 }`;
+
+const WHITE = new THREE.Color(1, 1, 1);
+const _tmpColor = new THREE.Color();
+
+function resolveColor(src, fallback) {
+  if (!src) return fallback;
+  if (typeof src === 'object' && Number.isFinite(src.r) && Number.isFinite(src.g) && Number.isFinite(src.b)) {
+    return src;
+  }
+  if (typeof src === 'number' && Number.isFinite(src)) {
+    return _tmpColor.setHex(src);
+  }
+  if (typeof src === 'string') {
+    return _tmpColor.set(src);
+  }
+  return fallback;
+}
 
 export class Particles {
   constructor(scene, { max = 3000, texture, additive = false, lit = true, fog }) {
@@ -87,7 +103,6 @@ export class Particles {
     this.mesh.renderOrder = additive ? 11 : 10;
     scene.add(this.mesh);
     this.geo = geo;
-    // simulation state (SoA)
     this.n = 0;
     this.px = new Float32Array(max * 3);
     this.v = new Float32Array(max * 3);
@@ -107,34 +122,49 @@ export class Particles {
   }
 
   spawn(p, v, o = {}) {
-    if (this.n >= this.max) return;
+    if (this.n >= this.max || !p || !Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.z)) return;
     const i = this.n++;
     const i3 = i * 3;
     this.px[i3] = p.x; this.px[i3 + 1] = p.y; this.px[i3 + 2] = p.z;
-    this.v[i3] = v ? v.x : 0; this.v[i3 + 1] = v ? v.y : 0; this.v[i3 + 2] = v ? v.z : 0;
-    const life = o.life ?? 1;
+    this.v[i3] = v && Number.isFinite(v.x) ? v.x : 0;
+    this.v[i3 + 1] = v && Number.isFinite(v.y) ? v.y : 0;
+    this.v[i3 + 2] = v && Number.isFinite(v.z) ? v.z : 0;
+    const life = o.life > 1e-4 && Number.isFinite(o.life) ? o.life : 1;
     this.life[i] = 0; this.maxLife[i] = life;
-    this.s0[i] = o.size0 ?? 1; this.s1[i] = o.size1 ?? this.s0[i];
+    const sz0 = Number.isFinite(o.size0) ? o.size0 : 1;
+    this.s0[i] = sz0;
+    this.s1[i] = Number.isFinite(o.size1) ? o.size1 : sz0;
     this.rot[i] = o.rot ?? Math.random() * Math.PI * 2;
     this.rotV[i] = o.rotV ?? (Math.random() - 0.5) * 1.5;
-    const c0 = o.color || WHITE, c1 = o.colorEnd || c0;
-    this.c0[i3] = c0.r; this.c0[i3 + 1] = c0.g; this.c0[i3 + 2] = c0.b;
-    this.c1[i3] = c1.r; this.c1[i3 + 1] = c1.g; this.c1[i3 + 2] = c1.b;
-    this.a0[i] = o.alpha ?? 1;
+    const c0 = resolveColor(o.color, WHITE);
+    const r0 = c0.r, g0 = c0.g, b0 = c0.b;
+    this.c0[i3] = r0; this.c0[i3 + 1] = g0; this.c0[i3 + 2] = b0;
+    if (o.colorEnd) {
+      const c1 = resolveColor(o.colorEnd, WHITE);
+      this.c1[i3] = c1.r; this.c1[i3 + 1] = c1.g; this.c1[i3 + 2] = c1.b;
+    } else {
+      this.c1[i3] = r0; this.c1[i3 + 1] = g0; this.c1[i3 + 2] = b0;
+    }
+    this.a0[i] = Number.isFinite(o.alpha) ? o.alpha : 1;
     this.drag[i] = o.drag ?? 1;
     this.buoy[i] = o.buoy ?? 0;
     this.stretch[i] = o.stretch ?? 0;
     this.fadeIn[i] = o.fadeIn ?? 0.1;
   }
 
+  clear() {
+    this.n = 0;
+    this.geo.instanceCount = 0;
+  }
+
   _kill(i) {
     const j = --this.n;
     if (i === j) return;
     const i3 = i * 3, j3 = j * 3;
-    for (let k = 0; k < 3; k++) {
-      this.px[i3 + k] = this.px[j3 + k]; this.v[i3 + k] = this.v[j3 + k];
-      this.c0[i3 + k] = this.c0[j3 + k]; this.c1[i3 + k] = this.c1[j3 + k];
-    }
+    this.px[i3] = this.px[j3]; this.px[i3 + 1] = this.px[j3 + 1]; this.px[i3 + 2] = this.px[j3 + 2];
+    this.v[i3] = this.v[j3]; this.v[i3 + 1] = this.v[j3 + 1]; this.v[i3 + 2] = this.v[j3 + 2];
+    this.c0[i3] = this.c0[j3]; this.c0[i3 + 1] = this.c0[j3 + 1]; this.c0[i3 + 2] = this.c0[j3 + 2];
+    this.c1[i3] = this.c1[j3]; this.c1[i3 + 1] = this.c1[j3 + 1]; this.c1[i3 + 2] = this.c1[j3 + 2];
     this.life[i] = this.life[j]; this.maxLife[i] = this.maxLife[j];
     this.s0[i] = this.s0[j]; this.s1[i] = this.s1[j];
     this.rot[i] = this.rot[j]; this.rotV[i] = this.rotV[j];
@@ -143,46 +173,55 @@ export class Particles {
   }
 
   update(dt, wind) {
+    if (this.n === 0) {
+      if (this.geo.instanceCount !== 0) this.geo.instanceCount = 0;
+      return;
+    }
     const O = this.aOffset.array, C = this.aColor.array, S = this.aSize.array, V = this.aVel.array;
+    const wx = wind ? wind.x : 0, wz = wind ? wind.z : 0;
     let i = 0;
     while (i < this.n) {
-      this.life[i] += dt;
-      if (this.life[i] >= this.maxLife[i]) { this._kill(i); continue; }
-      const i3 = i * 3;
+      const nl = this.life[i] + dt;
+      const ml = this.maxLife[i];
+      if (nl >= ml) { this._kill(i); continue; }
+      this.life[i] = nl;
+      const i3 = i * 3, i4 = i * 4;
       const k = Math.exp(-this.drag[i] * dt);
-      this.v[i3] = this.v[i3] * k + (wind ? wind.x * (1 - k) : 0);
-      this.v[i3 + 1] = this.v[i3 + 1] * k + this.buoy[i] * dt;
-      this.v[i3 + 2] = this.v[i3 + 2] * k + (wind ? wind.z * (1 - k) : 0);
-      this.px[i3] += this.v[i3] * dt;
-      this.px[i3 + 1] += this.v[i3 + 1] * dt;
-      this.px[i3 + 2] += this.v[i3 + 2] * dt;
-      this.rot[i] += this.rotV[i] * dt;
+      const vx = this.v[i3] * k + wx * (1 - k);
+      const vy = this.v[i3 + 1] * k + this.buoy[i] * dt;
+      const vz = this.v[i3 + 2] * k + wz * (1 - k);
+      this.v[i3] = vx; this.v[i3 + 1] = vy; this.v[i3 + 2] = vz;
+      const px = this.px[i3] + vx * dt;
+      const py = this.px[i3 + 1] + vy * dt;
+      const pz = this.px[i3 + 2] + vz * dt;
+      this.px[i3] = px; this.px[i3 + 1] = py; this.px[i3 + 2] = pz;
+      const rot = this.rot[i] + this.rotV[i] * dt;
+      this.rot[i] = rot;
+      const t = nl / ml;
+      O[i3] = px; O[i3 + 1] = py; O[i3 + 2] = pz;
+      V[i3] = vx; V[i3 + 1] = vy; V[i3 + 2] = vz;
+      C[i4] = this.c0[i3] + (this.c1[i3] - this.c0[i3]) * t;
+      C[i4 + 1] = this.c0[i3 + 1] + (this.c1[i3 + 1] - this.c0[i3 + 1]) * t;
+      C[i4 + 2] = this.c0[i3 + 2] + (this.c1[i3 + 2] - this.c0[i3 + 2]) * t;
+      const fi = this.fadeIn[i] > 0 ? Math.min(1, t / this.fadeIn[i]) : 1;
+      C[i4 + 3] = this.a0[i] * fi * (1 - t) * (1 - t * 0.3);
+      S[i3] = this.s0[i] + (this.s1[i] - this.s0[i]) * Math.sqrt(t);
+      S[i3 + 1] = rot;
+      S[i3 + 2] = this.stretch[i];
       i++;
     }
-    for (let j = 0; j < this.n; j++) {
-      const j3 = j * 3, j4 = j * 4;
-      const t = this.life[j] / this.maxLife[j];
-      O[j3] = this.px[j3]; O[j3 + 1] = this.px[j3 + 1]; O[j3 + 2] = this.px[j3 + 2];
-      V[j3] = this.v[j3]; V[j3 + 1] = this.v[j3 + 1]; V[j3 + 2] = this.v[j3 + 2];
-      C[j4] = this.c0[j3] + (this.c1[j3] - this.c0[j3]) * t;
-      C[j4 + 1] = this.c0[j3 + 1] + (this.c1[j3 + 1] - this.c0[j3 + 1]) * t;
-      C[j4 + 2] = this.c0[j3 + 2] + (this.c1[j3 + 2] - this.c0[j3 + 2]) * t;
-      const fi = this.fadeIn[j] > 0 ? Math.min(1, t / this.fadeIn[j]) : 1;
-      C[j4 + 3] = this.a0[j] * fi * (1 - t) * (1 - t * 0.3);
-      S[j3] = this.s0[j] + (this.s1[j] - this.s0[j]) * Math.sqrt(t);
-      S[j3 + 1] = this.rot[j];
-      S[j3 + 2] = this.stretch[j];
-    }
     this.geo.instanceCount = this.n;
-    this.aOffset.needsUpdate = this.aColor.needsUpdate = this.aSize.needsUpdate = this.aVel.needsUpdate = true;
-    this.aOffset.clearUpdateRanges?.();
+    if (this.n > 0) {
+      const n3 = this.n * 3, n4 = this.n * 4;
+      this.aOffset.clearUpdateRanges(); this.aOffset.addUpdateRange(0, n3); this.aOffset.needsUpdate = true;
+      this.aVel.clearUpdateRanges(); this.aVel.addUpdateRange(0, n3); this.aVel.needsUpdate = true;
+      this.aSize.clearUpdateRanges(); this.aSize.addUpdateRange(0, n3); this.aSize.needsUpdate = true;
+      this.aColor.clearUpdateRanges(); this.aColor.addUpdateRange(0, n4); this.aColor.needsUpdate = true;
+    }
   }
 }
 
-const WHITE = new THREE.Color(1, 1, 1);
-
-// Camera-facing strip with per-vertex alpha
-const RVERT = /* glsl */ `
+const RVERT = `
 attribute float aAlpha;
 varying float vAlpha;
 varying vec2 vUv;
@@ -195,7 +234,8 @@ void main(){
   float d = length(mv.xyz);
   vFog = 1.0 - exp(-uFogDensity * uFogDensity * d * d);
 }`;
-const RFRAG = /* glsl */ `
+
+const RFRAG = `
 uniform vec3 uColor;
 uniform vec3 uColor2;
 uniform float uOpacity;
@@ -205,10 +245,12 @@ varying float vAlpha;
 varying vec2 vUv;
 varying float vFog;
 void main(){
-  float edge = 1.0 - pow(abs(vUv.y * 2.0 - 1.0), 2.0);
-  vec3 col = mix(uColor2, uColor, edge);
-  float a = vAlpha * uOpacity * mix(1.0, edge, uAdd);
+  float d = vUv.y * 2.0 - 1.0;
+  float edge = max(0.0, 1.0 - d * d);
+  vec3 col = max(vec3(0.0), mix(uColor2, uColor, edge));
+  float a = clamp(vAlpha * uOpacity * mix(1.0, edge, uAdd), 0.0, 1.0);
   if (uAdd < 0.5) col = mix(col, uFogColor, vFog); else a *= 1.0 - vFog;
+  if (a < 0.002) discard;
   gl_FragColor = vec4(col, a);
 }`;
 
@@ -260,7 +302,6 @@ export class Ribbon {
     this._s = new THREE.Vector3();
     this._v = new THREE.Vector3();
   }
-  // pts: array of Vector3; width: number or fn(i, n); alpha: fn(i,n) or number
   set(pts, camPos, width, alpha = 1) {
     const n = Math.min(pts.length, this.maxPts);
     if (n < 2) { this.geo.setDrawRange(0, 0); return; }
@@ -279,9 +320,109 @@ export class Ribbon {
       this.pos[k + 3] = p.x - this._s.x * w; this.pos[k + 4] = p.y - this._s.y * w; this.pos[k + 5] = p.z - this._s.z * w;
       this.alpha[i * 2] = this.alpha[i * 2 + 1] = al;
     }
-    this.posAttr.needsUpdate = true;
-    this.alphaAttr.needsUpdate = true;
+    this.posAttr.clearUpdateRanges(); this.posAttr.addUpdateRange(0, n * 6); this.posAttr.needsUpdate = true;
+    this.alphaAttr.clearUpdateRanges(); this.alphaAttr.addUpdateRange(0, n * 2); this.alphaAttr.needsUpdate = true;
     this.geo.setDrawRange(0, (n - 1) * 6);
   }
   hide() { this.geo.setDrawRange(0, 0); }
+}
+
+const SW_VERT = `
+varying vec2 vUv;
+void main(){
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`;
+
+const SW_FRAG = `
+uniform vec3 uColor;
+uniform float uProgress;
+uniform float uArc;
+varying vec2 vUv;
+void main(){
+  vec2 p = vUv * 2.0 - 1.0;
+  float r = length(p);
+  if (r > 1.0 || r < 0.15) discard;
+  float ringR = mix(0.32, 0.92, uProgress);
+  float band = max(0.0, 1.0 - abs(r - ringR) / mix(0.26, 0.08, uProgress));
+  float ang = atan(p.y, p.x);
+  float arcMask = uArc > 0.5 ? smoothstep(2.1, 0.2, abs(ang)) : 1.0;
+  float a = band * band * arcMask * (1.0 - uProgress);
+  if (a < 0.004) discard;
+  gl_FragColor = vec4(uColor * (1.4 * a), a);
+}`;
+
+export class ShockwavePool {
+  constructor(scene, cap = 20) {
+    this.scene = scene;
+    this.items = [];
+    const geo = new THREE.PlaneGeometry(2, 2);
+    for (let i = 0; i < cap; i++) {
+      const mat = new THREE.ShaderMaterial({
+        vertexShader: SW_VERT,
+        fragmentShader: SW_FRAG,
+        uniforms: {
+          uColor: { value: new THREE.Color(1, 0.9, 0.75) },
+          uProgress: { value: 0 },
+          uArc: { value: 0 },
+        },
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.visible = false;
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 13;
+      scene.add(mesh);
+      this.items.push({ mesh, mat, t: 0, dur: 0.25, s0: 1, s1: 5, active: false });
+    }
+  }
+  spawn(pos, normalOrQuat, { s0 = 1.2, s1 = 6.5, dur = 0.22, color = WHITE, arc = false } = {}) {
+    let slot = null;
+    for (let i = 0; i < this.items.length; i++) {
+      if (!this.items[i].active) { slot = this.items[i]; break; }
+    }
+    if (!slot) slot = this.items[0];
+    slot.active = true;
+    slot.t = 0;
+    slot.dur = dur;
+    slot.s0 = s0;
+    slot.s1 = s1;
+    slot.mesh.position.copy(pos);
+    if (normalOrQuat?.isQuaternion) {
+      slot.mesh.quaternion.copy(normalOrQuat);
+    } else if (normalOrQuat) {
+      slot.mesh.lookAt(pos.x + normalOrQuat.x, pos.y + normalOrQuat.y, pos.z + normalOrQuat.z);
+    }
+    const c = resolveColor(color, WHITE);
+    slot.mat.uniforms.uColor.value.setRGB(c.r, c.g, c.b);
+    slot.mat.uniforms.uProgress.value = 0;
+    slot.mat.uniforms.uArc.value = arc ? 1 : 0;
+    slot.mesh.scale.setScalar(s0);
+    slot.mesh.visible = true;
+  }
+  update(dt) {
+    for (let i = 0; i < this.items.length; i++) {
+      const it = this.items[i];
+      if (!it.active) continue;
+      it.t += dt;
+      if (it.t >= it.dur) {
+        it.active = false;
+        it.mesh.visible = false;
+        continue;
+      }
+      const p = it.t / it.dur;
+      const e = 1 - (1 - p) * (1 - p);
+      it.mat.uniforms.uProgress.value = e;
+      it.mesh.scale.setScalar(it.s0 + (it.s1 - it.s0) * e);
+    }
+  }
+  clear() {
+    for (let i = 0; i < this.items.length; i++) {
+      this.items[i].active = false;
+      this.items[i].mesh.visible = false;
+    }
+  }
 }

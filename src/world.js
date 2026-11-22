@@ -16,8 +16,8 @@ const _q = new THREE.Quaternion();
 const _e = new THREE.Euler();
 const _s = new THREE.Vector3();
 const _p = new THREE.Vector3();
+const _shadowVec = new THREE.Vector3();
 
-// Box with UVs in world units (u/uS, v/vS) and per-vertex colour
 function boxGeo(w, h, d, uS, vS, color) {
   const g = new THREE.BoxGeometry(w, h, d);
   const uv = g.attributes.uv;
@@ -47,7 +47,6 @@ function place(g, x, y, z, yaw = 0, rx = 0, rz = 0) {
   return g;
 }
 
-// gable roof: ridge along x, slopes towards ±z. base at y=0
 function roofGeo(w, rh, d, over, color) {
   const hx = w / 2 + over, hz = d / 2 + over;
   const dropY = -(over * rh) / (d / 2);
@@ -59,11 +58,8 @@ function roofGeo(w, rh, d, over, color) {
     uv.push(...uvs);
     idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
-  // +z slope
   quad([-hx, dropY, hz], [hx, dropY, hz], [hx, rh, 0], [-hx, rh, 0], [0, 0, (2 * hx) / 4, 0, (2 * hx) / 4, slopeLen / 4, 0, slopeLen / 4]);
-  // -z slope
   quad([hx, dropY, -hz], [-hx, dropY, -hz], [-hx, rh, 0], [hx, rh, 0], [0, 0, (2 * hx) / 4, 0, (2 * hx) / 4, slopeLen / 4, 0, slopeLen / 4]);
-  // underside (thin), so overhang has a bottom
   quad([-hx, dropY - 0.15, -hz], [hx, dropY - 0.15, -hz], [hx, dropY - 0.15, hz], [-hx, dropY - 0.15, hz], [0, 0, 1, 0, 1, 1, 0, 1]);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -73,7 +69,6 @@ function roofGeo(w, rh, d, over, color) {
   return colorize(g, color);
 }
 
-// gable triangles on the ±x ends (wall material)
 function gableGeo(w, rh, d, color) {
   const hx = w / 2, hz = d / 2;
   const pos = [hx, 0, hz, hx, 0, -hz, hx, rh, 0, -hx, 0, -hz, -hx, 0, hz, -hx, rh, 0];
@@ -113,10 +108,13 @@ export class World {
     this.renderer = renderer;
     this.col = new CollisionWorld();
     this.depots = [];
+    this.cannonMounts = [];
     this.titanSpawns = [];
-    this.obstacles = []; // {x,z,r,h} footprints for titan steering
-    this.houses = [];      // destructible buildings {x,z,yaw,w,d,h,top,cols,lists,sec,dead}
+    this.obstacles = [];
+    this.houses = [];
     this.houseSections = [];
+    this.rubble = [];
+    this.sealBlocks = [];
     this.time = 0;
     this.uniformsTime = { value: 0 };
     this.rng = mulberry32(1337);
@@ -160,27 +158,29 @@ export class World {
     u.sunPosition.value.copy(this.sunDir);
     this.sky = sky;
 
-    // environment lighting from the sky
+    this.lightMatrix = new THREE.Matrix4().lookAt(new THREE.Vector3(), this.sunDir.clone().negate(), new THREE.Vector3(0, 1, 0));
+    this.invLightMatrix = this.lightMatrix.clone().invert();
+
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     const envScene = new THREE.Scene();
-    const sky2 = sky.clone();
-    envScene.add(sky2);
+    envScene.add(sky.clone());
     this.envRT = pmrem.fromScene(envScene, 0.02);
+    pmrem.dispose();
     scene.environment = this.envRT.texture;
     scene.environmentIntensity = 0.55;
     scene.add(sky);
 
-    scene.fog = new THREE.FogExp2(new THREE.Color('#c9b9a4'), 0.0014);
+    scene.fog = new THREE.FogExp2(new THREE.Color('#c9b9a4'), 0.00135);
 
     const sun = new THREE.DirectionalLight(new THREE.Color('#ffd7a8'), 3.2);
     sun.position.copy(this.sunDir).multiplyScalar(300);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(4096, 4096);
+    sun.shadow.mapSize.set(2048, 2048);
     const sc = sun.shadow.camera;
-    sc.left = -130; sc.right = 130; sc.top = 130; sc.bottom = -130;
-    sc.near = 10; sc.far = 900;
+    sc.left = -125; sc.right = 125; sc.top = 125; sc.bottom = -125;
+    sc.near = 10; sc.far = 850;
     sun.shadow.bias = -0.0004;
-    sun.shadow.normalBias = 0.6;
+    sun.shadow.normalBias = 0.55;
     scene.add(sun);
     scene.add(sun.target);
     this.sun = sun;
@@ -189,18 +189,15 @@ export class World {
     scene.add(hemi);
   }
 
-  // keep the shadow frustum centred on the player, snapped to texels to avoid shimmering
   followShadow(center) {
     const sun = this.sun;
-    const texel = 260 / sun.shadow.mapSize.x;
-    const lightMatrix = new THREE.Matrix4().lookAt(new THREE.Vector3(), this.sunDir.clone().negate(), new THREE.Vector3(0, 1, 0));
-    const inv = lightMatrix.clone().invert();
-    const lc = center.clone().applyMatrix4(inv);
-    lc.x = Math.round(lc.x / texel) * texel;
-    lc.y = Math.round(lc.y / texel) * texel;
-    const snapped = lc.applyMatrix4(lightMatrix);
-    sun.target.position.copy(snapped);
-    sun.position.copy(snapped).addScaledVector(this.sunDir, 420);
+    const texel = 250 / sun.shadow.mapSize.x;
+    _shadowVec.copy(center).applyMatrix4(this.invLightMatrix);
+    _shadowVec.x = Math.round(_shadowVec.x / texel) * texel;
+    _shadowVec.y = Math.round(_shadowVec.y / texel) * texel;
+    _shadowVec.applyMatrix4(this.lightMatrix);
+    sun.target.position.copy(_shadowVec);
+    sun.position.copy(_shadowVec).addScaledVector(this.sunDir, 420);
     sun.target.updateMatrixWorld();
   }
 
@@ -225,8 +222,8 @@ uniform sampler2D uCobble; uniform sampler2D uCobbleN; uniform float uTownR;
 float h21(vec2 p){ p = fract(p*vec2(123.34, 456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
 float vnoise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
   return mix(mix(h21(i),h21(i+vec2(1,0)),f.x), mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x), f.y); }
-float fbm2(vec2 p){ float s=0.0,a=0.5; for(int i=0;i<5;i++){ s+=a*vnoise(p); p*=2.03; a*=0.5;} return s; }
-float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0, uTownR+4.0, r + (fbm2(vWPos.xz*0.05)-0.5)*14.0); }
+float fbm2(vec2 p){ float s=0.0,a=0.5; for(int i=0;i<4;i++){ s+=a*vnoise(p); p*=2.03; a*=0.5;} return s; }
+float townMask(){ float r = length(vWPos.xz); float road = smoothstep(14.0, 7.0, abs(vWPos.x)) * step(0.0, vWPos.z) * step(vWPos.z, 390.0); return max(road * 0.85, 1.0 - smoothstep(uTownR-6.0, uTownR+4.0, r + (fbm2(vWPos.xz*0.05)-0.5)*14.0)); }
 `)
         .replace('#include <map_fragment>', `
   vec2 guv = vWPos.xz / 9.0;
@@ -237,14 +234,11 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
   float macro = fbm2(vWPos.xz * 0.012);
   float tm = townMask();
   vec3 g = mix(grassC.rgb, grassC2.rgb, 0.45) * mix(0.75, 1.2, macro);
-  // dry patches and dirt
   float dirt = smoothstep(0.55, 0.75, fbm2(vWPos.xz * 0.03 + 7.0));
   g = mix(g, vec3(0.42, 0.34, 0.22) * (0.8 + macro*0.4), dirt * 0.6);
-  // forest floor darker
   float ang = atan(vWPos.x, vWPos.z);
-  float forest = smoothstep(0.9, 0.6, abs(abs(ang) - 3.14159) ) * smoothstep(TOWN_EDGE, TOWN_EDGE + 30.0, length(vWPos.xz));
+  float forest = smoothstep(0.9, 0.6, abs(abs(ang) - 3.14159)) * smoothstep(TOWN_EDGE, TOWN_EDGE + 30.0, length(vWPos.xz));
   g = mix(g, g * vec3(0.55, 0.62, 0.45), forest);
-  // warmer, lighter sandstone paving so the streets don't read as a black void from the air
   vec3 cb = cob.rgb * mix(0.8, 1.15, macro) * vec3(1.3, 1.22, 1.1);
   diffuseColor.rgb *= mix(g, cb, tm);
 `.replace(/TOWN_EDGE/g, (TOWN_R + 10).toFixed(1)))
@@ -254,12 +248,11 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     vec3 nG = texture2D(normalMap, vWPos.xz / 9.0).xyz * 2.0 - 1.0;
     vec3 nC = texture2D(uCobbleN, vWPos.xz / 2.4).xyz * 2.0 - 1.0;
     vec3 mapN = normalize(mix(nG * vec3(0.6,0.6,1.0), nC * vec3(0.55,0.55,1.0), tmN));
-    normal = normalize( tbn * mapN );
+    normal = normalize(tbn * mapN);
   }
 `);
       sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(0.95, 0.9, townMask());');
     };
-    // ground needs tangent frame for normal map: use USE_NORMALMAP_TANGENTSPACE with computed tbn from derivatives
     const g = new THREE.PlaneGeometry(9000, 9000, 1, 1);
     g.rotateX(-Math.PI / 2);
     const mesh = new THREE.Mesh(g, mat);
@@ -275,7 +268,7 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
 
   buildWall() {
     const R = WALL_R, T = WALL_T, H = WALL_H;
-    const segs = 360;
+    const segs = 320;
     const a0 = GAP_HALF, a1 = Math.PI * 2 - GAP_HALF;
     const pos = [], uv = [], idx = [];
     const addStrip = (fn) => {
@@ -292,11 +285,8 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
       }
     };
     const circ = (r, a) => [r * Math.sin(a), r * Math.cos(a)];
-    // inner face (facing centre)
     addStrip((a) => { const [x, z] = circ(R, a); return [[x, 0, z], [x, H, z], (a * R) / 8, 0, H / 8]; });
-    // outer face
     addStrip((a) => { const [x, z] = circ(R + T, a); return [[x, H, z], [x, 0, z], (a * (R + T)) / 8, H / 8, 0]; });
-    // top
     addStrip((a) => { const [x, z] = circ(R, a); const [x2, z2] = circ(R + T, a); return [[x, H, z], [x2, H, z2], (a * R) / 8, 0, T / 8]; });
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -307,8 +297,9 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     const wall = new THREE.Mesh(g, mat);
     wall.castShadow = wall.receiveShadow = true;
     this.scene.add(wall);
-    this.col.add(new RingWall(R, T, H, 0, GAP_HALF));
-    // intact gate section, only shown in the prologue before the breach
+    this.ringWall = new RingWall(R, T, H, 0, GAP_HALF);
+    this.col.add(this.ringWall);
+
     const gw = 2 * R * Math.sin(GAP_HALF) + 4;
     this.breachPlug = new THREE.Mesh(new THREE.BoxGeometry(gw, H, T), mat);
     this.breachPlug.position.set(0, H / 2, R + T / 2);
@@ -316,8 +307,28 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     this.breachPlug.castShadow = this.breachPlug.receiveShadow = true;
     this.scene.add(this.breachPlug);
 
-    // buttress towers, battlements, broken edges
-    const parts = [];
+    this.sealGroup = new THREE.Group();
+    const sealMat = mat.clone();
+    sealMat.color = new THREE.Color('#b8afa0');
+    const timberMat = new THREE.MeshStandardMaterial({ color: '#583e28', roughness: 0.88 });
+    const tiers = 5;
+    for (let t = 0; t < tiers; t++) {
+      const th = (H * 0.52) / tiers;
+      const block = new THREE.Mesh(new THREE.BoxGeometry(gw - t * 0.6, th, T * 0.92), sealMat);
+      block.position.set(0, th * (t + 0.5), R + T / 2);
+      block.castShadow = block.receiveShadow = true;
+      block.visible = false;
+      this.sealGroup.add(block);
+      const brace = new THREE.Mesh(new THREE.BoxGeometry(gw + 1.2, 0.7, T + 1.2), timberMat);
+      brace.position.set(0, th * (t + 1) - 0.3, R + T / 2);
+      brace.visible = false;
+      this.sealGroup.add(brace);
+      this.sealBlocks.push({ block, brace, targetY: th * (t + 0.5), braceY: th * (t + 1) - 0.3 });
+    }
+    this.scene.add(this.sealGroup);
+
+    const shadowParts = [];
+    const detailParts = [];
     const white = new THREE.Color('#ffffff');
     const n = 40;
     for (let i = 0; i < n; i++) {
@@ -326,17 +337,15 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
       const r = R - 3;
       const x = r * Math.sin(a), z = r * Math.cos(a);
       const bw = 12, bd = 8, bh = H + 6;
-      parts.push(place(boxGeo(bw, bh, bd, 8, 8, white), x, bh / 2, z, a));
+      shadowParts.push(place(boxGeo(bw, bh, bd, 8, 8, white), x, bh / 2, z, a));
       this.col.add(new Convex(new THREE.Vector3(x, bh / 2, z), a, boxPlanes(bw / 2, bh / 2, bd / 2), Math.hypot(bw, bh, bd) / 2, { surface: 'stone' }));
     }
-    // merlons along the outer rim
-    for (let i = 0; i < 520; i++) {
-      const a = (i / 520) * Math.PI * 2;
+    for (let i = 0; i < 480; i++) {
+      const a = (i / 480) * Math.PI * 2;
       if (Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) < GAP_HALF + 0.01) continue;
       const r = R + T - 1;
-      parts.push(place(boxGeo(2.6, 2.4, 1.6, 8, 8, white), r * Math.sin(a), H + 1.2, r * Math.cos(a), a));
+      detailParts.push(place(boxGeo(2.6, 2.4, 1.6, 8, 8, white), r * Math.sin(a), H + 1.2, r * Math.cos(a), a));
     }
-    // rubble in the breach
     const rr = this.rng;
     for (let i = 0; i < 26; i++) {
       const a = (rr() - 0.5) * GAP_HALF * 2.6;
@@ -345,28 +354,42 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
       const x = r * Math.sin(a), z = r * Math.cos(a);
       const g2 = boxGeo(s, s * 0.8, s * 1.2, 8, 8, white);
       place(g2, x, s * 0.3, z, rr() * 6, rr() - 0.5, rr() - 0.5);
-      parts.push(g2);
+      detailParts.push(g2);
       if (s > 4) this.col.add(new Convex(new THREE.Vector3(x, s * 0.25, z), 0, boxPlanes(s * 0.45, s * 0.35, s * 0.45), s, { surface: 'stone' }));
     }
-    // jagged ends of the wall at the breach
     for (const side of [-1, 1]) {
       const a = side * GAP_HALF;
       for (let k = 0; k < 6; k++) {
         const r = R + 1 + k * 2.2;
         const hgt = H * (0.55 + rr() * 0.45);
         const x = r * Math.sin(a + side * 0.004), z = r * Math.cos(a + side * 0.004);
-        parts.push(place(boxGeo(3, hgt, 2.4, 8, 8, white), x, hgt / 2, z, a));
+        shadowParts.push(place(boxGeo(3, hgt, 2.4, 8, 8, white), x, hgt / 2, z, a));
       }
     }
-    const merged = mergeGeometries(parts);
-    const m2 = new THREE.Mesh(merged, mat);
-    m2.castShadow = m2.receiveShadow = true;
-    this.scene.add(m2);
-    // spawn points just inside the breach
+    const mShadow = new THREE.Mesh(mergeGeometries(shadowParts), mat);
+    mShadow.castShadow = mShadow.receiveShadow = true;
+    const mDetail = new THREE.Mesh(mergeGeometries(detailParts), mat);
+    mDetail.receiveShadow = true;
+    this.scene.add(mShadow, mDetail);
+
     for (let i = 0; i < 5; i++) {
       const a = (i - 2) * 0.03;
       this.titanSpawns.push(new THREE.Vector3((R - 25) * Math.sin(a), 0, (R - 25) * Math.cos(a)));
     }
+  }
+
+  setSealProgress(p) {
+    const prog = clamp(p, 0, 1);
+    const n = this.sealBlocks.length;
+    for (let i = 0; i < n; i++) {
+      const sb = this.sealBlocks[i];
+      const local = clamp((prog * n) - i, 0, 1);
+      sb.block.visible = local > 0.02;
+      sb.brace.visible = local > 0.65;
+      sb.block.scale.y = Math.max(0.05, local);
+      sb.block.position.y = sb.targetY - (1 - local) * 2.5;
+    }
+    this.ringWall.sealed = prog >= 0.99;
   }
 
   buildTown() {
@@ -383,52 +406,46 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
       const plaster = opts.plaster || PLASTER[Math.floor(rr() * PLASTER.length)];
       const roofC = opts.roofC || ROOFC[Math.floor(rr() * ROOFC.length)];
       const own = opts.destructible === false ? null : { x, z, yaw, w, d, h, cols: [], lists: { walls: [], roofs: [], trim: [], stones: [] }, dead: false };
-      const walls = own ? own.lists.walls : _townWalls, roofs = own ? own.lists.roofs : _townRoofs, trim = own ? own.lists.trim : _townTrim, stones = own ? own.lists.stones : _townStones;
+      const wallsL = own ? own.lists.walls : _townWalls, roofsL = own ? own.lists.roofs : _townRoofs, trimL = own ? own.lists.trim : _townTrim, stonesL = own ? own.lists.stones : _townStones;
       const addCol = (cc) => { const col = this.col.add(cc); if (own) own.cols.push(col); return col; };
-      // stone foundation
-      stones.push(place(boxGeo(w + 0.3, 1.2, d + 0.3, 8, 8, stoneC), x, 0.6, z, yaw));
-      walls.push(place(boxGeo(w, h - 1.2, d, 8, 6.4, plaster), x, 1.2 + (h - 1.2) / 2, z, yaw));
-      // corner posts & eave beam
+      stonesL.push(place(boxGeo(w + 0.3, 1.2, d + 0.3, 8, 8, stoneC), x, 0.6, z, yaw));
+      wallsL.push(place(boxGeo(w, h - 1.2, d, 8, 6.4, plaster), x, 1.2 + (h - 1.2) / 2, z, yaw));
       const c = Math.cos(yaw), s = Math.sin(yaw);
       const toW = (lx, lz) => [x + c * lx + s * lz, z - s * lx + c * lz];
       for (const [lx, lz] of [[w / 2, d / 2], [-w / 2, d / 2], [w / 2, -d / 2], [-w / 2, -d / 2]]) {
         const [px, pz] = toW(lx, lz);
-        trim.push(place(boxGeo(0.45, h - 1.2, 0.45, 1, 1, wood), px, 1.2 + (h - 1.2) / 2, pz, yaw));
+        trimL.push(place(boxGeo(0.45, h - 1.2, 0.45, 1, 1, wood), px, 1.2 + (h - 1.2) / 2, pz, yaw));
       }
-      trim.push(place(boxGeo(w + 0.5, 0.35, d + 0.5, 1, 1, wood), x, h - 0.1, z, yaw));
+      trimL.push(place(boxGeo(w + 0.5, 0.35, d + 0.5, 1, 1, wood), x, h - 0.1, z, yaw));
       const bodyR = Math.hypot(w, h, d) / 2;
       addCol(new Convex(new THREE.Vector3(x, h / 2, z), yaw, boxPlanes(w / 2, h / 2, d / 2), bodyR, { surface: 'wood' }));
       let top = h;
       if (opts.flat) {
-        // parapet
         for (const [lx, lz, pw, pd] of [[0, d / 2 - 0.3, w, 0.6], [0, -d / 2 + 0.3, w, 0.6], [w / 2 - 0.3, 0, 0.6, d], [-w / 2 + 0.3, 0, 0.6, d]]) {
           const [px, pz] = toW(lx, lz);
-          stones.push(place(boxGeo(pw, 1.1, pd, 8, 8, stoneC), px, h + 0.55, pz, yaw));
+          stonesL.push(place(boxGeo(pw, 1.1, pd, 8, 8, stoneC), px, h + 0.55, pz, yaw));
         }
-        roofs.push(place(boxGeo(w - 0.2, 0.2, d - 0.2, 4, 4, new THREE.Color('#8a7d6a')), x, h + 0.05, z, yaw));
+        roofsL.push(place(boxGeo(w - 0.2, 0.2, d - 0.2, 4, 4, new THREE.Color('#8a7d6a')), x, h + 0.05, z, yaw));
         top = h + 0.2;
         addCol(new Convex(new THREE.Vector3(x, h + 0.1, z), yaw, boxPlanes(w / 2, 0.1, d / 2), Math.hypot(w, d) / 2, { surface: 'stone' }));
-        // rooftop clutter (chimney stack + hatch) so flat roofs aren't bare slabs; skipped on the HQ landing roof
         if (!opts.plaster) {
-          // position hash instead of rr() so the city layout RNG sequence is unchanged
           const hr = (k) => { const v = Math.sin(x * 12.9898 + z * 78.233 + k) * 43758.5453; return v - Math.floor(v); };
           const cx = (hr(1) - 0.5) * (w - 3), cz = (hr(2) - 0.5) * (d - 3);
           const [px, pz] = toW(cx, cz);
-          stones.push(place(boxGeo(1.2, 2.4, 1.2, 2, 4, stoneC), px, h + 1.4, pz, yaw));
+          stonesL.push(place(boxGeo(1.2, 2.4, 1.2, 2, 4, stoneC), px, h + 1.4, pz, yaw));
           addCol(new Convex(new THREE.Vector3(px, h + 1.4, pz), yaw, boxPlanes(0.6, 1.2, 0.6), 1.5, { surface: 'stone' }));
           const [qx, qz] = toW(-cx * 0.8, -cz * 0.8);
-          roofs.push(place(boxGeo(1.8, 0.5, 1.8, 2, 2, new THREE.Color('#5a4a3a')), qx, h + 0.45, qz, yaw));
+          roofsL.push(place(boxGeo(1.8, 0.5, 1.8, 2, 2, new THREE.Color('#5a4a3a')), qx, h + 0.45, qz, yaw));
         }
       } else {
         const rh = opts.rh ?? d * (0.32 + rr() * 0.18);
-        roofs.push(place(roofGeo(w, rh, d, 0.6, roofC), x, h, z, yaw));
-        walls.push(place(gableGeo(w, rh, d, plaster), x, h, z, yaw));
+        roofsL.push(place(roofGeo(w, rh, d, 0.6, roofC), x, h, z, yaw));
+        wallsL.push(place(gableGeo(w, rh, d, plaster), x, h, z, yaw));
         addCol(new Convex(new THREE.Vector3(x, h, z), yaw, prismPlanes(w / 2 + 0.3, rh, d / 2 + 0.3), Math.hypot(w, rh, d) / 2 + 1, { surface: 'roof' }));
         top = h + rh;
-        // chimney
         if (rr() < 0.6) {
           const [px, pz] = toW((rr() - 0.5) * w * 0.6, (rr() - 0.5) * d * 0.3);
-          stones.push(place(boxGeo(1.0, rh + 1.6, 1.0, 8, 8, stoneC), px, h + (rh + 1.6) / 2, pz, yaw));
+          stonesL.push(place(boxGeo(1.0, rh + 1.6, 1.0, 8, 8, stoneC), px, h + (rh + 1.6) / 2, pz, yaw));
         }
       }
       const ob = { x, z, r: Math.max(w, d) * 0.55, h: top, house: own };
@@ -443,7 +460,6 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
       return top;
     };
 
-    // central bell tower
     {
       const s = 10, h = 42;
       stones.push(place(boxGeo(s, h, s, 8, 8, stoneC), 0, h / 2, 0, 0));
@@ -455,32 +471,28 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
       this.col.add(new Convex(new THREE.Vector3(0, h + 4.6, 0), 0, boxPlanes(s / 2 + 0.7, 4.6, s / 2 + 0.7), 10, { surface: 'stone' }));
       this.col.add(new Convex(new THREE.Vector3(0, h + 9, 0), 0, pyramidPlanes(s / 2 + 0.6, 20), 24, { surface: 'roof' }));
       this.obstacles.push({ x: 0, z: 0, r: 7, h: h + 29 });
-      // clock faces (emissive)
-      this.clockFaces = [];
       const clockMat = new THREE.MeshStandardMaterial({ color: '#efe4c8', emissive: '#ffcf8a', emissiveIntensity: 0.25, roughness: 0.6 });
+      const handMat = new THREE.MeshStandardMaterial({ color: '#222' });
       for (let i = 0; i < 4; i++) {
-        const disc = new THREE.Mesh(new THREE.CircleGeometry(2.6, 32), clockMat);
+        const disc = new THREE.Mesh(new THREE.CircleGeometry(2.6, 24), clockMat);
         const a = (i * Math.PI) / 2;
         disc.position.set(Math.sin(a) * (s / 2 + 0.05), h - 6, Math.cos(a) * (s / 2 + 0.05));
         disc.rotation.y = a;
         this.scene.add(disc);
-        const hand = new THREE.Mesh(new THREE.BoxGeometry(0.25, 2.2, 0.1), new THREE.MeshStandardMaterial({ color: '#222' }));
+        const hand = new THREE.Mesh(new THREE.BoxGeometry(0.25, 2.2, 0.1), handMat);
         hand.position.copy(disc.position).add(new THREE.Vector3(Math.sin(a) * 0.08, 0.9, Math.cos(a) * 0.08));
         hand.rotation.y = a;
         this.scene.add(hand);
       }
     }
-    // plaza fountain
-    {
-      stones.push(place(colorize(new THREE.CylinderGeometry(7, 7.5, 1.2, 32), stoneC), 0, 0.6, 22, 0));
-    }
 
-    // Survey HQ: start point and supply depot on the roof (towards -z)
+    stones.push(place(colorize(new THREE.CylinderGeometry(7, 7.5, 1.2, 24), stoneC), 0, 0.6, 22, 0));
+
     {
       const x = 0, z = -54, w = 26, d = 18, h = 20;
       addBuilding(x, z, Math.PI, w, d, h, { flat: true, plaster: new THREE.Color('#d9cfbc'), destructible: false });
       this.playerSpawn = new THREE.Vector3(x + 5, h + 1.4, z + 4);
-      this.addDepot(new THREE.Vector3(x - 8, h + 0.2, z - 3), 'HQ');
+      this.addDepot(new THREE.Vector3(x - 8, h + 0.2, z - 3), 'MARKAS');
     }
 
     const ringRadii = [50, 74, 98, 122, 146, 170, 194];
@@ -493,15 +505,14 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
         const span = w / r;
         const mid = a + span / 2;
         let blocked = false;
-        for (const av of avenues) if (angDiff(mid, av) < (span / 2 + 7 / r)) blocked = true;
-        if (ri === 0 && angDiff(mid, Math.PI) < 0.42) blocked = true; // HQ
+        for (const av of avenues) if (angDiff(mid, av) < (span / 2 + 8 / r)) blocked = true;
+        if (ri === 0 && angDiff(mid, Math.PI) < 0.42) blocked = true;
         if (!blocked) {
           const d = 11 + rr() * 5;
           const floors = Math.max(2, Math.round(5.6 - ri * 0.55 + (rr() - 0.4) * 3));
           const h = 1.2 + floors * 3.2;
           const x = r * Math.sin(mid), z = r * Math.cos(mid);
           if (rr() < 0.05 && ri > 1) {
-            // watch tower
             const s = 7, th = 30 + rr() * 12;
             stones.push(place(boxGeo(s, th, s, 8, 8, stoneC), x, th / 2, z, mid));
             roofs.push(place(pyramidGeo(s / 2 + 0.8, 8, ROOFC[3]), x, th, z, mid));
@@ -516,14 +527,12 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
       }
     });
 
-    // church with tall spire on the east avenue
     {
       const a = Math.PI / 2 + 0.2, r = 86;
       const x = r * Math.sin(a), z = r * Math.cos(a);
       addBuilding(x, z, a + Math.PI / 2, 12, 30, 16, { plaster: new THREE.Color('#e9e4d8'), roofC: ROOFC[3], rh: 8, destructible: false });
-      const tx = x + Math.sin(a) * 0, tz = z;
       const s = 8, th = 46;
-      const ox = tx - Math.cos(a) * 0 - Math.sin(a) * 19, oz = tz - Math.cos(a) * 19;
+      const ox = x - Math.sin(a) * 19, oz = z - Math.cos(a) * 19;
       stones.push(place(boxGeo(s, th, s, 8, 8, stoneC), ox, th / 2, oz, a));
       roofs.push(place(pyramidGeo(s / 2 + 0.5, 22, ROOFC[3]), ox, th, oz, a));
       this.col.add(new Convex(new THREE.Vector3(ox, th / 2, oz), a, boxPlanes(s / 2, th / 2, s / 2), th, { surface: 'stone' }));
@@ -531,7 +540,6 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
       this.obstacles.push({ x: ox, z: oz, r: 6, h: th + 22 });
     }
 
-    // second depot on a watch post at the west
     {
       const a = -Math.PI / 2 + 0.12, r = 112;
       const x = r * Math.sin(a), z = r * Math.cos(a);
@@ -539,7 +547,30 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
       stones.push(place(boxGeo(s, th, s, 8, 8, stoneC), x, th / 2, z, a));
       this.col.add(new Convex(new THREE.Vector3(x, th / 2, z), a, boxPlanes(s / 2, th / 2, s / 2), th, { surface: 'stone' }));
       this.obstacles.push({ x, z, r: 8, h: th });
-      this.addDepot(new THREE.Vector3(x, th, z), 'WEST');
+      this.addDepot(new THREE.Vector3(x, th, z), 'BARAT');
+    }
+
+    {
+      const fx = -22, fz = 252, fw = 12, fd = 12, fh = 18;
+      stones.push(place(boxGeo(fw, fh, fd, 8, 8, stoneC), fx, fh / 2, fz, 0));
+      this.col.add(new Convex(new THREE.Vector3(fx, fh / 2, fz), 0, boxPlanes(fw / 2, fh / 2, fd / 2), Math.hypot(fw, fh, fd) / 2, { surface: 'stone' }));
+      this.obstacles.push({ x: fx, z: fz, r: 8.5, h: fh });
+      this.addDepot(new THREE.Vector3(fx, fh, fz), 'GARDA SELATAN');
+    }
+
+    const bastions = [
+      [-34, 336, 22],
+      [34, 336, 22],
+      [-44, 214, 19],
+      [44, 214, 19],
+    ];
+    for (const [bx, bz, bh] of bastions) {
+      const bs = 9.5;
+      stones.push(place(boxGeo(bs, bh, bs, 8, 8, stoneC), bx, bh / 2, bz, 0));
+      stones.push(place(boxGeo(bs + 1.2, 1.0, bs + 1.2, 8, 8, stoneC), bx, bh + 0.5, bz, 0));
+      this.col.add(new Convex(new THREE.Vector3(bx, bh / 2, bz), 0, boxPlanes(bs / 2, bh / 2, bs / 2), Math.hypot(bs, bh, bs) / 2, { surface: 'stone' }));
+      this.obstacles.push({ x: bx, z: bz, r: 6.5, h: bh + 1 });
+      this.cannonMounts.push(new THREE.Vector3(bx, bh + 1.0, bz));
     }
 
     const facadeMat = new THREE.MeshStandardMaterial({
@@ -552,10 +583,10 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     const stoneMat = this.wallMaterial();
     stoneMat.vertexColors = true;
     this.townMats = { walls: facadeMat, roofs: roofMat, trim: trimMat, stones: stoneMat };
-    for (const [list, mat] of [[walls, facadeMat], [roofs, roofMat], [trim, trimMat], [stones, stoneMat]]) {
+    for (const [list, mat, shadow] of [[walls, facadeMat, true], [roofs, roofMat, true], [trim, trimMat, false], [stones, stoneMat, true]]) {
       const g = mergeGeometries(list);
       const mesh = new THREE.Mesh(g, mat);
-      mesh.castShadow = true; mesh.receiveShadow = true;
+      mesh.castShadow = shadow; mesh.receiveShadow = true;
       this.scene.add(mesh);
     }
     for (const sec of this.houseSections) this.buildHouseSection(sec);
@@ -564,44 +595,44 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
   }
 
   buildProps() {
-    // barrels, crates and market stalls scattered on the streets (instanced)
     const rr = this.rng;
     const crateG = new THREE.BoxGeometry(1.2, 1.2, 1.2);
-    const barrelG = new THREE.CylinderGeometry(0.5, 0.55, 1.2, 12);
+    const barrelG = new THREE.CylinderGeometry(0.5, 0.55, 1.2, 10);
     const crateM = new THREE.MeshStandardMaterial({ color: '#8a6a44', roughness: 0.9 });
     const barrelM = new THREE.MeshStandardMaterial({ color: '#6a4a30', roughness: 0.8 });
-    const N = 260;
+    const N = 220;
     const crates = new THREE.InstancedMesh(crateG, crateM, N);
     const barrels = new THREE.InstancedMesh(barrelG, barrelM, N);
     const m = new THREE.Matrix4();
+    const yAxis = new THREE.Vector3(0, 1, 0);
     let ci = 0, bi = 0;
     for (let i = 0; i < N * 2; i++) {
       const r = 40 + rr() * 165;
       const a = rr() * Math.PI * 2;
       const x = r * Math.sin(a), z = r * Math.cos(a);
+      if (Math.abs(x) < 11 && z > 0) continue;
       let ok = true;
       for (const o of this.obstacles) if ((o.x - x) ** 2 + (o.z - z) ** 2 < (o.r + 1) ** 2) { ok = false; break; }
       if (!ok) continue;
-      _q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rr() * 6);
+      _q.setFromAxisAngle(yAxis, rr() * 6);
       if (rr() < 0.5 && ci < N) { m.compose(_p.set(x, 0.6, z), _q, _s.set(1, 1, 1)); crates.setMatrixAt(ci++, m); }
       else if (bi < N) { m.compose(_p.set(x, 0.6, z), _q, _s.set(1, 1, 1)); barrels.setMatrixAt(bi++, m); }
     }
     crates.count = ci; barrels.count = bi;
-    crates.castShadow = barrels.castShadow = true;
     crates.receiveShadow = barrels.receiveShadow = true;
     this.scene.add(crates, barrels);
 
-    // lamp posts around the plaza
     const postM = new THREE.MeshStandardMaterial({ color: '#2a2622', roughness: 0.6, metalness: 0.4 });
     const lampM = new THREE.MeshStandardMaterial({ color: '#ffcc88', emissive: '#ffaa55', emissiveIntensity: 2.5 });
+    const postGeo = new THREE.CylinderGeometry(0.12, 0.16, 4.5, 8);
+    const lampGeo = new THREE.SphereGeometry(0.32, 10, 8);
     for (let i = 0; i < 12; i++) {
       const a = (i / 12) * Math.PI * 2 + 0.13;
       const x = 32 * Math.sin(a), z = 32 * Math.cos(a);
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 4.5, 8), postM);
+      const post = new THREE.Mesh(postGeo, postM);
       post.position.set(x, 2.25, z);
-      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 8), lampM);
+      const lamp = new THREE.Mesh(lampGeo, lampM);
       lamp.position.set(x, 4.6, z);
-      post.castShadow = true;
       this.scene.add(post, lamp);
     }
   }
@@ -611,26 +642,28 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     g.position.copy(pos);
     const crateM = new THREE.MeshStandardMaterial({ color: '#6f5235', roughness: 0.85 });
     const tankM = new THREE.MeshStandardMaterial({ color: '#8d969c', roughness: 0.35, metalness: 0.8 });
+    const crateGeo = new THREE.BoxGeometry(1.4, 1.1, 1.0);
+    const tankGeo = new THREE.CylinderGeometry(0.22, 0.22, 1.3, 10);
     for (let i = 0; i < 5; i++) {
-      const c = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.1, 1.0), crateM);
+      const c = new THREE.Mesh(crateGeo, crateM);
       c.position.set((i % 3) * 1.5 - 1.5, 0.55 + Math.floor(i / 3) * 1.1, Math.floor(i / 3) * 0.2);
       c.castShadow = true;
       g.add(c);
     }
     for (let i = 0; i < 6; i++) {
-      const tnk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 1.3, 12), tankM);
+      const tnk = new THREE.Mesh(tankGeo, tankM);
       tnk.position.set(-1.8 + i * 0.5, 0.65, 1.3);
       tnk.castShadow = true;
       g.add(tnk);
     }
-    // flag pole with cloth flag
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 9, 8), tankM);
     pole.position.set(2.5, 4.5, -0.5);
     g.add(pole);
-    const flagGeo = new THREE.PlaneGeometry(3.2, 2.0, 16, 8);
+    const flagGeo = new THREE.PlaneGeometry(3.2, 2.0, 14, 6);
     flagGeo.translate(1.6, 0, 0);
     const flagMat = new THREE.MeshStandardMaterial({ map: TX.capeTexture(), side: THREE.DoubleSide, roughness: 0.9 });
     const tu = this.uniformsTime;
+    flagMat.customProgramCacheKey = () => 'depot-flag-v1';
     flagMat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = tu;
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;')
@@ -641,27 +674,24 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     };
     const flag = new THREE.Mesh(flagGeo, flagMat);
     flag.position.set(2.5, 7.8, -0.5);
-    flag.castShadow = true;
     g.add(flag);
-    // beacon column
     const beamMat = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
       uniforms: { uTime: tu },
       vertexShader: 'varying vec2 vUv; varying float vD; void main(){ vUv=uv; vec4 mv = modelViewMatrix*vec4(position,1.0); vD = -mv.z; gl_Position = projectionMatrix*mv;}',
-      fragmentShader: 'varying vec2 vUv; varying float vD; uniform float uTime; void main(){ float a = pow(1.0-vUv.y, 2.0) * (0.3 + 0.1*sin(uTime*3.0 + vUv.y*20.0)) * smoothstep(3.0, 25.0, vD); gl_FragColor = vec4(vec3(0.35,1.0,0.6)*a, a);}',
+      fragmentShader: 'varying vec2 vUv; varying float vD; uniform float uTime; void main(){ float om = 1.0 - vUv.y; float a = om * om * (0.3 + 0.1*sin(uTime*3.0 + vUv.y*20.0)) * smoothstep(3.0, 25.0, vD); gl_FragColor = vec4(vec3(0.35,1.0,0.6)*a, a);}',
     });
-    const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.8, 60, 24, 1, true), beamMat);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.8, 60, 20, 1, true), beamMat);
     beam.position.set(0, 30, 0);
     g.add(beam);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(4.2, 4.6, 48), new THREE.MeshBasicMaterial({ color: '#7dffb0', transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }));
+    const ring = new THREE.Mesh(new THREE.RingGeometry(4.2, 4.6, 40), new THREE.MeshBasicMaterial({ color: '#7dffb0', transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }));
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.08;
     g.add(ring);
     this.scene.add(g);
-    this.depots.push({ pos: pos.clone(), name, radius: 6, group: g, ring });
+    this.depots.push({ pos: pos.clone(), name, radius: 6.5, group: g, ring });
   }
 
-  // rebuild a destructible-house section's merged meshes, skipping dead houses
   buildHouseSection(sec) {
     for (const m of sec.meshes) { this.scene.remove(m); m.geometry.dispose(); }
     sec.meshes.length = 0;
@@ -670,7 +700,8 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
       for (const h of sec.houses) if (!h.dead) list.push(...h.lists[key]);
       if (!list.length) continue;
       const mesh = new THREE.Mesh(mergeGeometries(list), this.townMats[key]);
-      mesh.castShadow = mesh.receiveShadow = true;
+      mesh.castShadow = key !== 'trim';
+      mesh.receiveShadow = true;
       this.scene.add(mesh);
       sec.meshes.push(mesh);
     }
@@ -683,24 +714,28 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     for (const c of h.cols) this.col.remove(c);
     this.col.build();
     this.buildHouseSection(h.sec);
-    // rubble: collapsed mound + fallen beams where the house stood
     const list = [];
     const moundC = new THREE.Color('#7a6a55'), wood = new THREE.Color('#4a3424');
     const rub = new THREE.SphereGeometry(1, 10, 7, 0, Math.PI * 2, 0, Math.PI / 2);
     rub.scale(h.w * 0.52, Math.min(h.h * 0.32, 4.5), h.d * 0.52);
     list.push(place(colorize(rub, moundC), h.x, 0.1, h.z, h.yaw));
     const rr = Math.random;
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 6; i++) {
       const bw = 0.4 + rr() * 0.9, bl = 2 + rr() * Math.min(h.w, h.d) * 0.4;
       list.push(place(boxGeo(bw, bl, bw, 1, 1, i % 3 ? wood : moundC),
         h.x + (rr() - 0.5) * h.w * 0.8, 0.5 + rr() * 1.4, h.z + (rr() - 0.5) * h.d * 0.8,
         rr() * 6, rr() * 0.9 - 0.45, rr() * 0.9 - 0.45));
     }
-    const mesh = new THREE.Mesh(mergeGeometries(list), this.townMats.trim);
-    if (this.gameRef) this.gameRef.vfx.debris(new THREE.Vector3(h.x, h.h * 0.5, h.z), 14, 9);
-    mesh.castShadow = mesh.receiveShadow = true;
+    const merged = mergeGeometries(list);
+    for (const g of list) g.dispose();
+    const mesh = new THREE.Mesh(merged, this.townMats.trim);
+    if (this.gameRef) {
+      this.gameRef.vfx.debris(new THREE.Vector3(h.x, h.h * 0.5, h.z), 12, 9);
+      this.gameRef.onDistrictDamage?.(2.2);
+    }
+    mesh.receiveShadow = true;
     this.scene.add(mesh);
-    (this.rubble ||= []).push(mesh);
+    this.rubble.push(mesh);
     return true;
   }
 
@@ -714,8 +749,30 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
       if (p.y > h.top + 6) continue;
       if (this.destroyHouse(h)) n++;
     }
-    if (n) this.col.build();
     return n;
+  }
+
+  resetDestruction() {
+    const dirtySecs = new Set();
+    let changed = false;
+    for (const h of this.houses) {
+      if (!h.dead) continue;
+      h.dead = false;
+      if (h.ob) h.ob.dead = false;
+      for (const c of h.cols) this.col.add(c);
+      dirtySecs.add(h.sec);
+      changed = true;
+    }
+    if (changed) {
+      this.col.build();
+      for (const sec of dirtySecs) this.buildHouseSection(sec);
+    }
+    for (const m of this.rubble) {
+      this.scene.remove(m);
+      m.geometry.dispose();
+    }
+    this.rubble.length = 0;
+    this.setSealProgress(0);
   }
 
   buildForest() {
@@ -735,8 +792,7 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
       placed++;
       const h = 72 + rr() * 30;
       const rad = 2.8 + rr() * 2.4;
-      const tg = new THREE.CylinderGeometry(rad * 0.55, rad, h, 18, 10);
-      // gnarled trunk
+      const tg = new THREE.CylinderGeometry(rad * 0.55, rad, h, 14, 8);
       const p = tg.attributes.position;
       for (let i = 0; i < p.count; i++) {
         const y = p.getY(i);
@@ -749,18 +805,15 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
       for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 3, uv.getY(i) * h / 10);
       tg.computeVertexNormals();
       trunks.push(place(colorize(tg, brown), x, h / 2, z, rr() * 6));
-      // root flare
       for (let k = 0; k < 5; k++) {
         const ra = (k / 5) * Math.PI * 2 + rr();
-        const rg = new THREE.CylinderGeometry(0.4, rad * 0.55, 10, 8);
+        const rg = new THREE.CylinderGeometry(0.4, rad * 0.55, 10, 7);
         rg.translate(0, 5, 0);
         place(rg, x + Math.sin(ra) * rad * 0.6, 0, z + Math.cos(ra) * rad * 0.6, ra, 0, 0);
-        rg.applyMatrix4(new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(Math.cos(ra), 0, -Math.sin(ra)), 0));
         trunks.push(colorize(rg, brown));
       }
       this.col.add(new VCylinder(x, z, rad * 0.85, 0, h, { surface: 'wood' }));
       this.obstacles.push({ x, z, r: rad + 1, h });
-      // branches
       const nb = 4 + Math.floor(rr() * 4);
       for (let b = 0; b < nb; b++) {
         const by = h * (0.38 + rr() * 0.42);
@@ -769,7 +822,7 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
         const up = 0.25 + rr() * 0.4;
         const dir = new THREE.Vector3(Math.sin(ba) * Math.cos(up), Math.sin(up), Math.cos(ba) * Math.cos(up));
         const br = 0.6 + rr() * 0.5;
-        const bg = new THREE.CylinderGeometry(br * 0.4, br, len, 8, 1);
+        const bg = new THREE.CylinderGeometry(br * 0.4, br, len, 7, 1);
         bg.translate(0, len / 2, 0);
         _q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
         _m.compose(_p.set(x, by, z), _q, _s.set(1, 1, 1));
@@ -778,13 +831,12 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
         const a3 = new THREE.Vector3(x, by, z).addScaledVector(dir, rad * 0.8);
         const b3 = new THREE.Vector3(x, by, z).addScaledVector(dir, len);
         this.col.add(new Capsule(a3, b3, br * 0.85, { surface: 'wood' }));
-        // foliage at branch tip
-        const cg = new THREE.IcosahedronGeometry(6 + rr() * 4, 2);
+        const cg = new THREE.IcosahedronGeometry(6 + rr() * 4, 1);
         cg.scale(1.2, 0.7, 1.2);
         canopies.push(place(colorize(cg, leafC[Math.floor(rr() * 4)]), b3.x, b3.y + 2, b3.z, rr() * 6));
       }
-      for (let k = 0; k < 6; k++) {
-        const cg = new THREE.IcosahedronGeometry(9 + rr() * 6, 2);
+      for (let k = 0; k < 5; k++) {
+        const cg = new THREE.IcosahedronGeometry(9 + rr() * 6, 1);
         cg.scale(1.3, 0.75, 1.3);
         const ca = rr() * Math.PI * 2, cr = rr() * 9;
         canopies.push(place(colorize(cg, leafC[Math.floor(rr() * 4)]), x + Math.sin(ca) * cr, h - 4 + rr() * 10, z + Math.cos(ca) * cr, rr() * 6));
@@ -793,8 +845,7 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     const barkMat = new THREE.MeshStandardMaterial({ map: t.bark.map, normalMap: t.bark.normalMap, roughness: 0.95, vertexColors: true, color: '#c7b8a6' });
     barkMat.normalScale.set(0.5, 0.5);
     this.canopyMat = this.leafMaterial();
-    // merge per 90 m cell instead of one forest-wide mesh so camera and shadow frustum culling can skip far trees
-    const chunked = (geos, mat) => {
+    const chunked = (geos, mat, cast) => {
       const cells = new Map();
       for (const g of geos) {
         g.computeBoundingSphere();
@@ -804,12 +855,12 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
       }
       for (const list of cells.values()) {
         const m = new THREE.Mesh(mergeGeometries(list), mat);
-        m.castShadow = m.receiveShadow = true;
+        m.castShadow = cast; m.receiveShadow = true;
         this.scene.add(m);
       }
     };
-    chunked(trunks, barkMat);
-    chunked(canopies, this.canopyMat);
+    chunked(trunks, barkMat, true);
+    chunked(canopies, this.canopyMat, false);
   }
 
   leafMaterial() {
@@ -817,6 +868,7 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     const mat = new THREE.MeshStandardMaterial({ map: t.map, normalMap: t.normalMap, vertexColors: true, roughness: 0.85 });
     mat.normalScale.set(1.5, 1.5);
     const tu = this.uniformsTime;
+    mat.customProgramCacheKey = () => 'leaf-sway-v1';
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = tu;
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;')
@@ -825,7 +877,6 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
           float sw = sin(uTime*1.3 + wp0.x*0.05 + wp0.z*0.04) * 0.5 + sin(uTime*2.7 + wp0.y*0.3)*0.2;
           transformed.x += sw * 0.6; transformed.z += sw * 0.4;
           transformed += normal * (sin(wp0.x*0.9)*sin(wp0.y*1.1)*sin(wp0.z*0.8)) * 1.2;`);
-      // fake light transmission so canopies don't read as black blobs
       sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
           totalEmissiveRadiance += diffuseColor.rgb * vec3(0.32, 0.4, 0.18);`);
     };
@@ -841,10 +892,10 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     const leafC = new THREE.Color('#4a6a2e');
     let n = 0;
     for (let tries = 0; tries < 900 && n < 60; tries++) {
-      const a = (rr() - 0.5) * 3.6; // front half (towards breach)
+      const a = (rr() - 0.5) * 3.6;
       const r = TOWN_R + 20 + rr() * (WALL_R - TOWN_R - 40);
       const x = r * Math.sin(a), z = r * Math.cos(a);
-      if (Math.abs(a) < 0.12) continue; // road to breach
+      if (Math.abs(a) < 0.14) continue;
       let ok = true;
       for (const o of this.obstacles) if ((o.x - x) ** 2 + (o.z - z) ** 2 < (o.r + 16) ** 2) { ok = false; break; }
       if (!ok) continue;
@@ -862,7 +913,7 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
         this.obstacles.push({ x, z, r: w * 0.55, h: h + rh });
       } else if (k < 0.65) {
         for (let j = 0; j < 4; j++) {
-          const hg = new THREE.ConeGeometry(1.8, 3.2, 10);
+          const hg = new THREE.ConeGeometry(1.8, 3.2, 8);
           hg.translate(0, 1.6, 0);
           hay.push(place(colorize(hg, hayC), x + (rr() - 0.5) * 12, 0, z + (rr() - 0.5) * 12, rr() * 6));
         }
@@ -873,12 +924,11 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
         const uv = tg.attributes.uv;
         for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 2, uv.getY(i) * h / 8);
         trunks.push(place(colorize(tg, white), x, 0, z, 0));
-        const cg = new THREE.IcosahedronGeometry(4 + rr() * 2, 2);
+        const cg = new THREE.IcosahedronGeometry(4 + rr() * 2, 1);
         canopies.push(place(colorize(cg, leafC), x, h + 1, z, rr() * 6));
         this.col.add(new VCylinder(x, z, 0.6, 0, h, { surface: 'wood' }));
       }
     }
-    // windmill
     {
       const a = 0.9, r = 290;
       const x = r * Math.sin(a), z = r * Math.cos(a);
@@ -909,13 +959,12 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
     const roofMat = new THREE.MeshStandardMaterial({ map: t.roof.map, normalMap: t.roof.normalMap, vertexColors: true, roughness: 0.75 });
     const hayMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, map: t.grass.map });
     const barkMat = new THREE.MeshStandardMaterial({ map: t.bark.map, normalMap: t.bark.normalMap, vertexColors: true, roughness: 0.95 });
-    for (const [list, mat] of [[walls, facadeMat], [roofs, roofMat], [hay, hayMat], [trunks, barkMat], [canopies, this.canopyMat]]) {
+    for (const [list, mat, cast] of [[walls, facadeMat, true], [roofs, roofMat, true], [hay, hayMat, false], [trunks, barkMat, true], [canopies, this.canopyMat, false]]) {
       if (!list.length) continue;
       const mesh = new THREE.Mesh(mergeGeometries(list), mat);
-      mesh.castShadow = mesh.receiveShadow = true;
+      mesh.castShadow = cast; mesh.receiveShadow = true;
       this.scene.add(mesh);
     }
-    // outer spawn ring for titans (inside wall, outside town)
     for (let i = 0; i < 14; i++) {
       const a = (i / 14) * Math.PI * 2;
       const r = TOWN_R + 40 + (i % 3) * 30;
@@ -939,17 +988,18 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
       g.computeVertexNormals();
       g.translate(0, h / 2 - 20, 0);
       const cols = new Float32Array(p.count * 3);
+      const lowC = new THREE.Color('#6f7785'), highC = new THREE.Color('#e8ecf2'), tmpC = new THREE.Color();
       for (let k = 0; k < p.count; k++) {
         const y = p.getY(k) / h;
-        const snow = y > 0.78 ? 1 : 0;
-        const base = new THREE.Color('#6f7785').lerp(new THREE.Color('#e8ecf2'), snow);
-        cols[k * 3] = base.r; cols[k * 3 + 1] = base.g; cols[k * 3 + 2] = base.b;
+        tmpC.copy(lowC).lerp(highC, y > 0.78 ? 1 : 0);
+        cols[k * 3] = tmpC.r; cols[k * 3 + 1] = tmpC.g; cols[k * 3 + 2] = tmpC.b;
       }
       g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
       g.deleteAttribute('uv');
       parts.push(place(g, r * Math.sin(a), 0, r * Math.cos(a), rr() * 6));
     }
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, fog: false, flatShading: true });
+    mat.customProgramCacheKey = () => 'mountain-haze-v1';
     mat.onBeforeCompile = (sh) => {
       sh.fragmentShader = sh.fragmentShader.replace('#include <dithering_fragment>', `#include <dithering_fragment>
         gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.78, 0.74, 0.70), 0.55);`);
@@ -960,11 +1010,11 @@ float townMask(){ float r = length(vWPos.xz); return 1.0 - smoothstep(uTownR-6.0
 
   buildClouds() {
     const tex = [TX.cloudSprite(1), TX.cloudSprite(2), TX.cloudSprite(3)];
+    const mats = tex.map((t) => new THREE.SpriteMaterial({ map: t, color: new THREE.Color('#ffe2c4'), transparent: true, opacity: 0.85, fog: false, depthWrite: false }));
     const rr = this.rng;
     this.clouds = [];
-    for (let i = 0; i < 34; i++) {
-      const m = new THREE.SpriteMaterial({ map: tex[i % 3], color: new THREE.Color('#ffe2c4'), transparent: true, opacity: 0.85, fog: false, depthWrite: false });
-      const s = new THREE.Sprite(m);
+    for (let i = 0; i < 30; i++) {
+      const s = new THREE.Sprite(mats[i % 3]);
       const a = rr() * Math.PI * 2, r = 900 + rr() * 2600;
       s.position.set(r * Math.sin(a), 380 + rr() * 520, r * Math.cos(a));
       const sc = 500 + rr() * 900;
