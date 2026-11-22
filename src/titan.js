@@ -385,6 +385,7 @@ export class Titan {
     this.state = s;
     this.stateT = 0;
     this.didStrike = false;
+    this.whooshed = false;
     if (this.heldRock) this.heldRock.visible = false;
   }
 
@@ -622,6 +623,10 @@ export class Titan {
         pos.z + Math.cos(this.heading + ang) * reach * 1.05,
       );
       this.aimArm(side, tgt, 0.92);
+      if (t > 0.48 && !this.whooshed) {
+        this.whooshed = true;
+        g.audio.whoosh(this.handPos(side, this._hand), s);
+      }
       if (t > 0.48 && t < 0.82 && !this.didStrike && this.armCut[side] <= 1.2) {
         const hp = this.handPos(side, this._hand);
         g.world.destroyNear(hp, 2.2 * s);
@@ -645,6 +650,10 @@ export class Titan {
         const sg = i === 1 ? 1 : -1;
         _v.set(pos.x + Math.sin(this.heading + sg * 0.25) * 3.2 * s, pos.y + liftY, pos.z + Math.cos(this.heading + sg * 0.25) * 3.2 * s);
         this.aimArm(i, _v, 0.92);
+      }
+      if (t >= 0.58 && !this.whooshed) {
+        this.whooshed = true;
+        g.audio.whoosh(_v.set(pos.x + Math.sin(this.heading) * 3.2 * s, pos.y + this.height * 0.6, pos.z + Math.cos(this.heading) * 3.2 * s), s * 1.3);
       }
       if (t >= 0.82 && !this.didStrike) {
         this.didStrike = true;
@@ -698,6 +707,10 @@ export class Titan {
         if (this.armCut[i] <= 1.2) this.aimArm(i, tgt, w * 0.9);
         wantHeading = Math.atan2(toPlayer.x, toPlayer.z);
         targetSpeed = 0.35 * s;
+        if (t > 0.42 && !this.whooshed) {
+          this.whooshed = true;
+          g.audio.whoosh(this.handPos(i, this._hand), s);
+        }
         if (this.armCut[i] <= 1.2 && t > 0.42 && t < 0.84 && !p.grabbedBy && p.invuln <= 0 && !p.dead) {
           const hp = this.handPos(i, this._hand);
           if (hp.distanceTo(p.pos) < 1.1 * s + 0.55) {
@@ -755,6 +768,7 @@ export class Titan {
         if ((abn || isBoss || isSprinter) && distH < 30 && distH > 11 && (this.lungeCD || 0) <= 0 && Math.random() < dt * 0.45 && pyRel < 9) {
           this.lunge = isBoss ? 1.15 : 0.85; this.lungeCD = isBoss ? 6 : 4.5; this.cooldown = Math.min(this.cooldown, 0.35);
           g.audio.roar(pos, this.height, 0.85);
+          g.audio.whoosh(pos, s * 1.4);
         }
       }
       if (this.detour > 0) { this.detour -= dt; wantHeading += this.detourDir * 1.2; }

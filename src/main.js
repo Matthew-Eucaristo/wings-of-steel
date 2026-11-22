@@ -672,6 +672,7 @@ class Game {
       const lbl = p.speed > 40 ? 'EKSEKUSI DEWA!' : p.spin > 0 ? 'TEBASAN PUTAR!' : p.combo >= 3 ? 'PEMBANTAIAN!' : 'EKSEKUSI BERSIH!';
       this.hud.toast(lbl, 1.25);
       this.hud.combo(p.combo);
+      if (p.combo >= 3) this.audio.comboSting(p.combo);
       this.hud.killFeed(`<b>KAMU</b> mengeksekusi <em>Titan ${t.label}</em>${p.combo >= 2 ? ` · ${p.combo}×` : ''}`);
       this.stats.bestCombo = Math.max(this.stats.bestCombo, p.combo);
       this.triggerImpact(0.135, 0.006, 0.44, 0.16, 1.0);
@@ -911,7 +912,7 @@ class Game {
     document.getElementById('win').classList.remove('hidden');
     this.hud.show(false);
     this.syncPause();
-    this.audio.horn();
+    this.audio.fanfare();
     if (document.pointerLockElement) document.exitPointerLock();
   }
 

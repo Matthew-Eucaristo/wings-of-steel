@@ -795,6 +795,10 @@ export class Player {
       v.addScaledVector(dir, TUNE.gasThrust * thrustMult * 0.92 * dt);
       gasUse += 4.2 * dt; this.gasOn = true;
     }
+    if (gasHeld && this.gas <= 0 && !this.grounded) {
+      this.gasDryT = (this.gasDryT || 0) - dt;
+      if (this.gasDryT <= 0) { this.gasDryT = 0.55; g.audio.empty(); }
+    }
 
     if (control && (inp.pressed('ShiftLeft') || inp.pressed('ShiftRight')) && this.dashCD <= 0 && this.gas > 3 && !this.grounded) {
       let dir;
@@ -1050,7 +1054,11 @@ export class Player {
         if (this.bladeSets < this.classDef.blades && (this._dt = (this._dt || 0) + dt) > 0.3) { this._dt = 0; this.bladeSets++; }
         if (this.blade <= 0 && this.bladeSets > 0) this.swapBlades();
         else this.blade = Math.min(100, this.blade + dt * 40);
-        if (this.gas + this.gasCylinders * 100 + this.bladeSets + this.hp + this.spears * 20 > before + 0.01) this.game.hud.resupply(d.name);
+        if (this.gas + this.gasCylinders * 100 + this.bladeSets + this.hp + this.spears * 20 > before + 0.01) {
+          this.game.hud.resupply(d.name);
+          this._refillT = (this._refillT || 0) - dt;
+          if (this._refillT <= 0) { this._refillT = 0.9; this.game.audio.refill(d.pos); }
+        }
       }
     }
   }
