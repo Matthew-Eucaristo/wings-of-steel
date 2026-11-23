@@ -29,6 +29,7 @@ const UPGRADE_POOL = [
 
 class Input {
   constructor(canvas, game) {
+    this.game = game;
     this.keys = new Set();
     this.edge = new Set();
     this.padKeys = new Set();
@@ -66,6 +67,11 @@ class Input {
       if (bt[14]?.pressed) next.add('KeyV');
       if (bt[15]?.pressed) next.add('KeyT');
       if (bt[9]?.pressed) next.add('Escape');
+      if (this.game.pendingUpgrades) {
+        if (bt[14]?.pressed) { next.delete('KeyV'); next.add('Digit1'); }
+        if (bt[13]?.pressed) { next.delete('KeyX'); next.add('Digit2'); }
+        if (bt[15]?.pressed) { next.delete('KeyT'); next.add('Digit3'); }
+      }
       this.mouse.dx += Math.abs(ax[2] || 0) > dead ? ax[2] * 17 : 0;
       this.mouse.dy += Math.abs(ax[3] || 0) > dead ? ax[3] * 14 : 0;
       const slash = !!bt[2]?.pressed;
