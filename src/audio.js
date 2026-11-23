@@ -289,6 +289,12 @@ export class Audio {
     this.burst(o, { buf: this.brown, type: 'lowpass', f0: 400, f1: 30, dur: 2.2, vol: 2.2, att: 0.02 });
     this.tone(o, { f0: 50, f1: 22, dur: 1.6, vol: 0.9 });
   }
+  step(pos, height) {
+    if (!this.ok()) return;
+    const o = this.out(pos, 0.5 + height * 0.02, 0.35, 70);
+    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 220, f1: 40, dur: 0.26, vol: 1.1, att: 0.01 });
+    this.tone(o, { f0: 58, f1: 28, dur: 0.2, vol: 0.45 });
+  }
   roar(pos, height, vol = 1, delay = 0) {
     if (!this.ok()) return;
     const ctx = this.ctx, t = ctx.currentTime + delay, o = this.out(pos, vol * 1.4, 0.7, 60);

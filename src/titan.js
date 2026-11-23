@@ -850,8 +850,13 @@ export class Titan {
     const s = this.s;
     const abn = this.type === 'abnormal' || this.type === 'sprinter';
     const stride = (abn ? 3.1 : 2.6) * s;
+    const prevPh = this.walkPhase;
     this.walkPhase += (this.speed / stride) * dt * Math.PI;
     const ph = this.walkPhase;
+    if (Math.floor(ph / Math.PI) !== Math.floor(prevPh / Math.PI) && this.speed > 0.6) {
+      const d = this.root.position.distanceTo(this.game.player.pos);
+      if (d < 100) this.game.audio.step(this.root.position, this.height);
+    }
     const amp = clamp(this.speed / (1.7 * s), 0, 1.4);
     const kneel = this.state === 'kneel' ? clamp(this.stateT * 3, 0, 1) * (this.legCut > 0.5 ? 1 : clamp(this.legCut * 2, 0, 1)) : 0;
     this.kneelW = damp(this.kneelW || 0, kneel, 6, dt);
