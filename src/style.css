@@ -288,3 +288,6 @@ button.ghost{background:rgba(255,255,255,.08);color:#f3e2bf;box-shadow:inset 0 0
 #toast{text-shadow:0 0 18px rgba(0,0,0,.85),0 0 12px rgba(255,180,80,.55),0 2px 3px #000}
 @media (max-width:1240px){#squad-box{width:190px}}
 .cmd-banner span{white-space:nowrap;letter-spacing:.4px}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}

@@ -4,6 +4,7 @@ import { createRayHit } from './collision.js';
 
 const _v = new THREE.Vector3(), _t = new THREE.Vector3(), _execPos = new THREE.Vector3();
 const _camHit = createRayHit();
+const _reducedMotion = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
 
 export class CameraRig {
   constructor(game) {
@@ -42,8 +43,12 @@ export class CameraRig {
     const ySign = this.invertY ? 1 : -1;
     this.pitch = clamp(this.pitch + dy * this.sens * ySign, -1.45, 1.35);
   }
-  shake(a) { this.trauma = Math.min(1.3, this.trauma + a * (this.game.prefs.shake ? 1 : 0.25)); }
+  shake(a) {
+    if (_reducedMotion.matches) return;
+    this.trauma = Math.min(1.3, this.trauma + a * (this.game.prefs.shake ? 1 : 0.25));
+  }
   hitJolt(amp = 0.85, dur = 0.13) {
+    if (_reducedMotion.matches) amp = 0;
     if (!this.game.prefs.shake) amp *= 0.25;
     this.hitJoltAmp = Math.max(this.hitJoltAmp, amp);
     this.hitJoltT = Math.max(this.hitJoltT, dur);
@@ -166,7 +171,7 @@ export class CameraRig {
 
     const base = this.baseFov;
     const execZoom = this.execT > 0 ? -9 * Math.sin((this.execT / this.execDur) * Math.PI) : 0;
-    const wantFov = clamp(base + Math.max(0, sp - 8) * 0.5 + (fp ? 9 : 0), base, fp ? base + 26 : base + 22) + execZoom + this.impactFov;
+    const wantFov = clamp(base + Math.max(0, sp - 8) * 0.5 + (fp ? 9 : 0), base, fp ? base + 26 : base + 22) + execZoom + this.impactFov * (_reducedMotion.matches ? 0.3 : 1);
     this.impactFov = damp(this.impactFov, 0, 14, rdt);
     this.fov = this.fovOverride ?? damp(this.fov, wantFov, 7, rdt);
     if (Math.abs(cam.fov - this.fov) > 0.01) { cam.fov = this.fov; cam.updateProjectionMatrix(); }
