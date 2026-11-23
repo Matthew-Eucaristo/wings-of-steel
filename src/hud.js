@@ -227,8 +227,11 @@ export class HUD {
     let x = _v.x, y = _v.y;
     if (_v.z > 1) { x = -x; y = -y; if (Math.abs(x) < 0.9 && Math.abs(y) < 0.85) y = -0.85; }
     const k = Math.max(1, Math.abs(x) / 0.9, Math.abs(y) / 0.82);
-    e.objm.style.left = ((x / k) * 0.5 + 0.5) * innerWidth + 'px';
-    e.objm.style.top = (-(y / k) * 0.5 + 0.5) * innerHeight + 'px';
+    let sx = ((x / k) * 0.5 + 0.5) * innerWidth;
+    const sy = (-(y / k) * 0.5 + 0.5) * innerHeight;
+    if (sy > innerHeight - 150 && Math.abs(sx - innerWidth / 2) < 200) sx = innerWidth / 2 + (sx < innerWidth / 2 ? -200 : 200);
+    e.objm.style.left = sx + 'px';
+    e.objm.style.top = sy + 'px';
     e.objm.classList.toggle('alert', eng.pinned);
     this.setText(e.objtxt, 'objtxt', (eng.pinned ? 'KONVOI DISERANG ' : 'KONVOI ') + dist + 'm');
   }
@@ -585,8 +588,11 @@ export class HUD {
       let x = _v.x, y = _v.y;
       if (_v.z > 1) { x = -x; y = -y; if (Math.abs(x) < 0.9 && Math.abs(y) < 0.85) y = -0.85; }
       const k = Math.max(1, Math.abs(x) / 0.9, Math.abs(y) / 0.85);
-      e.depot.style.left = ((x / k) * 0.5 + 0.5) * innerWidth + 'px';
-      e.depot.style.top = (-(y / k) * 0.5 + 0.5) * innerHeight + 'px';
+      let sx = ((x / k) * 0.5 + 0.5) * innerWidth;
+      const sy = (-(y / k) * 0.5 + 0.5) * innerHeight;
+      if (sy > innerHeight - 150 && Math.abs(sx - innerWidth / 2) < 200) sx = innerWidth / 2 + (sx < innerWidth / 2 ? -200 : 200);
+      e.depot.style.left = sx + 'px';
+      e.depot.style.top = sy + 'px';
       this.setText(e.depot.lastChild, 'depot', 'DEPOT ' + Math.round(nd.dist) + 'm');
     }
 
