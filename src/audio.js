@@ -241,6 +241,14 @@ export class Audio {
     this.tone(o, { type: 'square', f0: 3200, f1: 800, dur: 0.25, vol: 0.12 });
     this.burst(o, { f0: 6000, f1: 2000, q: 2, dur: 0.3, vol: 0.6 });
   }
+  alarm() {
+    if (!this.ok()) return;
+    const o = this.out(null, 0.55, 0.3);
+    for (let i = 0; i < 3; i++) {
+      this.tone(o, { type: 'square', f0: 620, f1: 620, dur: 0.16, vol: 0.09, delay: i * 0.44 });
+      this.tone(o, { type: 'square', f0: 470, f1: 470, dur: 0.16, vol: 0.09, delay: i * 0.44 + 0.2 });
+    }
+  }
   bladeSwap() {
     if (!this.ok()) return;
     const o = this.out(null, 0.6, 0.1);

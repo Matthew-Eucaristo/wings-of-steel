@@ -365,7 +365,9 @@ export class Engineers {
       const d = t.root.position.distanceTo(this.convoyPos);
       if (d < 20) threatCount++;
     }
+    const wasPinned = this.pinned;
     this.pinned = threatCount > 0;
+    if (this.pinned && !wasPinned) g.audio.alarm();
     const boost = this.moraleT > 0 ? 1.65 : 1.0;
 
     if (this.pinned) {
