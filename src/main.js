@@ -63,6 +63,7 @@ class Input {
       if (bt[3]?.pressed) next.add('KeyC');
       if (bt[12]?.pressed) next.add('KeyR');
       if (bt[13]?.pressed) next.add('KeyX');
+      if (bt[14]?.pressed) next.add('KeyV');
       if (bt[15]?.pressed) next.add('KeyT');
       if (bt[9]?.pressed) next.add('Escape');
       this.mouse.dx += Math.abs(ax[2] || 0) > dead ? ax[2] * 17 : 0;

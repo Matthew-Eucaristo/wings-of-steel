@@ -388,6 +388,17 @@ export class HUD {
       }
     }
 
+    for (let i = 0; i < g.boulders.length; i++) {
+      const b = g.boulders[i];
+      const [sx, sy] = toR(b.m.position.x, b.m.position.z);
+      ctx.fillStyle = '#ffb347';
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(g.elapsed * 4);
+      ctx.fillRect(-2.2, -2.2, 4.4, 4.4);
+      ctx.restore();
+    }
+
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.moveTo(C, C - 5);
