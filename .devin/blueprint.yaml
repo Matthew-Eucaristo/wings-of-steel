@@ -1,0 +1,23 @@
+# https://docs.devin.ai/onboard-devin/environment-yaml
+# Commands run from the repo root.
+initialize: |
+  true
+# Install project dependencies (runs during builds, surfaced to agent at session start).
+maintenance: |
+  npm install
+  npm install-scripts approve esbuild
+# Reference info for agent
+knowledge:
+  - name: build
+    contents: |
+      npm run build
+  - name: test
+    contents: |
+      # Headless Chrome smoke/regression suite (luminance, gameplay invariants, story flow).
+      npm run verify
+      # Chrome path is auto-detected; override with CHROME=/path/to/chrome if needed.
+  - name: notes
+    contents: |
+      # No linter, tests, or pre-commit hooks. three.js + vite, plain ES modules.
+      # VM has no GPU: use window.game + CDP game.sim(sec, dt, each) for deterministic stepping.
+      # Commit directly to main; GitHub Pages deploys from main via .github/workflows/pages.yml.
