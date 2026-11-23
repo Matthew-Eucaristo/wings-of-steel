@@ -858,6 +858,17 @@ export class Player {
     if (!this.grounded) v.multiplyScalar(1 - Math.min(0.5, 0.0005 * sp * dt * 60) * dt * 2);
     if (sp > 60) v.multiplyScalar(1 - Math.min(0.5, (sp - 60) * 0.03 * dt));
     p.addScaledVector(v, dt);
+    const r2d = Math.hypot(p.x, p.z);
+    if (r2d > 386) {
+      const nx = p.x / r2d, nz = p.z / r2d;
+      v.x -= nx * ((r2d - 386) * 6 + 22) * dt;
+      v.z -= nz * ((r2d - 386) * 6 + 22) * dt;
+      if (r2d > 430) { p.x = nx * 430; p.z = nz * 430; }
+      if (g.elapsed - (this._oobWarn || -9) > 4) {
+        this._oobWarn = g.elapsed;
+        g.hud.toast('<span style="font-size:20px">KEMBALI KE MEDAN TEMPUR!</span>', 1.3);
+      }
+    }
     this.collide(dt);
   }
 
