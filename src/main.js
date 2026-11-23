@@ -459,9 +459,10 @@ class Game {
         }
       }
       if (b.pos.y <= b.r * 0.6) { b.pos.y = b.r * 0.6; hit = true; }
-      if (!p.dead && p.pos.distanceTo(b.pos) < b.r + 1.4) {
+      if (!p.dead && p.invuln <= 0 && p.pos.distanceTo(b.pos) < b.r + 1.4) {
         _v2.subVectors(p.pos, b.pos).setY(0.5).normalize();
         p.knockback(_v2, 16, 14);
+        p.invuln = Math.max(p.invuln, 0.6);
         hit = true;
       }
       b.m.position.copy(b.pos);
