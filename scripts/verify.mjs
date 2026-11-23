@@ -149,6 +149,24 @@ const sysOk = sys.minConvoy >= 130 && sys.turn >= 60 && sys.maxAttackers >= 1 &&
 failed ||= !sysOk;
 console.log(`${sysOk ? 'PASS' : 'FAIL'} systems              ${JSON.stringify(sys)}`);
 
+const upg = await run(`(() => { const g = window.game;
+  g.offerUpgrades();
+  const shown = !document.getElementById('upgrades').classList.contains('hidden');
+  const cards = document.getElementById('upcards').children.length;
+  g.pickUpgrade(0);
+  const hidden = document.getElementById('upgrades').classList.contains('hidden');
+  const applied = !g.pendingUpgrades;
+  // i-frame flicker wiring
+  g.player.invuln = 0.5; g.player.animate(1 / 60);
+  const flickered = g.player.model.root.visible === false;
+  g.player.invuln = 0; g.player.animate(1 / 60);
+  const restored = g.player.model.root.visible === true;
+  return { shown, cards, hidden, applied, flickered, restored };
+})()`);
+const upgOk = upg.shown && upg.cards === 3 && upg.hidden && upg.applied && upg.flickered && upg.restored;
+failed ||= !upgOk;
+console.log(`${upgOk ? 'PASS' : 'FAIL'} upgrade flow         ${JSON.stringify(upg)}`);
+
 const flow = { phases: [] };
 await run(`(() => { const g = window.game; g.returnToMenu(); g.mode = 'campaign'; g.startSession(true); g.locked = true; })()`);
 for (const t of [1.5, 3.2, 6.4, 7.6, 10.4, 11.6, 13.2, 14.8]) {
