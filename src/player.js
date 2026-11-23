@@ -556,7 +556,7 @@ export class Player {
     let lockTarget = this.lock?.alive ? this.lock : null;
     if (!lockTarget && this.aim?.collider?.owner?.alive) lockTarget = this.aim.collider.owner;
     const dir = lockTarget
-      ? _v.subVectors(lockTarget.nape.c, this.pos).normalize()
+      ? _v.subVectors(lockTarget.nape.c, this.pos).setY(0.3).normalize()
       : this.aim
         ? _v.copy(this.aim.point).sub(this.pos).normalize()
         : _v.copy(g.cam.forward);
@@ -984,7 +984,7 @@ export class Player {
       if (dN < t.nape.r + reach) {
         this.slashHits.add(t);
         this.execLungeT = 0;
-        _v.subVectors(t.nape.c, this.pos).normalize();
+        _v.subVectors(t.nape.c, this.pos).setY(0.3).normalize();
         const back = _v2.set(-Math.sin(t.heading), 0, -Math.cos(t.heading));
         const angle = clamp(-_v.dot(back) * 0.5 + 0.5, 0, 1);
         let dmg = 145 + relV * relV * 0.62 + relV * 8;

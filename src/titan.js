@@ -734,7 +734,7 @@ export class Titan {
               g.audio.dash();
               p.gas = Math.min(100, p.gas + 5);
             } else if (speed > 16) {
-              p.knockback(_v.subVectors(p.pos, hp).normalize(), 11, 8); p.invuln = Math.max(p.invuln, 0.45);
+              p.knockback(_v.subVectors(p.pos, hp).setY(0.4).normalize(), 11, 8); p.invuln = Math.max(p.invuln, 0.45);
               this.setState('chase'); this.cooldown = 1.1;
             } else { p.grab(this); this.setState('grab'); }
           }
