@@ -126,6 +126,13 @@ const sys = await run(`(() => {
   for (let i = 0; i < 28; i++) g.step(1/60);
   g.input.keys.clear();
   const turn = Math.atan2(g.player.vel.x, g.player.vel.z) * 180 / Math.PI;
+  __fresh();
+  g.spawnBoulder(new THREE.Vector3(0, 40, -120), new THREE.Vector3(30, 0, 30), 1.4);
+  const b = g.boulders[0];
+  const marked = !!(b && b.mark && b.mark.visible);
+  const mk = marked ? b.mark.position.clone() : null;
+  for (let i = 0; i < 500 && g.boulders.length; i++) g.step(1/60);
+  const boulderErr = mk ? Math.hypot(b.pos.x - mk.x, b.pos.z - mk.z) : -1;
   __fresh('endless');
   for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; const t = __titan('normal', 0, 13); t.root.position.set(Math.sin(a) * 6, 0, Math.cos(a) * 6); t.cooldown = 0; }
   g.player.pos.set(0, 6, 0);
@@ -136,9 +143,9 @@ const sys = await run(`(() => {
   for (let c = 0; c < 4; c++) { g.spawnWave(); g.world.destroyNear(new THREE.Vector3(60, 2, 60), 25); for (let i = 0; i < 10; i++) { g.step(1/60); g.post.render(g.elapsed); } g.restart(); g.locked = true; }
   g.post.render(g.elapsed);
   const m1 = { ...g.renderer.info.memory };
-  return { minConvoy: Math.round(minConvoy), turn: Math.round(turn), maxAttackers, geoDelta: m1.geometries - m0.geometries, texDelta: m1.textures - m0.textures };
+  return { minConvoy: Math.round(minConvoy), turn: Math.round(turn), maxAttackers, geoDelta: m1.geometries - m0.geometries, texDelta: m1.textures - m0.textures, boulderMark: marked, boulderErr: +boulderErr.toFixed(1) };
 })()`);
-const sysOk = sys.minConvoy >= 130 && sys.turn >= 60 && sys.maxAttackers >= 1 && sys.maxAttackers <= 2 && sys.geoDelta <= 0 && sys.texDelta <= 0;
+const sysOk = sys.minConvoy >= 130 && sys.turn >= 60 && sys.maxAttackers >= 1 && sys.maxAttackers <= 2 && sys.geoDelta <= 0 && sys.texDelta <= 0 && sys.boulderMark === true && sys.boulderErr >= 0 && sys.boulderErr < 8;
 failed ||= !sysOk;
 console.log(`${sysOk ? 'PASS' : 'FAIL'} systems              ${JSON.stringify(sys)}`);
 
