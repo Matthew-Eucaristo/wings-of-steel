@@ -423,7 +423,7 @@ export class HUD {
     e.gasb.style.width = Math.max(0, Math.round(p.gas)) + '%';
     e.bladeb.style.width = Math.max(0, Math.round(p.blade)) + '%';
     this.setText(e.sets, 'sets', '×' + p.bladeSets);
-    this.setText(e.viewbadge, 'vbadge', g.cam.fp ? '1ST POV [V]' : '3RD [V]');
+    this.setText(e.viewbadge, 'vbadge', '1ST POV');
     e.gasarc.style.strokeDashoffset = 100 - p.gas;
     e.bladearc.style.strokeDashoffset = 100 - p.blade;
     this.setText(e.gasnum, 'gasnum', p.gasReload > 0 ? p.gasReload.toFixed(1) + 's' : String(Math.round(p.gas)));

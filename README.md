@@ -17,13 +17,13 @@ Aksi ODM-gear melawan titan di browser: pimpin skuadron AI, kawal Regu Insinyur,
 | Input | Aksi |
 | --- | --- |
 | `Q` / `E` / Klik Kanan | kait kiri / kanan (tahan dua kait) |
-| `Spasi` | tarik kabel · lompat · pantul |
-| `Shift` + `WASD` | belok jet tajam · `S`+`Shift` rem |
+| `Spasi` | tarik kabel · lompat · pantul · 2× tahan gas naik |
+| `Shift` + `WASD` | belok jet tajam · `S`+`Shift` rem · `Shift`+`Spasi` tukik |
 | Klik Kiri | tebas / eksekusi tengkuk |
 | `X` | tembak / ledakkan Rudal Petir |
 | `T` | perintah Skuadron & Meriam |
 | `R` / `C` | ganti pedang / silinder gas |
-| `F` / `V` / `H` | mode kait / POV / bantuan |
+| `F` / `H` | mode kait / bantuan |
 
 Gamepad juga didukung penuh (LT/RT kait, X tebas, D-Pad perintah & pilih upgrade).
 

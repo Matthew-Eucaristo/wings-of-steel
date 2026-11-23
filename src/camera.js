@@ -26,6 +26,7 @@ export class CameraRig {
     this.hitJoltAmp = 0;
     this.roll = 0;
     this.t = 0;
+    this.fp = true;
     this.target = new THREE.Vector3();
     this.sens = 0.0022;
     this.killCam = 0;

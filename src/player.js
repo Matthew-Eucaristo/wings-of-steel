@@ -681,6 +681,14 @@ export class Player {
     let gasUse = 0;
     this.gasOn = false;
     this.gasSide = 0;
+    this.rising = false;
+
+    if (control && inp.pressed('Space')) {
+      if (this.spaceTapT > 0) this.riseHeld = true;
+      this.spaceTapT = 0.32;
+    }
+    this.spaceTapT = Math.max(0, (this.spaceTapT || 0) - dt);
+    if (!control || !inp.key('Space')) this.riseHeld = false;
     this.mantleCD = Math.max(0, this.mantleCD - dt);
     this.impactT = Math.max(0, this.impactT - dt);
 
@@ -798,6 +806,12 @@ export class Player {
     if (gasHeld && this.gas <= 0 && !this.grounded) {
       this.gasDryT = (this.gasDryT || 0) - dt;
       if (this.gasDryT <= 0) { this.gasDryT = 0.55; g.audio.empty(); }
+    }
+
+    if (this.riseHeld && !gasHeld && !attCount && !this.grounded && !this.grabbedBy && this.gas > 0) {
+      v.y = Math.min(v.y + TUNE.gasThrust * thrustMult * 1.5 * dt, TUNE.jump * 2.4);
+      if (_wish.lengthSq() < 0.01) { v.x = damp(v.x, 0, 2.2, dt); v.z = damp(v.z, 0, 2.2, dt); }
+      gasUse += 4.8 * dt; this.gasOn = true; this.rising = true;
     }
 
     if (control && (inp.pressed('ShiftLeft') || inp.pressed('ShiftRight')) && this.dashCD <= 0 && this.gas > 3 && !this.grounded) {

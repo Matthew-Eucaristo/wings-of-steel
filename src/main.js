@@ -64,11 +64,10 @@ class Input {
       if (bt[3]?.pressed) next.add('KeyC');
       if (bt[12]?.pressed) next.add('KeyR');
       if (bt[13]?.pressed) next.add('KeyX');
-      if (bt[14]?.pressed) next.add('KeyV');
       if (bt[15]?.pressed) next.add('KeyT');
       if (bt[9]?.pressed) next.add('Escape');
       if (this.game.pendingUpgrades) {
-        if (bt[14]?.pressed) { next.delete('KeyV'); next.add('Digit1'); }
+        if (bt[14]?.pressed) next.add('Digit1');
         if (bt[13]?.pressed) { next.delete('KeyX'); next.add('Digit2'); }
         if (bt[15]?.pressed) { next.delete('KeyT'); next.add('Digit3'); }
       }
@@ -1063,10 +1062,6 @@ class Game {
       const p = this.player;
       p.hookMode = p.hookMode === 'focus' ? 'auto' : 'focus';
       this.hud.toast(p.hookMode === 'focus' ? 'KAIT: FOKUS<br><span style="font-size:16px">dua kabel ke satu titik bidik</span>' : 'KAIT: OTOMATIS<br><span style="font-size:16px">jangkar kiri/kanan pintar</span>', 1.1);
-    }
-    if (inp.pressed('KeyV')) {
-      this.cam.fp = !this.cam.fp;
-      this.hud.toast(`<span style="font-size:20px">Kamera: ${this.cam.fp ? 'POV ORANG PERTAMA' : 'ORANG KETIGA'}</span>`, 1.1);
     }
     if (inp.pressed('KeyM')) {
       this.prefs.music = !this.prefs.music;
