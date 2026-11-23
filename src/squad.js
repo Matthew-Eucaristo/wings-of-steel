@@ -217,6 +217,7 @@ export class Squad {
     m.slashT = 0;
     m.attackCD = rand(2.3, 3.8);
     g.vfx.slashArc(m.pos, m.quat, 2.5);
+    g.audio.whoosh(m.pos, 0.8);
 
     if (p.grabbedBy === t) {
       t.hit('arm', 180, m.pos, m.vel, t.grabSide === 1 ? 1 : -1);

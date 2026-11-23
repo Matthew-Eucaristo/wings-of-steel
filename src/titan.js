@@ -387,6 +387,7 @@ export class Titan {
     this.stateT = 0;
     this.didStrike = false;
     this.whooshed = false;
+    this.nearMissed = false;
     if (this.heldRock) this.heldRock.visible = false;
   }
 
@@ -643,6 +644,11 @@ export class Titan {
             _v.subVectors(p.pos, pos).setY(0.45).normalize();
             p.knockback(_v, 17, 13);
             g.vfx.dust(hp, 2.8 * s, 10);
+          } else if (!this.nearMissed) {
+            this.nearMissed = true;
+            g.hud.pop(p.pos, 'NYARIS!', 'small');
+            g.audio.dash();
+            p.gas = Math.min(100, p.gas + 5);
           }
         }
       }
@@ -724,6 +730,9 @@ export class Titan {
             const committed = ((p.slashT > 0.05 && p.slashT < 0.95) || p.spin > 0) && speed > 10;
             if (committed) {
               this.setState('chase'); this.cooldown = 1.2; g.cam.shake(0.12);
+              g.hud.pop(p.pos, 'NYARIS!', 'small');
+              g.audio.dash();
+              p.gas = Math.min(100, p.gas + 5);
             } else if (speed > 16) {
               p.knockback(_v.subVectors(p.pos, hp).normalize(), 11, 8); p.invuln = Math.max(p.invuln, 0.45);
               this.setState('chase'); this.cooldown = 1.1;

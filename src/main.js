@@ -407,6 +407,8 @@ class Game {
     }
     b.r = radius;
     b.age = 0;
+    b.struck = false;
+    b.minDist = Infinity;
     b.pos.copy(from);
     b.m.position.copy(from);
     b.m.rotation.set(0, 0, 0);
@@ -459,12 +461,15 @@ class Game {
         }
       }
       if (b.pos.y <= b.r * 0.6) { b.pos.y = b.r * 0.6; hit = true; }
-      if (!p.dead && p.invuln <= 0 && p.pos.distanceTo(b.pos) < b.r + 1.4) {
+      const pDist = p.pos.distanceTo(b.pos);
+      if (!p.dead && p.invuln <= 0 && pDist < b.r + 1.4) {
         _v2.subVectors(p.pos, b.pos).setY(0.5).normalize();
         p.knockback(_v2, 16, 14);
         p.invuln = Math.max(p.invuln, 0.6);
+        b.struck = true;
         hit = true;
       }
+      b.minDist = Math.min(b.minDist ?? Infinity, pDist);
       b.m.position.copy(b.pos);
       b.m.rotation.x += b.rv.x * dt;
       b.m.rotation.y += b.rv.y * dt;
@@ -478,6 +483,10 @@ class Game {
         this.audio.fall(b.pos, 8);
         this.world.destroyNear(b.pos, b.r * 3.5);
         this.cam.shake(clamp(0.8 - b.pos.distanceTo(p.pos) / 90, 0.08, 0.55));
+        if (!b.struck && b.minDist < 9) {
+          this.hud.pop(p.pos, 'NYARIS!', 'small');
+          p.gas = Math.min(100, p.gas + 5);
+        }
         b.m.visible = false;
         if (b.mark) { b.mark.visible = false; b.mark = null; }
         this.boulderPool.push(b);
@@ -755,6 +764,9 @@ class Game {
       this.audio.flesh(point, false);
       const txt = { ankle: 'TENDON PUTUS!', arm: 'TANGAN PUTUS!', eyes: 'MATA BUTA!' }[result] || dmg;
       this.hud.pop(point, txt, 'small');
+      if (result === 'ankle') {
+        this.hud.toast('<span style="font-size:18px;color:#ffd996">Titan lumpuh — tengkuknya terbuka! Serbu sekarang.</span>', 1.4);
+      }
       this.hud.hitmarker('hit');
       this.triggerImpact(0.095, 0.015, 0.22, 0.32, 0.78);
       this.cam.hitJolt(0.82, 0.11);
@@ -781,6 +793,17 @@ class Game {
       _v.set(feet.x + dirV.x * t.height * i * 0.3, 0, feet.z + dirV.z * t.height * i * 0.3);
       const n = this.world.destroyNear(_v, t.s * 2.5);
       if (n) { this.vfx.dust(_v, t.s * 4, 14); this.audio.thunder(); }
+    }
+    const pp = this.player.pos;
+    if (!this.player.dead && pp.y < t.height * 0.45 && this.player.invuln <= 0) {
+      const along = clamp((pp.x - feet.x) * dirV.x + (pp.z - feet.z) * dirV.z, 0, t.height);
+      const latD = Math.hypot(pp.x - (feet.x + dirV.x * along), pp.z - (feet.z + dirV.z * along));
+      if (latD < t.s * 2.4) {
+        _v.subVectors(pp, feet).setY(0.6).normalize();
+        this.player.vel.addScaledVector(_v, 14);
+        this.cam.shake(0.4);
+        this.hud.pop(pp, 'TERTIMPA!', 'small');
+      }
     }
   }
 
