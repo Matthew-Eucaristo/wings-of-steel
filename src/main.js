@@ -1073,6 +1073,13 @@ class Game {
       if (this.started) {
         let alive = 0;
         for (let i = 0; i < this.titans.length; i++) if (this.titans[i].alive) alive++;
+        if (alive === 0 && this._prevAlive > 0 && !this.player.dead && this.story.allowWaves()) {
+          const label = this.mode === 'endless' ? `GELOMBANG ${this.wave} BERSIH` : `FASE ${this.wave} BERSIH`;
+          this.hud.toast(`<span style="font-size:22px;color:#9effc4">${label}</span>`, 1.8);
+          this.audio.comboSting(3);
+          this.triggerImpact(0.3, 0.3, 0.5, 1, false);
+        }
+        this._prevAlive = alive;
         this.stats.time += dt;
         this.stats.maxSpeed = Math.max(this.stats.maxSpeed, this.player.speed);
         if (alive === 0 && this.story.allowWaves()) {
