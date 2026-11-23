@@ -1135,6 +1135,7 @@ export class Player {
       spin: this.spin > 0 || this.charge > 0.4,
       slashT: this.slashT,
       grabbed: !!this.grabbedBy,
+      invuln: this.invuln,
       fp: fpView,
       pitch: this.game.cam.pitch,
       spears: this.spears,

@@ -456,6 +456,8 @@ export class PlayerModel {
     D(this.spine.rotation, 'x', lerp(run * 0.35, st.hooked ? 0.15 : 0.35, air) + lk * 0.5);
     D(this.spine.rotation, 'y', sl >= 0 ? Math.sin(sl * Math.PI) * 0.78 : 0, 24);
     this.head.visible = !st.fp;
+    const flick = (st.invuln || 0) > 0 && Math.floor(st.invuln * 14) % 2 === 1;
+    this.root.visible = !this._hidden && !flick;
     D(this.head.rotation, 'x', -this.spine.rotation.x * 0.6);
     this.pelvis.position.y = 0.02 + (st.grounded ? Math.abs(Math.cos(ph)) * 0.04 * run : 0) - lk * 0.34;
     r.updateMatrixWorld(true);
@@ -463,6 +465,7 @@ export class PlayerModel {
   }
 
   setVisible(v) {
+    this._hidden = !v;
     this.root.visible = v;
     this.cape.visible = v && !this.hideCape && !this.noCape;
   }
