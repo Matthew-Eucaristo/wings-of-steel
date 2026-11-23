@@ -59,6 +59,7 @@ export class HUD {
       hl: $('hl'),
       hr: $('hr'),
       spd: $('spd'),
+      fps: $('fps'),
       hmode: $('hmode'),
       spinbar: $('spinbar'),
       spinfill: $('spinbar')?.querySelector('i'),
@@ -396,6 +397,14 @@ export class HUD {
 
   update(dt) {
     const g = this.game, p = g.player, eng = g.engineers, sq = g.squad, e = this.el;
+    if (e.fps && !e.fps.classList.contains('hidden')) {
+      this.fpsAcc = (this.fpsAcc || 0) + dt;
+      this.fpsN = (this.fpsN || 0) + 1;
+      if (this.fpsAcc >= 0.3) {
+        e.fps.textContent = Math.round(this.fpsN / this.fpsAcc) + ' FPS';
+        this.fpsAcc = 0; this.fpsN = 0;
+      }
+    }
     e.hpb.style.width = Math.max(0, Math.round(p.hp)) + '%';
     e.gasb.style.width = Math.max(0, Math.round(p.gas)) + '%';
     e.bladeb.style.width = Math.max(0, Math.round(p.blade)) + '%';

@@ -42,8 +42,9 @@ export class CameraRig {
     const ySign = this.invertY ? 1 : -1;
     this.pitch = clamp(this.pitch + dy * this.sens * ySign, -1.45, 1.35);
   }
-  shake(a) { this.trauma = Math.min(1.3, this.trauma + a); }
+  shake(a) { this.trauma = Math.min(1.3, this.trauma + a * (this.game.prefs.shake ? 1 : 0.25)); }
   hitJolt(amp = 0.85, dur = 0.13) {
+    if (!this.game.prefs.shake) amp *= 0.25;
     this.hitJoltAmp = Math.max(this.hitJoltAmp, amp);
     this.hitJoltT = Math.max(this.hitJoltT, dur);
     this.hitJoltDur = Math.max(0.05, dur);

@@ -88,6 +88,8 @@ class Game {
       volume: 0.8,
       invertY: false,
       music: true,
+      shake: true,
+      showFps: false,
       bestKills: 0,
       bestWave: 0,
       bestRank: '',
@@ -298,6 +300,8 @@ class Game {
     const volR = document.getElementById('vol-range');
     const invBtn = document.getElementById('invy-btn');
     const musBtn = document.getElementById('music-btn');
+    const shakeBtn = document.getElementById('shake-btn');
+    const fpsBtn = document.getElementById('fps-btn');
 
     const syncModal = () => {
       document.querySelectorAll('#qual-btns button').forEach((b) => b.classList.toggle('selected', +b.dataset.q === this.prefs.quality));
@@ -309,6 +313,8 @@ class Game {
       document.getElementById('vol-val').textContent = Math.round(this.prefs.volume * 100) + '%';
       invBtn.textContent = `BALIK SUMBU Y: ${this.prefs.invertY ? 'AKTIF' : 'MATI'}`;
       musBtn.textContent = `MUSIK TEMPUR: ${this.prefs.music ? 'AKTIF' : 'MATI'}`;
+      shakeBtn.textContent = `GOYANGAN KAMERA: ${this.prefs.shake ? 'AKTIF' : 'MATI'}`;
+      fpsBtn.textContent = `FPS: ${this.prefs.showFps ? 'AKTIF' : 'MATI'}`;
     };
 
     const open = (e) => {
@@ -334,6 +340,8 @@ class Game {
     volR.oninput = () => { this.prefs.volume = +volR.value / 100; this.applyPrefs(false); syncModal(); };
     invBtn.onclick = () => { this.prefs.invertY = !this.prefs.invertY; this.applyPrefs(false); syncModal(); };
     musBtn.onclick = () => { this.prefs.music = !this.prefs.music; this.applyPrefs(false); syncModal(); };
+    shakeBtn.onclick = () => { this.prefs.shake = !this.prefs.shake; this.applyPrefs(false); syncModal(); };
+    fpsBtn.onclick = () => { this.prefs.showFps = !this.prefs.showFps; this.applyPrefs(false); syncModal(); };
     document.getElementById('closesettings').onclick = () => {
       savePrefs(this.prefs);
       modal.classList.add('hidden');
@@ -348,6 +356,8 @@ class Game {
     this.cam.invertY = !!this.prefs.invertY;
     this.audio.musicOn = !!this.prefs.music;
     this.audio.setVolume(this.prefs.volume);
+    const fpsEl = document.getElementById('fps');
+    if (fpsEl) fpsEl.classList.toggle('hidden', !this.prefs.showFps);
     this.setQuality(this.prefs.quality, showToast);
     savePrefs(this.prefs);
   }
