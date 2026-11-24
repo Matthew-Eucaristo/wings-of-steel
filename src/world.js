@@ -193,6 +193,39 @@ export class World {
     scene.add(hemi);
     this.hemi = hemi;
     this.atmosphere = 'dusk';
+
+    const nightMat = new THREE.ShaderMaterial({
+      side: THREE.BackSide, depthWrite: false, fog: false,
+      uniforms: { uMoonDir: { value: this.sunDir.clone() }, uTime: this.uniformsTime },
+      vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `
+        uniform vec3 uMoonDir; uniform float uTime;
+        varying vec3 vDir;
+        float hash3(vec3 p){ return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453); }
+        void main(){
+          vec3 d = normalize(vDir);
+          float up = clamp(d.y, -0.1, 1.0);
+          vec3 col = mix(vec3(0.10, 0.14, 0.19), vec3(0.012, 0.02, 0.045), smoothstep(-0.02, 0.55, up));
+          vec3 cell = floor(d * 140.0);
+          float h = hash3(cell);
+          float star = step(0.987, h) * smoothstep(-0.01, 0.1, up);
+          float tw = 0.6 + 0.4 * sin(uTime * (1.5 + h * 4.0) + h * 40.0);
+          col += vec3(0.9, 0.95, 1.0) * star * tw * smoothstep(0.987, 0.997, h) * 2.2;
+          float md = dot(d, normalize(uMoonDir));
+          col += vec3(0.95, 0.97, 1.0) * smoothstep(0.99955, 0.99985, md) * 2.4;
+          col += vec3(0.55, 0.62, 0.8) * pow(max(md, 0.0), 60.0) * 0.35;
+          col += vec3(0.3, 0.38, 0.55) * pow(max(md, 0.0), 8.0) * 0.1;
+          gl_FragColor = vec4(col, 1.0);
+        }`,
+    });
+    const nightDome = new THREE.Mesh(new THREE.SphereGeometry(9000, 32, 16), nightMat);
+    nightDome.visible = false;
+    nightDome.renderOrder = -1;
+    scene.add(nightDome);
+    this.nightDome = nightDome;
+    this.nightMat = nightMat;
+    this.lightningT = 4;
+    this.lightningFlash = 0;
   }
 
   applyAtmosphere(preset = 'dusk') {
@@ -201,7 +234,7 @@ export class World {
       dusk: { elev: 13, az: 205, turb: 7, ray: 1.4, fogC: '#c9b9a4', fogD: 0.00135, sunC: '#ffd7a8', sunI: 3.2, hemiSky: '#bcd2ff', hemiGnd: '#6b5a44', hemiI: 0.55, envI: 0.55, exp: 1.0, winEm: 0.35, mood: 0.0 },
       storm: { elev: 28, az: 165, turb: 14, ray: 0.45, fogC: '#7b8792', fogD: 0.0022, sunC: '#c8d6e6', sunI: 1.85, hemiSky: '#98adc0', hemiGnd: '#434a4c', hemiI: 0.72, envI: 0.48, exp: 0.94, winEm: 0.85, mood: 0.65 },
       dawn: { elev: 7, az: 78, turb: 5.5, ray: 2.0, fogC: '#d6c4b8', fogD: 0.0017, sunC: '#ffbfa0', sunI: 2.9, hemiSky: '#d8c8e8', hemiGnd: '#5e5144', hemiI: 0.6, envI: 0.58, exp: 1.02, winEm: 0.25, mood: 0.15 },
-      moon: { elev: 22, az: 310, turb: 2.5, ray: 0.25, fogC: '#1a2434', fogD: 0.002, sunC: '#8eb6ea', sunI: 1.45, hemiSky: '#3a5480', hemiGnd: '#1a202c', hemiI: 0.62, envI: 0.34, exp: 0.95, winEm: 1.55, mood: 0.95 },
+      moon: { elev: 34, az: 310, turb: 2.0, ray: 0.2, fogC: '#101a28', fogD: 0.0024, sunC: '#93b8e8', sunI: 1.1, hemiSky: '#2c4468', hemiGnd: '#141a24', hemiI: 0.5, envI: 0.22, exp: 0.88, winEm: 1.9, mood: 0.95, night: true },
     }[preset] || { elev: 13, az: 205, turb: 7, ray: 1.4, fogC: '#c9b9a4', fogD: 0.00135, sunC: '#ffd7a8', sunI: 3.2, hemiSky: '#bcd2ff', hemiGnd: '#6b5a44', hemiI: 0.55, envI: 0.55, exp: 1.0, winEm: 0.35, mood: 0.0 };
 
     const u = this.sky.material.uniforms;
@@ -218,6 +251,7 @@ export class World {
     this.scene.fog.density = cfg.fogD;
     this.sun.color.set(cfg.sunC);
     this.sun.intensity = cfg.sunI;
+    this.baseSunI = cfg.sunI;
     this.hemi.color.set(cfg.hemiSky);
     this.hemi.groundColor.set(cfg.hemiGnd);
     this.hemi.intensity = cfg.hemiI;
@@ -225,6 +259,28 @@ export class World {
     this.renderer.toneMappingExposure = cfg.exp;
     if (this.townMats?.walls) this.townMats.walls.emissiveIntensity = cfg.winEm;
     if (this.gameRef?.post?.u?.uMood) this.gameRef.post.u.uMood.value = cfg.mood;
+    const night = !!cfg.night;
+    if (this.nightDome) {
+      this.nightDome.visible = night;
+      this.sky.visible = !night;
+      this.nightMat.uniforms.uMoonDir.value.copy(this.sunDir);
+    }
+    const cloudC = night ? new THREE.Color('#2a3648') : cfg.mood > 0.4 ? new THREE.Color('#8a939e') : new THREE.Color('#ffe2c4');
+    if (this.cloudMats) for (const m of this.cloudMats) m.color.copy(cloudC);
+    if (this.mtnHazeC) {
+      const hz = {
+        dusk: [0.78, 0.74, 0.7, 0.55],
+        storm: [0.52, 0.56, 0.6, 0.62],
+        dawn: [0.82, 0.72, 0.68, 0.5],
+        moon: [0.06, 0.09, 0.14, 0.68],
+      }[preset] || [0.78, 0.74, 0.7, 0.55];
+      this.mtnHazeC.value.setRGB(hz[0], hz[1], hz[2]);
+      this.mtnHazeK.value = hz[3];
+      if (this.mtnMat) {
+        const tint = { dusk: '#ffffff', storm: '#9aa2ac', dawn: '#ffe4d4', moon: '#2e3c50' }[preset] || '#ffffff';
+        this.mtnMat.color.set(tint);
+      }
+    }
   }
 
   getArenaSpawn(arena = 'town') {
@@ -454,7 +510,14 @@ float townMask(){ float r = length(vWPos.xz); float road = smoothstep(14.0, 7.0,
       const wallsL = own ? own.lists.walls : _townWalls, roofsL = own ? own.lists.roofs : _townRoofs, trimL = own ? own.lists.trim : _townTrim, stonesL = own ? own.lists.stones : _townStones;
       const addCol = (cc) => { if (own) cc.house = own; const col = this.col.add(cc); if (own) own.cols.push(col); return col; };
       stonesL.push(place(boxGeo(w + 0.3, 1.2, d + 0.3, 8, 8, stoneC), x, 0.6, z, yaw));
-      wallsL.push(place(boxGeo(w, h - 1.2, d, 8, 6.4, plaster), x, 1.2 + (h - 1.2) / 2, z, yaw));
+      const wallG = boxGeo(w, h - 1.2, d, 8, 6.4, plaster);
+      {
+        const uvA = wallG.attributes.uv;
+        const ou = Math.floor(rr() * 2) * 0.5, ov = Math.floor(rr() * 2) * 0.5;
+        const flipU = rr() < 0.5 ? -1 : 1;
+        for (let i = 0; i < uvA.count; i++) uvA.setXY(i, uvA.getX(i) * flipU + ou, uvA.getY(i) + ov);
+      }
+      wallsL.push(place(wallG, x, 1.2 + (h - 1.2) / 2, z, yaw));
       const c = Math.cos(yaw), s = Math.sin(yaw);
       const toW = (lx, lz) => [x + c * lx + s * lz, z - s * lx + c * lz];
       for (const [lx, lz] of [[w / 2, d / 2], [-w / 2, d / 2], [w / 2, -d / 2], [-w / 2, -d / 2]]) {
@@ -1064,10 +1127,33 @@ float townMask(){ float r = length(vWPos.xz); float road = smoothstep(14.0, 7.0,
     chunked(canopies, this.canopyMat, false);
 
     const fx = 0, fz = -280, fh = 26;
-    const plat = new THREE.Mesh(boxGeo(14, 1.4, 14, 4, 4, new THREE.Color('#5a402c')), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88 }));
+    const platMat = new THREE.MeshStandardMaterial({ map: t.bark.map, normalMap: t.bark.normalMap, vertexColors: true, roughness: 0.82 });
+    const platTop = boxGeo(14, 1.4, 14, 3, 3, new THREE.Color('#8a6a48'));
+    const plat = new THREE.Mesh(platTop, platMat);
     plat.position.set(fx, fh, fz);
     plat.castShadow = plat.receiveShadow = true;
     this.scene.add(plat);
+    const railMat = new THREE.MeshStandardMaterial({ map: t.bark.map, vertexColors: true, roughness: 0.85, color: '#a88a68' });
+    const railParts = [];
+    for (const [rx, rz, rw, rd] of [[0, 6.8, 14, 0.3], [0, -6.8, 14, 0.3], [6.8, 0, 0.3, 14], [-6.8, 0, 0.3, 14]]) {
+      railParts.push(place(boxGeo(rw, 0.18, rd, 2, 1, new THREE.Color('#6a4c30')), fx + rx, fh + 1.75, fz + rz, 0));
+      const posts = Math.round((rw + rd) / 2.8);
+      for (let pi = 0; pi <= posts; pi++) {
+        const f = pi / posts - 0.5;
+        railParts.push(place(boxGeo(0.22, 1.1, 0.22, 1, 1, new THREE.Color('#5a402c')), fx + rx + (rw > rd ? f * rw : 0), fh + 1.15, fz + rz + (rd > rw ? f * rd : 0), 0));
+      }
+    }
+    for (const rp of railParts) {
+      const rm = new THREE.Mesh(rp, railMat);
+      rm.castShadow = rm.receiveShadow = true;
+      this.scene.add(rm);
+    }
+    for (const [lx, lz] of [[6.2, 6.2], [-6.2, 6.2], [6.2, -6.2], [-6.2, -6.2]]) {
+      const leg = new THREE.Mesh(boxGeo(0.65, fh, 0.65, 2, 6, new THREE.Color('#4e3826')), platMat);
+      leg.position.set(fx + lx, fh / 2 - 0.5, fz + lz);
+      leg.castShadow = leg.receiveShadow = true;
+      this.scene.add(leg);
+    }
     this.col.add(new Convex(new THREE.Vector3(fx, fh, fz), 0, boxPlanes(7, 0.7, 7), 10, { surface: 'wood' }));
     this.addDepot(new THREE.Vector3(fx - 3.5, fh + 0.7, fz - 2), 'CANOPY OUTPOST');
     this.forestSpawn = new THREE.Vector3(fx + 3, fh + 2.2, fz + 2);
@@ -1099,7 +1185,7 @@ float townMask(){ float r = length(vWPos.xz); float road = smoothstep(14.0, 7.0,
     const walls = [], roofs = [], hay = [], trunks = [], canopies = [];
     const white = new THREE.Color('#ffffff');
     const hayC = new THREE.Color('#c9a95a');
-    const leafC = new THREE.Color('#4a6a2e');
+    const leafVs = ['#3d5a2a', '#4b6a30', '#36522a', '#56723a', '#5d7a34', '#2f4a26'].map((c) => new THREE.Color(c));
     let n = 0;
     for (let tries = 0; tries < 900 && n < 60; tries++) {
       const a = (rr() - 0.5) * 3.6;
@@ -1128,14 +1214,23 @@ float townMask(){ float r = length(vWPos.xz); float road = smoothstep(14.0, 7.0,
           hay.push(place(colorize(hg, hayC), x + (rr() - 0.5) * 12, 0, z + (rr() - 0.5) * 12, rr() * 6));
         }
       } else {
-        const h = 9 + rr() * 6;
-        const tg = new THREE.CylinderGeometry(0.4, 0.7, h, 8);
+        const h = 9 + rr() * 7;
+        const lean = (rr() - 0.5) * 0.14;
+        const tg = new THREE.CylinderGeometry(0.35 + rr() * 0.15, 0.65 + rr() * 0.25, h, 8);
         tg.translate(0, h / 2, 0);
         const uv = tg.attributes.uv;
         for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 2, uv.getY(i) * h / 8);
-        trunks.push(place(colorize(tg, white), x, 0, z, 0));
-        const cg = new THREE.IcosahedronGeometry(4 + rr() * 2, 1);
-        canopies.push(place(colorize(cg, leafC), x, h + 1, z, rr() * 6));
+        trunks.push(place(colorize(tg, white), x, 0, z, rr() * 6, lean, (rr() - 0.5) * 0.1));
+        const leafV = leafVs[Math.floor(rr() * leafVs.length)];
+        const blobs = 2 + Math.floor(rr() * 3);
+        for (let b = 0; b < blobs; b++) {
+          const br = 3.2 + rr() * 3.2;
+          const cg = new THREE.IcosahedronGeometry(br, 1);
+          cg.scale(1 + rr() * 0.5, 0.62 + rr() * 0.4, 1 + rr() * 0.5);
+          const bx = x + (rr() - 0.5) * 4.5, bz = z + (rr() - 0.5) * 4.5;
+          const by = h - 1 + rr() * 3.5 + (b === 0 ? 1.5 : 0);
+          canopies.push(place(colorize(cg, leafV), bx, by, bz, rr() * 6));
+        }
         this.col.add(new VCylinder(x, z, 0.6, 0, h, { surface: 'wood' }));
       }
     }
@@ -1209,18 +1304,25 @@ float townMask(){ float r = length(vWPos.xz); float road = smoothstep(14.0, 7.0,
       parts.push(place(g, r * Math.sin(a), 0, r * Math.cos(a), rr() * 6));
     }
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, fog: false, flatShading: true });
-    mat.customProgramCacheKey = () => 'mountain-haze-v1';
+    this.mtnHazeC = { value: new THREE.Color(0.78, 0.74, 0.70) };
+    this.mtnHazeK = { value: 0.55 };
+    mat.customProgramCacheKey = () => 'mountain-haze-v2';
     mat.onBeforeCompile = (sh) => {
-      sh.fragmentShader = sh.fragmentShader.replace('#include <dithering_fragment>', `#include <dithering_fragment>
-        gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.78, 0.74, 0.70), 0.55);`);
+      sh.uniforms.uHazeC = this.mtnHazeC;
+      sh.uniforms.uHazeK = this.mtnHazeK;
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uHazeC; uniform float uHazeK;').replace('#include <dithering_fragment>', `#include <dithering_fragment>
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, uHazeC, uHazeK);`);
     };
     const mesh = new THREE.Mesh(mergeGeometries(parts), mat);
     this.scene.add(mesh);
+    this.mtnMat = mat;
+    if (this.atmosphere) this.applyAtmosphere(this.atmosphere);
   }
 
   buildClouds() {
     const tex = [TX.cloudSprite(1), TX.cloudSprite(2), TX.cloudSprite(3)];
     const mats = tex.map((t) => new THREE.SpriteMaterial({ map: t, color: new THREE.Color('#ffe2c4'), transparent: true, opacity: 0.85, fog: false, depthWrite: false }));
+    this.cloudMats = mats;
     const rr = this.rng;
     this.clouds = [];
     for (let i = 0; i < 30; i++) {
@@ -1246,6 +1348,22 @@ float townMask(){ float r = length(vWPos.xz); float road = smoothstep(14.0, 7.0,
   update(dt) {
     this.time += dt;
     this.uniformsTime.value = this.time;
+    if (this.atmosphere === 'storm' && this.baseSunI) {
+      this.lightningT -= dt;
+      if (this.lightningT <= 0) {
+        this.lightningFlash = 0.55 + Math.random() * 0.5;
+        this.lightningStruck = true;
+        this.lightningT = 3.5 + Math.random() * 7;
+        if (Math.random() < 0.4) this.lightningT *= 0.18;
+      }
+      if (this.lightningFlash > 0) {
+        this.lightningFlash = Math.max(0, this.lightningFlash - dt * 2.6);
+        const f = this.lightningFlash;
+        this.sun.intensity = this.baseSunI + f * f * 5.5 * (0.6 + Math.random() * 0.4);
+      } else if (this.baseSunI) {
+        this.sun.intensity = this.baseSunI;
+      }
+    }
     if (this.windmill) this.windmill.rotation.z += dt * 0.4;
     for (const d of this.depots) {
       d.ring.scale.setScalar(1 + Math.sin(this.time * 3) * 0.05);

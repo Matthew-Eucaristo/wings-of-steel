@@ -493,18 +493,18 @@ class Game {
       ctabs.forEach((b) => b.classList.toggle('active', b.dataset.ctab === tab));
       cpanes.forEach((p) => p.classList.toggle('active', p.dataset.cpane === tab));
       if (tab === 'face' || tab === 'hair') {
-        this.cam.wardrobeZoom = 1.32;
+        this.cam.wardrobeZoom = 1.08;
         fullBtn.classList.remove('toggle-on');
         faceBtn.classList.add('toggle-on');
       } else {
-        this.cam.wardrobeZoom = 2.45;
+        this.cam.wardrobeZoom = 2.95;
         fullBtn.classList.add('toggle-on');
         faceBtn.classList.remove('toggle-on');
       }
     };
     ctabs.forEach((b) => { b.onclick = () => switchCTab(b.dataset.ctab); });
-    fullBtn.onclick = () => { this.cam.wardrobeZoom = 2.45; fullBtn.classList.add('toggle-on'); faceBtn.classList.remove('toggle-on'); };
-    faceBtn.onclick = () => { this.cam.wardrobeZoom = 1.32; faceBtn.classList.add('toggle-on'); fullBtn.classList.remove('toggle-on'); };
+    fullBtn.onclick = () => { this.cam.wardrobeZoom = 2.95; fullBtn.classList.add('toggle-on'); faceBtn.classList.remove('toggle-on'); };
+    faceBtn.onclick = () => { this.cam.wardrobeZoom = 1.08; faceBtn.classList.add('toggle-on'); fullBtn.classList.remove('toggle-on'); };
 
     let dragging = false, lastX = 0;
     const canvas = document.getElementById('c');
@@ -600,7 +600,7 @@ class Game {
       titleEl.classList.add('hidden');
       panel.classList.remove('hidden');
       this.cam.customizing = true;
-      this.cam.wardrobeZoom = 2.45;
+      this.cam.wardrobeZoom = 2.95;
       this.cam.wardrobeAngle = +rotSlider.value;
       fullBtn.classList.add('toggle-on');
       faceBtn.classList.remove('toggle-on');
@@ -1569,6 +1569,14 @@ class Game {
         if (this.titans[i].remove) { this.titans[i].dispose(); this.titans.splice(i, 1); }
       }
       this.world.update(dt);
+      if (this.world.lightningStruck) {
+        this.world.lightningStruck = false;
+        if (!this._thunderTimer) this._thunderTimer = 0.4 + Math.random() * 1.4;
+      }
+      if (this._thunderTimer) {
+        this._thunderTimer -= dt;
+        if (this._thunderTimer <= 0) { this._thunderTimer = 0; this.audio.thunder(); }
+      }
       this.vfx.update(dt, rdt);
     } else if (!paused && this.hitstopT > 0) {
       this.vfx.update(0, rdt);

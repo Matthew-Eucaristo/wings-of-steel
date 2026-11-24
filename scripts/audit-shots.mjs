@@ -2,9 +2,16 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-const PORT = 5201;
-const CDP = 9302;
-const CHROME = process.env.CHROME || ['/home/ubuntu/.local/bin/google-chrome', '/usr/bin/google-chrome', '/usr/bin/chromium'].find(existsSync);
+const PORT = 5201 + (process.pid % 50);
+const CDP = 9302 + (process.pid % 60);
+const CHROME = process.env.CHROME || [
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/home/ubuntu/.local/bin/google-chrome',
+  '/usr/bin/google-chrome',
+  '/usr/bin/google-chrome-stable',
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
+].find(existsSync);
 const shotDir = process.argv[2] || '/tmp/wos-audit';
 mkdirSync(shotDir, { recursive: true });
 

@@ -103,26 +103,28 @@ export class CameraRig {
       const faceYaw = Math.atan2(this.forwardFlat.x, this.forwardFlat.z);
       const a = faceYaw + this.wardrobeAngle;
       const rad = clamp(this.wardrobeZoom, 1.25, 3.3);
+      const faceMode = rad < 1.9;
+      const focusY = pPos.y + (faceMode ? 0.72 : -0.02);
+      const camY = focusY + rad * (faceMode ? 0.04 : 0.1);
       const camX = pPos.x + Math.sin(a) * rad;
       const camZ = pPos.z + Math.cos(a) * rad;
-      const camY = pPos.y + lerp(0.58, 0.24, (rad - 1.25) / 2.05);
-      const rightX = Math.cos(a);
-      const rightZ = -Math.sin(a);
-      const panelShift = rad * 0.24;
-      const focusY = pPos.y + lerp(0.56, 0.16, (rad - 1.25) / 2.05);
       cam.near = 0.06;
-      cam.position.set(camX + rightX * panelShift, camY, camZ + rightZ * panelShift);
-      _t.set(pPos.x + rightX * panelShift, focusY, pPos.z + rightZ * panelShift);
+      cam.position.set(camX, camY, camZ);
+      _t.set(pPos.x, focusY, pPos.z);
       cam.lookAt(_t);
+      const aspect = innerWidth / Math.max(1, innerHeight);
+      const shiftFrac = aspect > 1.1 ? 0.14 * Math.min(1, aspect / 1.6) : 0;
+      cam.setViewOffset(innerWidth, innerHeight, innerWidth * shiftFrac, 0, innerWidth, innerHeight);
       this.wardrobeLights.group.visible = true;
       this.wardrobeLights.key.position.set(pPos.x + Math.sin(a + 0.65) * 2.2, pPos.y + 1.5, pPos.z + Math.cos(a + 0.65) * 2.2);
       this.wardrobeLights.rim.position.set(pPos.x - Math.sin(a - 0.5) * 2.0, pPos.y + 1.2, pPos.z - Math.cos(a - 0.5) * 2.0);
-      this.fov = damp(this.fov, 44, 8, rdt);
+      this.fov = damp(this.fov, faceMode ? 38 : 42, 8, rdt);
       if (Math.abs(cam.fov - this.fov) > 0.01) { cam.fov = this.fov; cam.updateProjectionMatrix(); }
       p.model.hideCape = false;
       if (p.model.cape) p.model.cape.visible = p.model.root.visible && !p.model.noCape;
       return;
     }
+    if (this.camera.viewOffset) this.camera.clearViewOffset();
     if (this.wardrobeLights) this.wardrobeLights.group.visible = false;
 
     const sp = p.speed;

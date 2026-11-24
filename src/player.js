@@ -1318,6 +1318,7 @@ export class Player {
       pitch: this.game.cam.pitch,
       spears: this.spears,
       blade: this.blade,
+      showcase: this.game.cam.customizing && !this.game.started,
     });
   }
 }

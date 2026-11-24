@@ -42,9 +42,10 @@ function getSharedMats() {
     skin: skinTextures(),
     dark: new THREE.MeshStandardMaterial({ color: '#1a0c0a', roughness: 0.9 }),
     teeth: new THREE.MeshStandardMaterial({ color: '#d8cdb2', roughness: 0.55 }),
-    eye: new THREE.MeshStandardMaterial({ color: '#cfc4b0', roughness: 0.15 }),
+    eye: new THREE.MeshStandardMaterial({ color: '#efe8da', roughness: 0.12 }),
     abnEye: new THREE.MeshStandardMaterial({ color: '#ff9068', emissive: '#ff3b14', emissiveIntensity: 0.95, roughness: 0.2 }),
-    socket: new THREE.MeshStandardMaterial({ color: '#4a302a', roughness: 0.85 }),
+    socket: new THREE.MeshStandardMaterial({ color: '#241311', roughness: 0.92 }),
+    gum: new THREE.MeshStandardMaterial({ color: '#5e1611', roughness: 0.55 }),
     wound: new THREE.MeshStandardMaterial({ color: '#7a0b08', emissive: '#a81810', emissiveIntensity: 0.55, roughness: 0.35 }),
     rock: new THREE.MeshStandardMaterial({ color: '#746b60', roughness: 0.95 }),
     iris: ['#3a2a1a', '#2c3a30', '#4a3a22'].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.1 })),
@@ -66,7 +67,7 @@ const SKIN_TONES = ['#b09a8e', '#a89184', '#9c877d', '#b8a59a', '#8e7a70', '#ab9
 function skinMaterial(tone) {
   const S = getSharedMats();
   const m = new THREE.MeshStandardMaterial({ color: tone, map: S.skin.map, normalMap: S.skin.normalMap, roughness: 0.72, metalness: 0 });
-  m.normalScale.set(0.9, 0.9);
+  m.normalScale.set(1.6, 1.6);
   const u = { uHit: { value: 0 }, uDead: { value: 0 }, uWarn: { value: 0 } };
   m.userData.u = u;
   m.customProgramCacheKey = () => 'titan-skin-v3';
@@ -81,7 +82,11 @@ function skinMaterial(tone) {
       .replace('#include <common>', '#include <common>\nuniform float uHit; uniform float uDead; uniform float uWarn; varying vec3 vWP;')
       .replace('#include <color_fragment>', `#include <color_fragment>
         float mott = sin(vWP.x*1.7+vWP.y*0.9)*sin(vWP.z*1.3-vWP.y*1.1)*0.5+0.5;
-        diffuseColor.rgb *= mix(vec3(0.93,0.9,0.92), vec3(1.05,0.98,0.94), mott);
+        float mott2 = sin(vWP.x*4.3-vWP.z*3.1)*sin(vWP.y*3.7+vWP.x*1.2)*0.5+0.5;
+        float stria = sin(vWP.y*19.0 + sin(vWP.x*3.0+vWP.z*2.2)*2.4)*0.5+0.5;
+        diffuseColor.rgb *= mix(vec3(0.84,0.79,0.83), vec3(1.09,1.0,0.94), mott);
+        diffuseColor.rgb *= mix(vec3(0.92,0.86,0.84), vec3(1.02,1.0,0.99), mott2);
+        diffuseColor.rgb *= mix(vec3(0.93,0.89,0.88), vec3(1.0), smoothstep(0.2,0.9,stria));
         diffuseColor.rgb *= mix(vec3(0.5,0.42,0.34), vec3(1.0), smoothstep(0.1, 2.2, vWP.y));`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         float ndv = max(0.0, 1.0 - saturate(dot(normalize(normal), normalize(vViewPosition))));
@@ -95,17 +100,20 @@ function skinMaterial(tone) {
   return m;
 }
 
-function limbGeo(len, r0, r1, bulge = 0.15, bulgeAt = 0.3, seg = 12) {
+function limbGeo(len, r0, r1, bulge = 0.15, bulgeAt = 0.3, seg = 14, bulge2 = 0, bulge2At = 0.72) {
   const pts = [];
-  const N = 10;
+  const N = 22;
   pts.push(new THREE.Vector2(0.001, 0.02 * len));
   for (let i = 0; i <= N; i++) {
     const t = i / N;
-    const r = lerp(r0, r1, t) + Math.sin(Math.PI * clamp((t - bulgeAt + 0.3) / 0.6, 0, 1)) * bulge * r0;
+    let r = lerp(r0, r1, t) + Math.sin(Math.PI * clamp((t - bulgeAt + 0.3) / 0.6, 0, 1)) * bulge * r0;
+    if (bulge2 > 0) r += Math.sin(Math.PI * clamp((t - bulge2At + 0.22) / 0.44, 0, 1)) * bulge2 * r0;
     pts.push(new THREE.Vector2(r, -t * len));
   }
   pts.push(new THREE.Vector2(0.001, -len - 0.02 * len));
-  return new THREE.LatheGeometry(pts, seg);
+  const g = new THREE.LatheGeometry(pts, seg);
+  g.computeVertexNormals();
+  return g;
 }
 
 export class Titan {
@@ -166,7 +174,7 @@ export class Titan {
     this._front = new THREE.Vector3();
     this.prop = {
       head: isBoss ? 0.94 : isCrawler ? 1.08 : isSprinter ? 1.12 : lerp(0.88, 1.22, r()) * (this.type === 'abnormal' ? 1.1 : 1),
-      arm: isBoss ? 1.12 : isCrawler ? 1.26 : isSprinter ? 1.15 : lerp(0.94, 1.14, r()),
+      arm: isBoss ? 1.18 : isCrawler ? 1.26 : isSprinter ? 1.2 : lerp(1.08, 1.34, r()),
       girth: isBoss ? 1.32 : isTank ? 1.42 : isCrawler ? 0.72 : isSprinter ? 0.8 : lerp(0.88, 1.18, r()),
       belly: isTank ? 0.72 : isBoss || isSprinter || isCrawler ? 0 : (r() < 0.28 ? lerp(0.28, 0.65, r()) : 0),
       grin: r(),
@@ -272,27 +280,33 @@ export class Titan {
     const nose = mk(new THREE.ConeGeometry(0.11 * hs, 0.32 * hs, 6), mat, head); nose.position.set(0, 0.51 * hs, 0.78 * hs); nose.rotation.x = 0.34;
     for (const sx of [-1, 1]) {
       const ear = mk(new THREE.SphereGeometry(0.18 * hs, 8, 6), mat, head); ear.scale.set(0.35, 1, 0.65); ear.position.set(sx * 0.72 * hs, 0.52 * hs, -0.02 * hs);
-      const socket = mk(new THREE.SphereGeometry(0.16 * hs, 10, 8), S.socket, head); socket.scale.set(1.12, 0.66, 0.45); socket.position.set(sx * 0.28 * hs, 0.59 * hs, 0.68 * hs);
-      const eye = mk(new THREE.SphereGeometry(0.105 * hs, 10, 8), isBoss || isAbn || isTank ? S.abnEye : S.eye, head); eye.position.set(sx * 0.28 * hs, 0.59 * hs, 0.67 * hs);
+      const socket = mk(new THREE.SphereGeometry(0.19 * hs, 10, 8), S.socket, head); socket.scale.set(1.18, 0.82, 0.42); socket.position.set(sx * 0.28 * hs, 0.6 * hs, 0.63 * hs);
+      const eye = mk(new THREE.SphereGeometry(0.125 * hs, 10, 8), isBoss || isAbn || isTank ? S.abnEye : S.eye, head);
+      eye.scale.set(1, 1, 0.72);
+      eye.position.set(sx * 0.28 * hs, 0.6 * hs, 0.66 * hs);
       const look = (this.r() - 0.5) * 0.04 * hs;
       if (!isBoss && !isAbn && !isTank) {
-        const iris = mk(new THREE.SphereGeometry(0.062 * hs, 8, 6), irisM, head); iris.scale.set(1, 1, 0.5); iris.position.set(sx * 0.28 * hs + look, 0.59 * hs, 0.75 * hs);
+        const iris = mk(new THREE.SphereGeometry(0.052 * hs, 8, 6), irisM, head); iris.scale.set(1, 1, 0.5); iris.position.set(sx * 0.28 * hs + look, 0.6 * hs, 0.745 * hs);
       }
-      const pupil = mk(new THREE.SphereGeometry(0.03 * hs, 6, 6), S.dark, head); pupil.scale.set(1, 1, 0.4); pupil.position.set(sx * 0.28 * hs + look, 0.59 * hs, 0.775 * hs);
+      const pupil = mk(new THREE.SphereGeometry(0.024 * hs, 6, 6), S.dark, head); pupil.scale.set(1, 1, 0.4); pupil.position.set(sx * 0.28 * hs + look, 0.6 * hs, 0.765 * hs);
       const lid = mk(new THREE.SphereGeometry(0.12 * hs, 10, 6, 0, Math.PI * 2, 0, Math.PI * (0.42 + this.r() * 0.08)), mat, head); lid.position.copy(eye.position); lid.rotation.x = 0.38;
       (this.lids ||= []).push(lid);
     }
-    const grinW = lerp(0.34, 0.6, P.grin);
-    const mouth = mk(new THREE.SphereGeometry(0.46 * hs, 14, 8, -grinW * 1.1 + Math.PI / 2, grinW * 2.2, Math.PI * 0.53, Math.PI * 0.13), S.dark, head);
-    mouth.position.set(0, 0.38 * hs, 0.24 * hs); mouth.scale.set(1.12, 0.92, 1.16);
-    const nt = Math.round(7 + grinW * 5);
+    const grinW = lerp(0.62, 0.95, P.grin);
+    const mouth = mk(new THREE.SphereGeometry(0.5 * hs, 14, 8, -grinW * 1.15 + Math.PI / 2, grinW * 2.3, Math.PI * 0.46, Math.PI * 0.24), S.gum, head);
+    mouth.position.set(0, 0.3 * hs, 0.22 * hs); mouth.scale.set(1.2, 1.05, 1.12);
+    const nt = Math.round(9 + grinW * 7);
     for (let i = 0; i < nt; i++) {
-      const a = (i / (nt - 1) - 0.5) * grinW * 1.65;
+      const a = (i / (nt - 1) - 0.5) * grinW * 1.85;
+      const sideFalloff = Math.cos((i / (nt - 1) - 0.5) * Math.PI) * 0.5 + 0.5;
       for (const row of [0, 1]) {
-        const tooth = mk(new THREE.BoxGeometry(0.048 * hs, (0.058 + this.r() * 0.018) * hs, 0.036 * hs), S.teeth, head);
-        const rad = 0.69 * hs;
-        tooth.position.set(Math.sin(a) * rad, (0.21 + row * 0.082) * hs, Math.cos(a) * rad + 0.03 * hs);
+        const th = (0.115 + this.r() * 0.02) * hs * (0.7 + sideFalloff * 0.3);
+        const tooth = mk(new THREE.BoxGeometry(0.072 * hs, th, 0.05 * hs), S.teeth, head);
+        const rad = 0.68 * hs;
+        const yC = row === 0 ? 0.31 * hs + th / 2 : 0.31 * hs - th / 2;
+        tooth.position.set(Math.sin(a) * rad, yC, Math.cos(a) * rad + 0.045 * hs);
         tooth.rotation.y = a;
+        tooth.rotation.x = row === 0 ? 0.05 : -0.05;
       }
     }
     if (P.hair > 0.32) {
@@ -310,9 +324,7 @@ export class Titan {
     for (const sx of [-1, 1]) {
       const sh = G(chest, sx * 1.02 * g, 0.05, -0.05);
       const delt = mk(new THREE.SphereGeometry(0.52, 12, 10), isBoss ? S.armor : mat, sh); delt.scale.set(1.0, 0.9, 0.95);
-      mk(limbGeo(2.0 * al, 0.46, 0.33, 0.2, 0.35), mat, sh);
-      const bi = mk(new THREE.SphereGeometry(0.3, 10, 8), mat, sh); bi.scale.set(0.9, 2.0, 0.9); bi.position.set(0, -0.85 * al, 0.1);
-      const tri = mk(new THREE.SphereGeometry(0.3, 10, 8), mat, sh); tri.scale.set(0.9, 2.2, 0.85); tri.position.set(0, -0.75 * al, -0.1);
+      mk(limbGeo(2.0 * al, 0.47, 0.32, 0.3, 0.3, 14, 0.12, 0.68), mat, sh);
       const stump = mk(new THREE.SphereGeometry(0.34, 10, 8), S.wound, sh);
       stump.position.set(0, -1.95 * al, 0);
       stump.scale.set(0.95, 0.55, 0.95);
@@ -322,14 +334,13 @@ export class Titan {
 
       const el = G(sh, 0, -2.0 * al, 0);
       mk(new THREE.SphereGeometry(0.34, 10, 8), mat, el).scale.set(0.82, 0.9, 0.78);
-      mk(limbGeo(1.85 * al, 0.36, 0.24, 0.22, 0.2), isBoss ? S.armor : mat, el);
-      const fa = mk(new THREE.SphereGeometry(0.26, 10, 8), isBoss ? S.armor : mat, el); fa.scale.set(1.0, 2.0, 0.9); fa.position.set(sx * 0.03, -0.55 * al, 0.03);
+      mk(limbGeo(1.85 * al, 0.35, 0.23, 0.34, 0.16, 14, 0.08, 0.55), isBoss ? S.armor : mat, el);
       const wr = G(el, 0, -1.85 * al, 0);
-      const palm = mk(new THREE.SphereGeometry(0.34, 10, 8), mat, wr); palm.scale.set(0.78, 1.0, 0.38); palm.position.set(0, -0.34, 0.03);
+      const palm = mk(new THREE.SphereGeometry(0.4, 10, 8), mat, wr); palm.scale.set(0.82, 1.15, 0.42); palm.position.set(0, -0.4, 0.03);
       for (let f = 0; f < 4; f++) {
-        const fg = mk(new THREE.CapsuleGeometry(0.07, 0.38, 3, 6), mat, wr);
+        const fg = mk(new THREE.CapsuleGeometry(0.062, 0.52, 3, 6), mat, wr);
         fg.scale.y = [0.85, 1.0, 0.97, 0.8][f];
-        fg.position.set(-0.18 + f * 0.12, -0.76, 0.08); fg.rotation.x = 0.45; fg.rotation.z = (f - 1.5) * 0.06;
+        fg.position.set(-0.2 + f * 0.13, -0.88, 0.08); fg.rotation.x = 0.45; fg.rotation.z = (f - 1.5) * 0.06;
       }
       const thumb = mk(new THREE.CapsuleGeometry(0.08, 0.3, 3, 6), mat, wr); thumb.position.set(-sx * 0.26, -0.4, 0.14); thumb.rotation.z = -sx * 0.6;
       if (sx === 1) {
@@ -344,13 +355,10 @@ export class Titan {
     this.thighs = []; this.knees = []; this.ankles = [];
     for (const sx of [-1, 1]) {
       const hp = G(hips, sx * 0.5 * g, -0.05, 0);
-      mk(limbGeo(2.45, 0.68 * g, 0.44, 0.16, 0.25), mat, hp);
-      const quad = mk(new THREE.SphereGeometry(0.42, 12, 8), isBoss ? S.armor : mat, hp); quad.scale.set(1.1 * g, 2.4, 0.95); quad.position.set(0, -1.1, 0.22);
-      const ham = mk(new THREE.SphereGeometry(0.4, 12, 8), mat, hp); ham.scale.set(1.0 * g, 2.0, 0.8); ham.position.set(0, -1.0, -0.14);
+      mk(limbGeo(2.45, 0.7 * g, 0.42, 0.3, 0.28, 14, 0.14, 0.62), mat, hp);
       const kn = G(hp, 0, -2.45, 0);
       const cap = mk(new THREE.SphereGeometry(0.33, 10, 8), isBoss ? S.armor : mat, kn); cap.position.z = 0.06; cap.scale.set(0.85, 0.8, 0.62);
-      mk(limbGeo(2.35, 0.45, 0.27, 0.25, 0.15), mat, kn);
-      const calf = mk(new THREE.SphereGeometry(0.34, 12, 8), mat, kn); calf.scale.set(0.9, 2.1, 0.9); calf.position.set(0, -0.75, -0.11);
+      mk(limbGeo(2.35, 0.44, 0.26, 0.36, 0.16, 14, 0.1, 0.55), mat, kn);
       const an = G(kn, 0, -2.35, 0);
       const foot = mk(new THREE.CapsuleGeometry(0.24, 0.7, 4, 8), mat, an);
       foot.rotation.x = Math.PI / 2; foot.position.set(0, -0.12, 0.3); foot.scale.set(1.2, 1, 0.75);

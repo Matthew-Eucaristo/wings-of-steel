@@ -201,7 +201,7 @@ export class PlayerModel {
     this.sheathMat = new THREE.MeshStandardMaterial({ color: '#5a636c', roughness: 0.34, metalness: 0.8 });
     this.trimMat = new THREE.MeshStandardMaterial({ color: '#cfa454', roughness: 0.28, metalness: 0.88 });
     this.crestMat = new THREE.MeshStandardMaterial({ color: '#cfd6de', roughness: 0.28, metalness: 0.86 });
-    this.bladeMat = new THREE.MeshStandardMaterial({ color: '#e8f0f8', roughness: 0.08, metalness: 1.0, emissive: '#7ac8ff', emissiveIntensity: 0.14 });
+    this.bladeMat = new THREE.MeshStandardMaterial({ color: '#aebbc8', roughness: 0.3, metalness: 0.94, emissive: '#7ac8ff', emissiveIntensity: 0.1 });
 
     this.ownedGeos = [];
     this.ownedMats = [
@@ -300,7 +300,7 @@ export class PlayerModel {
     const nose = mk(new THREE.ConeGeometry(0.013, 0.038, 6), this.skinMat, head, 0, 0.076, 0.096);
     nose.rotation.x = Math.PI / 2 - 0.38;
     nose.scale.set(0.7, 1, 0.8);
-    const mouth = mk(new THREE.BoxGeometry(0.038, 0.0065, 0.009), M.lips, head, 0, 0.042, 0.082);
+    const mouth = mk(new THREE.BoxGeometry(0.046, 0.0075, 0.009), M.lips, head, 0, 0.042, 0.084);
     this.mouthMesh = mouth;
 
     this.brows = [];
@@ -309,21 +309,21 @@ export class PlayerModel {
       const ear = mk(new THREE.SphereGeometry(0.02, 8, 6), this.skinMat, head, sx * 0.09, 0.088, -0.008);
       ear.scale.set(0.34, 1.15, 0.65);
 
-      const eyeW = mk(new THREE.SphereGeometry(0.017, 10, 8), M.eyeWhite, head, sx * 0.033, 0.094, 0.08);
-      eyeW.scale.set(1.22, 0.72, 0.5);
-      const iris = mk(new THREE.SphereGeometry(0.0108, 10, 8), this.irisMat, head, sx * 0.033, 0.094, 0.0875);
-      iris.scale.set(1.0, 0.96, 0.4);
-      const pupil = mk(new THREE.SphereGeometry(0.0056, 8, 6), M.pupil, head, sx * 0.033, 0.094, 0.091);
-      pupil.scale.set(1, 1, 0.35);
-      const glint = mk(new THREE.SphereGeometry(0.0024, 6, 6), M.eyeWhite, head, sx * 0.033 + 0.0032, 0.0965, 0.0928);
+      const eyeW = mk(new THREE.SphereGeometry(0.021, 10, 8), M.eyeWhite, head, sx * 0.036, 0.094, 0.078);
+      eyeW.scale.set(1.18, 0.78, 0.45);
+      const iris = mk(new THREE.SphereGeometry(0.0135, 10, 8), this.irisMat, head, sx * 0.036, 0.093, 0.0865);
+      iris.scale.set(1.0, 1.05, 0.4);
+      const pupil = mk(new THREE.SphereGeometry(0.0068, 8, 6), M.pupil, head, sx * 0.036, 0.093, 0.0905);
+      pupil.scale.set(1, 1.1, 0.35);
+      const glint = mk(new THREE.SphereGeometry(0.0032, 6, 6), M.eyeWhite, head, sx * 0.036 + 0.004, 0.097, 0.0922);
       glint.castShadow = false;
 
-      const lid = mk(new THREE.SphereGeometry(0.019, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.48), this.skinMat, head, sx * 0.033, 0.095, 0.08);
-      lid.scale.set(1.26, 0.78, 0.56);
+      const lid = mk(new THREE.SphereGeometry(0.023, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.48), this.skinMat, head, sx * 0.036, 0.095, 0.078);
+      lid.scale.set(1.24, 0.82, 0.5);
       lid.rotation.x = -0.38;
       this.lids.push(lid);
 
-      const brow = mk(new THREE.BoxGeometry(0.036, 0.007, 0.009), this.hairMat, head, sx * 0.034, 0.114, 0.086);
+      const brow = mk(new THREE.BoxGeometry(0.042, 0.0095, 0.011), this.hairMat, head, sx * 0.037, 0.117, 0.087);
       brow.rotation.z = -sx * 0.12;
       this.brows.push(brow);
     }
@@ -517,7 +517,7 @@ export class PlayerModel {
     for (let i = 0; i < 2; i++) {
       const sx = i === 0 ? -1 : 1;
       this.brows[i].rotation.z = -sx * exprAngle;
-      this.brows[i].position.y = A.expression === 'fierce' ? 0.111 : 0.114;
+      this.brows[i].position.y = A.expression === 'fierce' ? 0.1135 : 0.117;
     }
     this.mouthMesh.scale.set(A.expression === 'confident' ? 1.18 : A.expression === 'fierce' ? 1.1 : 0.92, A.expression === 'fierce' ? 1.45 : 1.0, 1);
 
@@ -538,12 +538,12 @@ export class PlayerModel {
     const C = this.lightweight ? 4 : 6;
     const R = this.lightweight ? 6 : 9;
     this.capeC = C; this.capeR = R;
-    const W = 0.52, L = 0.96;
-    this.capeRest = { dx: W / (C - 1), dy: L / (R - 1) };
+    const W = 0.62, L = 1.04;
+    this.capeRest = { dx: (W / (C - 1)) * 0.78, dy: L / (R - 1) };
     this.cp = []; this.cpp = [];
     for (let r = 0; r < R; r++) {
       for (let c = 0; c < C; c++) {
-        const p = new THREE.Vector3((c / (C - 1) - 0.5) * W, -r * this.capeRest.dy, 0);
+        const p = new THREE.Vector3((c / (C - 1) - 0.5) * W * 0.82, -r * this.capeRest.dy, Math.sin(c * 2.4) * 0.045 * (0.3 + r / R) - (r / (R - 1)) * 0.05);
         this.cp.push(p.clone()); this.cpp.push(p.clone());
       }
     }
@@ -559,7 +559,7 @@ export class PlayerModel {
 
   anchorPoint(c, out) {
     const W = 0.45;
-    return out.set((c / (this.capeC - 1) - 0.5) * W, 0.5, -0.14).applyMatrix4(this.spine.matrixWorld);
+    return out.set((c / (this.capeC - 1) - 0.5) * W, 0.5, -0.155).applyMatrix4(this.spine.matrixWorld);
   }
 
   updateCape(dt, vel) {
@@ -575,7 +575,9 @@ export class PlayerModel {
         for (let c = 0; c < C; c++) {
           this.anchorPoint(c, _v);
           const i = r * C + c;
-          this.cp[i].copy(_v).y -= r * this.capeRest.dy;
+          this.cp[i].copy(_v);
+          this.cp[i].y -= r * this.capeRest.dy;
+          this.cp[i].z += Math.sin(c * 2.4) * 0.045 * (0.3 + r / R) - (r / (R - 1)) * 0.05;
           this.cpp[i].copy(this.cp[i]);
         }
       }
@@ -591,7 +593,7 @@ export class PlayerModel {
         const p = this.cp[i], pp = this.cpp[i];
         const vx = (p.x - pp.x) * 0.985, vy = (p.y - pp.y) * 0.985, vz = (p.z - pp.z) * 0.985;
         pp.copy(p);
-        const flutter = Math.sin(t * 13 + i * 0.7) * 0.25;
+        const flutter = Math.sin(t * 13 + i * 0.7) * 0.42 + Math.sin(t * 5.1 + i * 1.3) * 0.22;
         const ax = -vel.x * 1.6 + flutter, ay = -9.8 - vel.y * 1.6, az = -vel.z * 1.6 + flutter;
         p.x += vx + ax * h * h * 4; p.y += vy + ay * h * h * 4; p.z += vz + az * h * h * 4;
       }
@@ -638,6 +640,12 @@ export class PlayerModel {
     this.reloadAnim = Math.max(0, this.reloadAnim - dt);
     this.spearAnim = Math.max(0, this.spearAnim - dt);
     this.flareAnim = Math.max(0, this.flareAnim - dt);
+    if (st.showcase) {
+      st = {
+        ...st, grounded: true, speed: 0, latVel: 0, fwdVel: 0, lookSwayX: 0, lookSwayY: 0,
+        charge: 0, wall: null, hooked: false, spin: false, slashT: -1, grabbed: false, fp: false, pitch: 0,
+      };
+    }
     const r = this.root;
     r.position.copy(pos);
     r.quaternion.copy(quat);
