@@ -45,8 +45,8 @@ const GradeShader = {
       vec2 c = uv - 0.5;
       float r = length(c);
       float edgeMask = smoothstep(0.14, 0.72, r);
-      float blur = (uSpeed * 0.025 + uImpact * 0.028) * edgeMask;
-      float ca = (0.001 + uSpeed * 0.0024 + uHurt * 0.005 + uImpact * 0.0085) * r;
+      float blur = (uSpeed * 0.018 + uImpact * 0.018) * edgeMask;
+      float ca = (0.0008 + uSpeed * 0.0018 + uHurt * 0.004 + uImpact * 0.0055) * r;
       vec3 col;
       if (uSpeed > 0.02 || uHurt > 0.02 || uImpact > 0.02) {
         vec3 s0 = safeSample(uv);
@@ -66,19 +66,19 @@ const GradeShader = {
       col = clamp(col, vec3(0.0), vec3(1.0));
       float contrast = 0.3 + uImpact * 0.18;
       col = col * col * (3.0 - 2.0 * col) * contrast + col * (1.0 - contrast);
-      if (uImpact > 0.01 || uSpeed > 0.32) {
+      if (uImpact > 0.01 || uSpeed > 0.36) {
         float ang = atan(c.y, c.x);
-        float rays = abs(sin(ang * 46.0 + floor(uTime * 28.0) * 1.9));
-        float lineMask = smoothstep(0.89, 0.992, rays) * smoothstep(0.28, 0.76, r);
-        col += vec3(1.0, 0.96, 0.88) * lineMask * (uImpact * 0.52 + max(0.0, uSpeed - 0.32) * 0.15);
+        float rays = abs(sin(ang * 44.0 + floor(uTime * 24.0) * 1.7));
+        float lineMask = smoothstep(0.91, 0.994, rays) * smoothstep(0.32, 0.78, r);
+        col += vec3(1.0, 0.96, 0.88) * lineMask * (uImpact * 0.26 + max(0.0, uSpeed - 0.36) * 0.12);
       }
       if (uBlood > 0.01) {
-        float sp = hash(floor(uv * 38.0)) * smoothstep(0.32, 0.78, r);
-        float drop = smoothstep(0.55, 0.92, sp) * uBlood;
-        col = mix(col, vec3(0.52, 0.04, 0.03), drop * 0.65);
+        float sp = hash(floor(uv * 38.0)) * smoothstep(0.38, 0.82, r);
+        float drop = smoothstep(0.62, 0.94, sp) * uBlood;
+        col = mix(col, vec3(0.48, 0.04, 0.03), drop * 0.44);
       }
-      col *= 1.0 - smoothstep(0.52, 1.02, r) * 0.33;
-      col += vec3(1.0, 0.93, 0.84) * (uFlash * 0.52);
+      col *= 1.0 - smoothstep(0.54, 1.02, r) * 0.3;
+      col += vec3(1.0, 0.93, 0.84) * (uFlash * 0.32);
       col += (hash(uv * uRes + fract(uTime) * 100.0) - 0.5) * 0.02;
       gl_FragColor = vec4(clamp(col, vec3(0.0), vec3(1.0)), 1.0);
     }`,

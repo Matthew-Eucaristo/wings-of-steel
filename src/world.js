@@ -114,6 +114,9 @@ export class World {
     this.houses = [];
     this.houseSections = [];
     this.rubble = [];
+    this.chunks = [];
+    this.chunkPool = [];
+    this.maxChunks = 220;
     this.sealBlocks = [];
     this.time = 0;
     this.uniformsTime = { value: 0 };
@@ -139,6 +142,7 @@ export class World {
     this.buildCountryside();
     this.buildMountains();
     this.buildClouds();
+    this.ensureChunkAssets();
     this.col.build();
   }
 
@@ -405,9 +409,10 @@ float townMask(){ float r = length(vWPos.xz); float road = smoothstep(14.0, 7.0,
     const addBuilding = (x, z, yaw, w, d, h, opts = {}) => {
       const plaster = opts.plaster || PLASTER[Math.floor(rr() * PLASTER.length)];
       const roofC = opts.roofC || ROOFC[Math.floor(rr() * ROOFC.length)];
-      const own = opts.destructible === false ? null : { x, z, yaw, w, d, h, cols: [], lists: { walls: [], roofs: [], trim: [], stones: [] }, dead: false };
+      const maxHp = Math.round(72 + h * 4);
+      const own = opts.destructible === false ? null : { x, z, yaw, w, d, h, hp: maxHp, maxHp, damaged: false, plaster: plaster.clone(), roofC: roofC.clone(), cols: [], lists: { walls: [], roofs: [], trim: [], stones: [] }, dead: false };
       const wallsL = own ? own.lists.walls : _townWalls, roofsL = own ? own.lists.roofs : _townRoofs, trimL = own ? own.lists.trim : _townTrim, stonesL = own ? own.lists.stones : _townStones;
-      const addCol = (cc) => { const col = this.col.add(cc); if (own) own.cols.push(col); return col; };
+      const addCol = (cc) => { if (own) cc.house = own; const col = this.col.add(cc); if (own) own.cols.push(col); return col; };
       stonesL.push(place(boxGeo(w + 0.3, 1.2, d + 0.3, 8, 8, stoneC), x, 0.6, z, yaw));
       wallsL.push(place(boxGeo(w, h - 1.2, d, 8, 6.4, plaster), x, 1.2 + (h - 1.2) / 2, z, yaw));
       const c = Math.cos(yaw), s = Math.sin(yaw);
@@ -492,7 +497,7 @@ float townMask(){ float r = length(vWPos.xz); float road = smoothstep(14.0, 7.0,
       const x = 0, z = -54, w = 26, d = 18, h = 20;
       addBuilding(x, z, Math.PI, w, d, h, { flat: true, plaster: new THREE.Color('#d9cfbc'), destructible: false });
       this.playerSpawn = new THREE.Vector3(x + 5, h + 1.4, z + 4);
-      this.addDepot(new THREE.Vector3(x - 8, h + 0.2, z - 3), 'MARKAS');
+      this.addDepot(new THREE.Vector3(x - 8, h + 0.2, z - 3), 'HQ ROOFTOP');
     }
 
     const ringRadii = [50, 74, 98, 122, 146, 170, 194];
@@ -547,7 +552,7 @@ float townMask(){ float r = length(vWPos.xz); float road = smoothstep(14.0, 7.0,
       stones.push(place(boxGeo(s, th, s, 8, 8, stoneC), x, th / 2, z, a));
       this.col.add(new Convex(new THREE.Vector3(x, th / 2, z), a, boxPlanes(s / 2, th / 2, s / 2), th, { surface: 'stone' }));
       this.obstacles.push({ x, z, r: 8, h: th });
-      this.addDepot(new THREE.Vector3(x, th, z), 'BARAT');
+      this.addDepot(new THREE.Vector3(x, th, z), 'WEST TOWER');
     }
 
     {
@@ -555,7 +560,7 @@ float townMask(){ float r = length(vWPos.xz); float road = smoothstep(14.0, 7.0,
       stones.push(place(boxGeo(fw, fh, fd, 8, 8, stoneC), fx, fh / 2, fz, 0));
       this.col.add(new Convex(new THREE.Vector3(fx, fh / 2, fz), 0, boxPlanes(fw / 2, fh / 2, fd / 2), Math.hypot(fw, fh, fd) / 2, { surface: 'stone' }));
       this.obstacles.push({ x: fx, z: fz, r: 8.5, h: fh });
-      this.addDepot(new THREE.Vector3(fx, fh, fz), 'GARDA SELATAN');
+      this.addDepot(new THREE.Vector3(fx, fh, fz), 'SOUTH BASTION');
     }
 
     const bastions = [
@@ -707,47 +712,194 @@ float townMask(){ float r = length(vWPos.xz); float road = smoothstep(14.0, 7.0,
     }
   }
 
-  destroyHouse(h) {
+  ensureChunkAssets() {
+    if (this.chunkGeo) return;
+    this.chunkGeo = new THREE.BoxGeometry(1, 1, 1);
+    const t = this.textures;
+    this.chunkMats = {
+      wall: new THREE.MeshStandardMaterial({ color: '#dfd1ba', map: t?.facade?.map || null, normalMap: t?.facade?.normalMap || null, roughness: 0.9 }),
+      roof: new THREE.MeshStandardMaterial({ color: '#9c4c34', map: t?.roof?.map || null, normalMap: t?.roof?.normalMap || null, roughness: 0.8 }),
+      wood: new THREE.MeshStandardMaterial({ color: '#4a3424', roughness: 0.9 }),
+      stone: new THREE.MeshStandardMaterial({ color: '#aba396', map: t?.stone?.map || null, normalMap: t?.stone?.normalMap || null, roughness: 0.92 }),
+    };
+  }
+
+  spawnChunk(px, py, pz, sx, sy, sz, vx, vy, vz, rvx, rvy, rvz, kind = 'wall', yaw = 0) {
+    this.ensureChunkAssets();
+    let c = this.chunkPool.pop();
+    if (!c && this.chunks.length >= this.maxChunks) {
+      let recycleIdx = this.chunks.findIndex((it) => it.sleep);
+      if (recycleIdx < 0) recycleIdx = 0;
+      c = this.chunks.splice(recycleIdx, 1)[0];
+    }
+    if (!c) {
+      const m = new THREE.Mesh(this.chunkGeo, this.chunkMats[kind] || this.chunkMats.wall);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      this.scene.add(m);
+      c = { m, v: new THREE.Vector3(), rv: new THREE.Vector3(), halfH: 0.5, sleep: false, age: 0, dustCd: 0 };
+    }
+    c.m.material = this.chunkMats[kind] || this.chunkMats.wall;
+    c.m.visible = true;
+    c.m.position.set(px, py, pz);
+    c.m.scale.set(sx, sy, sz);
+    c.m.rotation.set((Math.random() - 0.5) * 0.25, yaw, (Math.random() - 0.5) * 0.25);
+    c.v.set(vx, vy, vz);
+    c.rv.set(rvx, rvy, rvz);
+    c.halfH = Math.max(0.22, Math.min(sx, sy, sz) * 0.45);
+    c.sleep = false;
+    c.age = 0;
+    c.dustCd = 0;
+    this.chunks.push(c);
+    return c;
+  }
+
+  spawnBreachDebris() {
+    for (let i = 0; i < 18; i++) {
+      const sx = 1.6 + Math.random() * 2.6;
+      const sy = 1.2 + Math.random() * 2.0;
+      const sz = 1.4 + Math.random() * 2.4;
+      this.spawnChunk(
+        (Math.random() - 0.5) * 28,
+        8 + Math.random() * 34,
+        WALL_R - 2 + Math.random() * 10,
+        sx, sy, sz,
+        (Math.random() - 0.5) * 18,
+        4 + Math.random() * 12,
+        -(12 + Math.random() * 22),
+        (Math.random() - 0.5) * 3.5,
+        (Math.random() - 0.5) * 3.5,
+        (Math.random() - 0.5) * 3.5,
+        'stone',
+        Math.random() * 6,
+      );
+    }
+  }
+
+  damageHouse(h, impactPos, impulseDir, amount = 50) {
+    if (!h || h.dead) return false;
+    h.hp -= amount;
+    const ix = impactPos ? impactPos.x : h.x;
+    const iy = impactPos ? clamp(impactPos.y, 1.5, h.h) : h.h * 0.5;
+    const iz = impactPos ? impactPos.z : h.z;
+    const dx = impulseDir ? impulseDir.x : (h.x - ix);
+    const dz = impulseDir ? impulseDir.z : (h.z - iz);
+    const dl = Math.hypot(dx, dz) || 1;
+    const ndx = dx / dl, ndz = dz / dl;
+
+    if (h.hp > 0) {
+      h.damaged = true;
+      for (let i = 0; i < 4; i++) {
+        const kind = i === 0 ? 'wood' : i === 1 ? 'stone' : 'wall';
+        this.spawnChunk(
+          ix + (Math.random() - 0.5) * 2.5,
+          iy + (Math.random() - 0.5) * 2.0,
+          iz + (Math.random() - 0.5) * 2.5,
+          0.6 + Math.random() * 1.1,
+          0.4 + Math.random() * 0.9,
+          0.4 + Math.random() * 0.8,
+          ndx * (5 + Math.random() * 9) + (Math.random() - 0.5) * 6,
+          2 + Math.random() * 6,
+          ndz * (5 + Math.random() * 9) + (Math.random() - 0.5) * 6,
+          (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5,
+          kind,
+          h.yaw,
+        );
+      }
+      if (this.gameRef) {
+        this.gameRef.vfx.dust(_p.set(ix, iy, iz), 3.2, 7);
+        this.gameRef.audio.structureCrack?.(_p.set(ix, iy, iz));
+      }
+      return false;
+    }
+    return this.collapseHouse(h, impactPos, impulseDir);
+  }
+
+  collapseHouse(h, impactPos = null, impulseDir = null) {
     if (!h || h.dead) return false;
     h.dead = true;
+    h.hp = 0;
     if (h.ob) h.ob.dead = true;
+    this.gameRef?.onHouseCollapse?.(h);
     for (const c of h.cols) this.col.remove(c);
     this.col.build();
     this.buildHouseSection(h.sec);
-    const list = [];
-    const moundC = new THREE.Color('#7a6a55'), wood = new THREE.Color('#4a3424');
-    const rub = new THREE.SphereGeometry(1, 10, 7, 0, Math.PI * 2, 0, Math.PI / 2);
-    rub.scale(h.w * 0.52, Math.min(h.h * 0.32, 4.5), h.d * 0.52);
-    list.push(place(colorize(rub, moundC), h.x, 0.1, h.z, h.yaw));
-    const rr = Math.random;
-    for (let i = 0; i < 6; i++) {
-      const bw = 0.4 + rr() * 0.9, bl = 2 + rr() * Math.min(h.w, h.d) * 0.4;
-      list.push(place(boxGeo(bw, bl, bw, 1, 1, i % 3 ? wood : moundC),
-        h.x + (rr() - 0.5) * h.w * 0.8, 0.5 + rr() * 1.4, h.z + (rr() - 0.5) * h.d * 0.8,
-        rr() * 6, rr() * 0.9 - 0.45, rr() * 0.9 - 0.45));
+
+    const cYaw = Math.cos(h.yaw), sYaw = Math.sin(h.yaw);
+    const toW = (lx, lz) => [h.x + cYaw * lx + sYaw * lz, h.z - sYaw * lx + cYaw * lz];
+    const ix = impactPos ? impactPos.x : h.x;
+    const iz = impactPos ? impactPos.z : h.z;
+    const pushX = impulseDir ? impulseDir.x : (h.x - ix);
+    const pushZ = impulseDir ? impulseDir.z : (h.z - iz);
+    const pushL = Math.hypot(pushX, pushZ) || 1;
+    const bx = pushX / pushL, bz = pushZ / pushL;
+
+    const launch = (lx, ly, lz, sx, sy, sz, kind, extraUp = 0) => {
+      const [wx, wz] = toW(lx, lz);
+      let ox = wx - ix, oz = wz - iz;
+      const ol = Math.hypot(ox, oz) || 1;
+      ox /= ol; oz /= ol;
+      const spd = 4.5 + Math.random() * 6.5;
+      this.spawnChunk(
+        wx, ly, wz, sx, sy, sz,
+        ox * spd + bx * 5.5 + (Math.random() - 0.5) * 3,
+        extraUp + 1.5 + Math.random() * 4.5,
+        oz * spd + bz * 5.5 + (Math.random() - 0.5) * 3,
+        (Math.random() - 0.5) * 3.8,
+        (Math.random() - 0.5) * 3.2,
+        (Math.random() - 0.5) * 3.8,
+        kind,
+        h.yaw,
+      );
+    };
+
+    launch(0, h.h + 1.6, h.d * 0.22, h.w * 0.85, 0.55, h.d * 0.52, 'roof', 2.2);
+    launch(0, h.h + 1.6, -h.d * 0.22, h.w * 0.85, 0.55, h.d * 0.52, 'roof', 2.2);
+
+    const wallH = Math.min(4.6, h.h * 0.42);
+    launch(-h.w * 0.28, h.h * 0.65, h.d * 0.44, h.w * 0.44, wallH, 0.75, 'wall', 0.8);
+    launch(h.w * 0.28, h.h * 0.65, -h.d * 0.44, h.w * 0.44, wallH, 0.75, 'wall', 0.8);
+    launch(h.w * 0.44, h.h * 0.52, 0, 0.75, wallH, h.d * 0.56, 'wall', 0.5);
+    launch(-h.w * 0.44, h.h * 0.52, 0, 0.75, wallH, h.d * 0.56, 'wall', 0.5);
+    launch(0, h.h * 0.28, h.d * 0.35, h.w * 0.55, wallH * 0.75, 0.85, 'wall', 0.2);
+    launch(0, h.h * 0.28, -h.d * 0.35, h.w * 0.55, wallH * 0.75, 0.85, 'wall', 0.2);
+
+    for (let i = 0; i < 4; i++) {
+      const lx = (i % 2 ? 1 : -1) * h.w * 0.4;
+      const lz = (i < 2 ? 1 : -1) * h.d * 0.4;
+      launch(lx, h.h * (0.35 + (i % 2) * 0.35), lz, 0.55, Math.min(5.2, h.h * 0.48), 0.55, 'wood', 1.4);
     }
-    const merged = mergeGeometries(list);
-    for (const g of list) g.dispose();
-    const mesh = new THREE.Mesh(merged, this.townMats.trim);
+
+    for (let i = 0; i < 4; i++) {
+      launch((Math.random() - 0.5) * h.w * 0.65, 1.0 + Math.random() * 1.4, (Math.random() - 0.5) * h.d * 0.65, 1.5 + Math.random() * 1.2, 1.0 + Math.random() * 0.8, 1.4 + Math.random() * 1.1, 'stone', 0.6);
+    }
+
     if (this.gameRef) {
-      this.gameRef.vfx.debris(new THREE.Vector3(h.x, h.h * 0.5, h.z), 12, 9);
+      const center = _p.set(h.x, h.h * 0.45, h.z);
+      this.gameRef.vfx.dust(center, Math.max(6, Math.min(11, h.w * 0.8)), 16);
+      this.gameRef.vfx.debris(center, 8, 8);
+      this.gameRef.audio.buildingCollapse?.(center);
       this.gameRef.onDistrictDamage?.(2.2);
     }
-    mesh.receiveShadow = true;
-    this.scene.add(mesh);
-    this.rubble.push(mesh);
     return true;
   }
 
-  destroyNear(p, r) {
+  destroyHouse(h, impactPos = null, impulseDir = null) {
+    return this.collapseHouse(h, impactPos, impulseDir);
+  }
+
+  destroyNear(p, r, force = 150, impulseDir = null) {
     let n = 0;
     for (const h of this.houses) {
       if (h.dead) continue;
       const dx = p.x - h.x, dz = p.z - h.z;
       const rr = Math.hypot(h.w, h.d) / 2 + r;
-      if (dx * dx + dz * dz > rr * rr) continue;
+      const d2 = dx * dx + dz * dz;
+      if (d2 > rr * rr) continue;
       if (p.y > h.top + 6) continue;
-      if (this.destroyHouse(h)) n++;
+      const dist = Math.sqrt(d2);
+      const falloff = clamp(1 - dist / (rr + 2), 0.35, 1);
+      if (this.damageHouse(h, p, impulseDir, force * falloff)) n++;
     }
     return n;
   }
@@ -756,6 +908,8 @@ float townMask(){ float r = length(vWPos.xz); float road = smoothstep(14.0, 7.0,
     const dirtySecs = new Set();
     let changed = false;
     for (const h of this.houses) {
+      h.hp = h.maxHp;
+      h.damaged = false;
       if (!h.dead) continue;
       h.dead = false;
       if (h.ob) h.ob.dead = false;
@@ -772,6 +926,12 @@ float townMask(){ float r = length(vWPos.xz); float road = smoothstep(14.0, 7.0,
       m.geometry.dispose();
     }
     this.rubble.length = 0;
+    for (let i = this.chunks.length - 1; i >= 0; i--) {
+      const c = this.chunks[i];
+      c.m.visible = false;
+      this.chunkPool.push(c);
+    }
+    this.chunks.length = 0;
     this.setSealProgress(0);
   }
 
@@ -1041,5 +1201,35 @@ float townMask(){ float r = length(vWPos.xz); float road = smoothstep(14.0, 7.0,
       d.ring.scale.setScalar(1 + Math.sin(this.time * 3) * 0.05);
     }
     for (const c of this.clouds) c.position.x += dt * 2;
+    if (dt > 0 && this.chunks.length) {
+      for (let i = 0; i < this.chunks.length; i++) {
+        const c = this.chunks[i];
+        c.age += dt;
+        if (c.sleep) continue;
+        c.dustCd = Math.max(0, c.dustCd - dt);
+        c.v.y -= 24 * dt;
+        c.m.position.addScaledVector(c.v, dt);
+        c.m.rotation.x += c.rv.x * dt;
+        c.m.rotation.y += c.rv.y * dt;
+        c.m.rotation.z += c.rv.z * dt;
+        if (c.m.position.y < c.halfH) {
+          c.m.position.y = c.halfH;
+          const impactVy = -c.v.y;
+          if (impactVy > 5.5 && c.dustCd <= 0 && this.gameRef) {
+            c.dustCd = 0.25;
+            this.gameRef.vfx.dust(c.m.position, clamp(impactVy * 0.25, 1.5, 4.5), 4);
+          }
+          c.v.y = impactVy > 2.2 ? impactVy * 0.22 : 0;
+          c.v.x *= 0.66;
+          c.v.z *= 0.66;
+          c.rv.multiplyScalar(0.55);
+          if (c.v.lengthSq() < 0.22 && c.rv.lengthSq() < 0.15 && c.age > 0.4) {
+            c.v.set(0, 0, 0);
+            c.rv.set(0, 0, 0);
+            c.sleep = true;
+          }
+        }
+      }
+    }
   }
 }

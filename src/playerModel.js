@@ -7,42 +7,42 @@ const _w = new THREE.Vector3();
 
 export const APPEARANCE_PRESETS = {
   hairStyles: [
-    { id: 'scout', label: 'Pengintai' },
-    { id: 'levi', label: 'Belah Tengah' },
-    { id: 'ponytail', label: 'Ekor Kuda' },
-    { id: 'garrison', label: ' Ikat Kepala' },
+    { id: 'scout', label: 'Scout Cut' },
+    { id: 'levi', label: 'Center Part' },
+    { id: 'ponytail', label: 'Ponytail' },
+    { id: 'garrison', label: 'Headband' },
   ],
   hairColors: [
-    { id: '#181512', label: 'Hitam Gagak' },
-    { id: '#4a2e1b', label: 'Cokelat Kayu' },
-    { id: '#c8a25c', label: 'Pirang Abu' },
-    { id: '#7c2820', label: 'Merah Tembaga' },
-    { id: '#b8c0c8', label: 'Perak Baja' },
+    { id: '#181512', label: 'Raven Black' },
+    { id: '#4a2e1b', label: 'Timber Brown' },
+    { id: '#c8a25c', label: 'Ash Blonde' },
+    { id: '#7c2820', label: 'Copper Red' },
+    { id: '#b8c0c8', label: 'Steel Silver' },
   ],
   capeStyles: [
-    { id: 'survey', label: 'Sayap Kebebasan', tint: '#ffffff' },
-    { id: 'crimson', label: 'Merah Garnisun', tint: '#d45a4a' },
-    { id: 'obsidian', label: 'Hitam Khusus', tint: '#484c54' },
-    { id: 'ivory', label: 'Putih Kehormatan', tint: '#f4efe4' },
-    { id: 'none', label: 'Tanpa Jubah', tint: '#ffffff' },
+    { id: 'survey', label: 'Survey Cloak', tint: '#ffffff' },
+    { id: 'crimson', label: 'Garrison Red', tint: '#d45a4a' },
+    { id: 'obsidian', label: 'Night Ops', tint: '#484c54' },
+    { id: 'ivory', label: 'Honor Ivory', tint: '#f4efe4' },
+    { id: 'none', label: 'No Cloak', tint: '#ffffff' },
   ],
   scarfColors: [
-    { id: '#b82924', label: 'Merah Mikasa' },
-    { id: '#e8e8e2', label: 'Putih Klasik' },
-    { id: '#22252a', label: 'Hitam Taktis' },
-    { id: '#d8a848', label: 'Emas Komandan' },
+    { id: '#b82924', label: 'Crimson' },
+    { id: '#e8e8e2', label: 'Ivory' },
+    { id: '#22252a', label: 'Tactical Black' },
+    { id: '#d8a848', label: 'Commander Gold' },
   ],
   jacketColors: [
-    { id: '#9a7a55', label: 'Kulit Klasik' },
-    { id: '#2a2d32', label: 'Hitam Malam' },
-    { id: '#606b76', label: 'Abu Baja' },
-    { id: '#5e3829', label: 'Cokelat Tua' },
+    { id: '#9a7a55', label: 'Classic Tan' },
+    { id: '#2a2d32', label: 'Midnight' },
+    { id: '#606b76', label: 'Slate Steel' },
+    { id: '#5e3829', label: 'Dark Leather' },
   ],
   bladeAuras: [
-    { id: '#7ac8ff', label: 'Biru Baja', trail2: '#bfe8ff' },
-    { id: '#ffcc55', label: 'Emas Surya', trail2: '#fff0b8' },
-    { id: '#ff5242', label: 'Merah Darah', trail2: '#ffb0a0' },
-    { id: '#58ff9a', label: 'Hijau Zamrud', trail2: '#c4ffe0' },
+    { id: '#7ac8ff', label: 'Cold Steel', trail2: '#bfe8ff' },
+    { id: '#ffcc55', label: 'Solar Gold', trail2: '#fff0b8' },
+    { id: '#ff5242', label: 'Crimson Edge', trail2: '#ffb0a0' },
+    { id: '#58ff9a', label: 'Emerald Glint', trail2: '#c4ffe0' },
   ],
 };
 
@@ -206,17 +206,19 @@ export class PlayerModel {
       mk(new THREE.CapsuleGeometry(0.048, 0.18, 4, 8), this.jacketMat, el, 0, -0.12, 0);
       mk(new THREE.CylinderGeometry(0.054, 0.05, 0.07, 8), M.strap, el, 0, -0.21, 0);
       const hd = G(el, 0, -0.27, 0);
-      mk(new THREE.SphereGeometry(0.042, 8, 6), M.skin, hd, 0, -0.02, 0).scale.set(0.9, 1.1, 1.1);
+      mk(new THREE.BoxGeometry(0.068, 0.082, 0.072), M.strap, hd, 0, -0.015, 0);
+      mk(new THREE.SphereGeometry(0.038, 8, 6), M.skin, hd, 0, -0.045, 0.01).scale.set(0.9, 1.0, 1.0);
       const bl = new THREE.Group();
       hd.add(bl);
       bl.position.set(0, -0.03, 0.03);
-      mk(new THREE.BoxGeometry(0.024, 0.14, 0.048), M.darkMetal, bl, 0, 0.0, 0);
-      mk(new THREE.BoxGeometry(0.016, 0.11, 0.035), M.metal, bl, 0, -0.01, 0.042);
-      mk(new THREE.BoxGeometry(0.036, 0.022, 0.11), M.metal, bl, 0, 0.075, 0.015);
-      const steel = mk(new THREE.BoxGeometry(0.009, 0.92, 0.052), this.bladeMat, bl, 0, 0.54, 0.0);
+      mk(new THREE.BoxGeometry(0.024, 0.145, 0.05), M.darkMetal, bl, 0, 0.0, 0);
+      mk(new THREE.BoxGeometry(0.016, 0.11, 0.036), M.metal, bl, 0, -0.01, 0.044);
+      mk(new THREE.BoxGeometry(0.01, 0.055, 0.022), M.brass, bl, sx * 0.014, 0.018, 0.035);
+      mk(new THREE.BoxGeometry(0.038, 0.024, 0.115), M.metal, bl, 0, 0.076, 0.016);
+      const steel = mk(new THREE.BoxGeometry(0.0085, 0.94, 0.054), this.bladeMat, bl, 0, 0.55, 0.0);
       this.bladeSteel.push(steel);
       for (let seg = 1; seg <= 5; seg++) {
-        const groove = mk(new THREE.BoxGeometry(0.012, 0.006, 0.056), M.darkMetal, steel, 0, -0.42 + seg * 0.15, 0);
+        const groove = mk(new THREE.BoxGeometry(0.012, 0.006, 0.058), M.darkMetal, steel, 0, -0.42 + seg * 0.15, 0);
         groove.rotation.x = 0.35;
       }
       bl.rotation.set(Math.PI / 2 - 0.1, sx * 0.08, 0);
@@ -407,32 +409,35 @@ export class PlayerModel {
       let ex = lerp(-0.6 * run - 0.2, -0.35, air);
       let hx = lerp(1.15 - 0.3 * run, 1.95, air);
       if (st.fp) {
-        const swayX = clamp(-(st.latVel || 0) * 0.012, -0.18, 0.18);
-        const bob = Math.sin(ph + i * Math.PI) * 0.08 * run + Math.sin(this.animTime * 2.4 + i) * 0.022;
-        sx = -1.52 - air * 0.12 - (st.pitch || 0) * 0.85 + bob + chargeShake;
-        sz = sg * (0.34 + (st.charge || 0) * 0.22) + swayX;
-        ex = -0.48 - (st.charge || 0) * 0.25;
-        hx = 0.32 + air * 0.08;
+        const swayX = clamp(-(st.latVel || 0) * 0.011 + (st.lookSwayX || 0) * 0.55, -0.2, 0.2);
+        const swayY = clamp((st.lookSwayY || 0) * 0.42 - clamp((st.fwdVel || 0) * 0.003, -0.05, 0.1), -0.15, 0.14);
+        const bob = Math.sin(ph + i * Math.PI) * 0.05 * run + Math.sin(this.animTime * 2.2 + i) * 0.015;
+        const hookPull = st.hooked ? 0.09 : 0;
+        sx = -1.16 - air * 0.08 - hookPull - (st.pitch || 0) * 0.85 + bob + swayY + chargeShake;
+        sz = sg * (0.56 + (st.charge || 0) * 0.24) + swayX;
+        ex = -0.34 - (st.charge || 0) * 0.2;
+        hx = 0.68 + air * 0.06;
         if (this.reloadAnim > 0) {
           const rp = 1 - this.reloadAnim / 0.38;
-          sx = rp < 0.45 ? lerp(-1.52, 0.2, rp / 0.45) : lerp(0.2, -1.56, (rp - 0.45) / 0.55);
-          hx = lerp(1.3, 0.32, rp);
+          sx = rp < 0.45 ? lerp(-1.16, 0.25, rp / 0.45) : lerp(0.25, -1.18, (rp - 0.45) / 0.55);
+          hx = lerp(1.4, 0.68, rp);
         }
         if (i === 0 && this.spearAnim > 0) {
-          sx -= Math.sin((this.spearAnim / 0.32) * Math.PI) * 0.55;
+          sx -= Math.sin((this.spearAnim / 0.32) * Math.PI) * 0.48;
         }
         if (i === 1 && this.flareAnim > 0) {
-          sx = -2.0; sz = 0.12; ex = -0.2;
+          sx = -1.85; sz = 0.18; ex = -0.2;
         }
       }
       if (st.spin) { sx = -0.2; sz = sg * 1.45; ex = -0.05; hx = 0.1; }
       else if (sl >= 0 && st.fp) {
-        const w = sl < 0.22 ? sl / 0.22 : 1;
-        const sweep = sl < 0.22 ? 0 : Math.min(1, (sl - 0.22) / 0.42);
-        sx = lerp(lerp(-1.18, -2.15, w), -0.65, sweep);
-        sz = sg * lerp(lerp(0.28, 1.05, w), -0.52, sweep);
-        ex = lerp(-0.92, -0.12, sweep);
-        hx = lerp(0.45, -0.55, sweep);
+        const w = sl < 0.2 ? sl / 0.2 : 1;
+        const sweep = sl < 0.2 ? 0 : Math.min(1, (sl - 0.2) / 0.44);
+        const alt = (st.slashSide || 1) * sg > 0 ? 1 : 0.82;
+        sx = lerp(lerp(-1.22, -2.12, w), -0.68, sweep) * alt;
+        sz = sg * lerp(lerp(0.28, 1.02, w), -0.48, sweep);
+        ex = lerp(-0.9, -0.14, sweep);
+        hx = lerp(0.45, -0.52, sweep);
       } else if (sl >= 0) {
         const k = sl < 0.22 ? sl / 0.22 : 1 - (sl - 0.22) / 0.78;
         const sweep = sl < 0.22 ? 0 : (sl - 0.22) / 0.78;
@@ -445,14 +450,19 @@ export class PlayerModel {
       } else if (st.grabbed) {
         sx = Math.sin(this.animTime * 20 + i) * 0.8 - 1.5; sz = sg * 0.8;
       }
-      D(this.sh[i].rotation, 'x', sx, sl >= 0 ? 48 : 16);
-      D(this.sh[i].rotation, 'z', sz, sl >= 0 ? 48 : 16);
-      D(this.el[i].rotation, 'x', ex, 22);
-      D(this.hand[i].rotation, 'x', hx, sl >= 0 ? 48 : 18);
+      D(this.sh[i].rotation, 'x', sx, sl >= 0 ? 42 : 14);
+      D(this.sh[i].rotation, 'z', sz, sl >= 0 ? 42 : 14);
+      D(this.el[i].rotation, 'x', ex, 20);
+      D(this.hand[i].rotation, 'x', hx, sl >= 0 ? 42 : 16);
+      const bladePct = clamp((st.blade ?? 100) / 100, 0, 1);
+      const reloadSlide = this.reloadAnim > 0 ? clamp((0.38 - this.reloadAnim) / 0.28, 0.15, 1) : 1;
+      const bladeLen = (0.38 + bladePct * 0.62) * reloadSlide;
       this.bladeSteel[i].visible = (st.blade ?? 100) > 0;
+      this.bladeSteel[i].scale.y = damp(this.bladeSteel[i].scale.y, bladeLen, 16, dt);
+      this.bladeSteel[i].position.y = 0.08 + 0.47 * this.bladeSteel[i].scale.y;
     }
-    for (const bl of this.blades) bl.scale.y = damp(bl.scale.y, st.fp ? 0.68 : 1, 12, dt);
-    this.bladeMat.emissiveIntensity = damp(this.bladeMat.emissiveIntensity, st.speed > 22 || st.spin || sl >= 0 ? 1.35 : 0.14, 8, dt);
+    for (const bl of this.blades) bl.scale.y = damp(bl.scale.y, st.fp ? 0.54 : 1, 12, dt);
+    this.bladeMat.emissiveIntensity = damp(this.bladeMat.emissiveIntensity, st.speed > 26 || st.spin || sl >= 0 ? 0.85 : 0.12, 8, dt);
     D(this.spine.rotation, 'x', lerp(run * 0.35, st.hooked ? 0.15 : 0.35, air) + lk * 0.5);
     D(this.spine.rotation, 'y', sl >= 0 ? Math.sin(sl * Math.PI) * 0.78 : 0, 24);
     this.head.visible = !st.fp;

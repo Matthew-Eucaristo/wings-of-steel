@@ -81,13 +81,80 @@ export function segSegDist2(p1, q1, p2, q2, outA, outB) {
   return _c1.distanceToSquared(_c2);
 }
 
-const STORAGE_KEY = 'wos-prefs-v1';
+export const DEFAULT_BINDS = {
+  forward: 'KeyW',
+  back: 'KeyS',
+  left: 'KeyA',
+  right: 'KeyD',
+  hookL: 'KeyQ',
+  hookR: 'KeyE',
+  reel: 'Space',
+  boost: 'ShiftLeft',
+  reloadBlade: 'KeyR',
+  reloadGas: 'KeyC',
+  spear: 'KeyX',
+  command: 'KeyT',
+  hookMode: 'KeyF',
+  viewToggle: 'KeyV',
+  help: 'KeyH',
+};
+
+export const BIND_LABELS = [
+  ['forward', 'Move Forward'],
+  ['back', 'Move Backward'],
+  ['left', 'Move Left'],
+  ['right', 'Move Right'],
+  ['hookL', 'Left Grapple Hook'],
+  ['hookR', 'Right Grapple Hook'],
+  ['reel', 'Winch Reel / Jump / Wall-Kick'],
+  ['boost', 'Gas Boost / Vector Steer'],
+  ['reloadBlade', 'Swap Blades'],
+  ['reloadGas', 'Replace Gas Canister'],
+  ['spear', 'Fire / Detonate Thunder Spear'],
+  ['command', 'Squad Order & Artillery'],
+  ['hookMode', 'Toggle Grapple Mode (Smart / Focus)'],
+  ['viewToggle', 'Toggle Camera View (1st / 3rd)'],
+  ['help', 'Toggle Controls Overlay'],
+];
+
+export function formatKey(code) {
+  if (!code) return '—';
+  if (code.startsWith('Key')) return code.slice(3);
+  if (code.startsWith('Digit')) return code.slice(5);
+  const map = {
+    Space: 'SPACE',
+    ShiftLeft: 'L-SHIFT',
+    ShiftRight: 'R-SHIFT',
+    ControlLeft: 'L-CTRL',
+    ControlRight: 'R-CTRL',
+    AltLeft: 'L-ALT',
+    AltRight: 'R-ALT',
+    Tab: 'TAB',
+    CapsLock: 'CAPS',
+    Backquote: '`',
+    BracketLeft: '[',
+    BracketRight: ']',
+    ArrowUp: 'UP',
+    ArrowDown: 'DOWN',
+    ArrowLeft: 'LEFT',
+    ArrowRight: 'RIGHT',
+  };
+  return map[code] || code.toUpperCase();
+}
+
+const STORAGE_KEY = 'wos-prefs-v2';
 export function loadPrefs(defaults) {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...defaults, ...JSON.parse(raw) } : { ...defaults };
+    if (!raw) return { ...defaults, binds: { ...DEFAULT_BINDS, ...(defaults.binds || {}) } };
+    const parsed = JSON.parse(raw);
+    return {
+      ...defaults,
+      ...parsed,
+      binds: { ...DEFAULT_BINDS, ...(defaults.binds || {}), ...(parsed.binds || {}) },
+    };
   } catch {
-    return { ...defaults };
+    return { ...defaults, binds: { ...DEFAULT_BINDS, ...(defaults.binds || {}) } };
   }
 }
 

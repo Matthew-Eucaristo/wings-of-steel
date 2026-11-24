@@ -1,47 +1,31 @@
 <!doctype html>
-<html lang="id">
+<html lang="en">
 <head>
 <link rel="icon" href="data:,">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>WINGS OF STEEL — Korps Sayap Baja</title>
-<meta name="description" content="Aksi ODM-gear melawan titan di browser: pimpin skuadron AI, kawal Regu Insinyur, tutup Gerbang Selatan." />
+<title>WINGS OF STEEL — ODM Tactical Action</title>
+<meta name="description" content="First-person ODM-gear action in the browser: swing on dual grappling cables, command an AI Survey Corps squadron, and defend Halvard District." />
 <meta name="theme-color" content="#0a0e14" />
-<meta property="og:title" content="WINGS OF STEEL — Korps Sayap Baja" />
-<meta property="og:description" content="Aksi ODM-gear melawan titan di browser: pimpin skuadron AI, kawal Regu Insinyur, tutup Gerbang Selatan." />
+<meta property="og:title" content="WINGS OF STEEL — ODM Tactical Action" />
+<meta property="og:description" content="First-person ODM-gear action in the browser: swing on dual grappling cables, command an AI Survey Corps squadron, and defend Halvard District." />
 <meta property="og:type" content="website" />
-<meta property="og:url" content="https://matthew-eucaristo.github.io/wings-of-steel/" />
-<meta property="og:image" content="https://matthew-eucaristo.github.io/wings-of-steel/og.jpg" />
+<meta property="og:image" content="./og.jpg" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
 <canvas id="c"></canvas>
+
 <div id="hud" class="hidden">
   <div id="vignette"></div>
   <div id="hurt"></div>
-  <div id="cand-l" class="cand hidden"><i></i><span>Q</span></div>
-  <div id="cand-r" class="cand hidden"><i></i><span>E</span></div>
+
+  <div id="cand-l" class="cand hidden"><i></i><span id="cand-l-key">Q</span></div>
+  <div id="cand-r" class="cand hidden"><i></i><span id="cand-r-key">E</span></div>
+
   <div id="cross">
-    <svg id="resource-arcs" viewBox="0 0 100 100" aria-hidden="true">
-      <path class="arc-track left" d="M50 88 A38 38 0 0 1 50 12"/>
-      <path class="arc-track right" d="M50 12 A38 38 0 0 1 50 88"/>
-      <path id="gasarc" class="arc-value gas" pathLength="100" d="M50 88 A38 38 0 0 1 50 12"/>
-      <path id="bladearc" class="arc-value blade" pathLength="100" d="M50 12 A38 38 0 0 1 50 88"/>
-    </svg>
-    <div class="resource-label gas">
-      <svg class="icon" viewBox="0 0 14 14"><rect x="4.5" y="2.5" width="5" height="9" rx="1.6"/><path d="M6 2.5v-1h2v1"/><path id="gaslvl" d="M5.5 10.2h3" stroke-width="2.6"/></svg>
-      <b id="gasnum">100</b>
-      <span class="pips" id="gaspips"><i></i><i></i><i></i><i></i><i></i><i></i></span>
-    </div>
-    <div class="resource-label blade">
-      <b id="bladenum">100</b>
-      <span class="pips" id="bladepips"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
-      <svg class="icon" viewBox="0 0 14 14"><path d="M3 11.5 10.5 2.6l1.4 1.4L4.4 12.9z"/><path d="M3.6 8.2 5 9.6"/></svg>
-      <svg class="icon" viewBox="0 0 14 14"><path d="M2 10.5 8 3l2.2 2.2-6 7.6z"/><path d="M8 3l3.4-1.2.4.8-1.2 3"/><path d="M10.5 5.6l1.6 1.4"/></svg>
-      <b id="spearnum">3</b>
-    </div>
     <div class="ring"></div>
     <div class="dot"></div>
     <div id="hitmark"></div>
@@ -49,215 +33,334 @@
     <div class="hk r"></div>
     <div id="range"></div>
     <div id="spinbar"><i></i></div>
-    <div id="rebound" class="hidden">SPASI · PANTUL</div>
+    <div id="rebound" class="hidden">SPACE · WALL-KICK</div>
   </div>
-  <div id="lock"><div></div><span id="locktxt">TENGKUK</span><b id="lockbar"><i id="lockhp"></i><em id="lockarmor"></em></b></div>
+
+  <div id="lock">
+    <div></div>
+    <span id="locktxt">NAPE</span>
+    <b id="lockbar"><i id="lockhp"></i><em id="lockarmor"></em></b>
+  </div>
   <div id="threats"></div>
   <div id="dmgdir"></div>
   <div id="objm" class="hidden"><i></i><span id="objtxt"></span></div>
-  <div id="killfeed"></div>
   <div id="marks"></div>
   <div id="depotm" class="hidden"><i></i><span></span></div>
   <div id="pops"></div>
+
   <div id="top">
-    <div id="wave">OPERASI SEGEL</div>
-    <div id="obj">Lindungi Regu Insinyur hingga Gerbang Selatan tertutup.</div>
+    <div id="wave">OPERATION SOUTH GATE</div>
+    <div id="obj">Escort the Engineer Convoy to seal the South Gate.</div>
     <div id="left"></div>
     <div id="tacbars">
       <div id="dist-wrap" class="tac-item">
-        <span>DISTRIK</span>
+        <span>DISTRICT</span>
         <div class="bar dist"><i id="distb"></i></div>
         <b id="distpct">100%</b>
       </div>
       <div id="eng-wrap" class="tac-item">
-        <span id="englbl">KONVOI</span>
+        <span id="englbl">CONVOY</span>
         <div class="bar eng"><i id="engb"></i></div>
         <b id="engpct">0%</b>
       </div>
     </div>
   </div>
-  <div id="right-hud">
-    <canvas id="radar" width="152" height="152"></canvas>
-    <div id="kills"><b>0</b><span>TITAN</span></div>
-    <div id="combo"></div>
-    <div id="squad-box">
-      <div id="flare-row" class="cmd-banner"><kbd>T</kbd><span id="flaretxt">PANGGIL SKUADRON &amp; SUPLAI</span></div>
-      <div id="squad-list" class="squad-list">
-        <div class="sq-chip" style="--c:#7ac8ff"><b>R</b><span>Reno</span><em id="sq0">FORMASI</em></div>
-        <div class="sq-chip" style="--c:#ffcc55"><b>M</b><span>Mira</span><em id="sq1">FORMASI</em></div>
-        <div class="sq-chip" style="--c:#58ff9a"><b>D</b><span>Dax</span><em id="sq2">FORMASI</em></div>
-      </div>
-    </div>
-  </div>
+
   <div id="left-stack">
-    <div id="gear">
-      <div class="row hp-row"><label id="classlabel">HP</label><div class="bar"><i id="hpb"></i></div><span id="viewbadge">1ST POV</span></div>
-      <div class="row gas-row"><label>GAS</label><div class="bar gas"><i id="gasb"></i></div></div>
-      <div class="row blade-row"><label>BLADE</label><div class="bar blade"><i id="bladeb"></i></div><span id="sets">×6</span></div>
-      <div id="spear-box">
-        <div class="spear-top">
-          <span><kbd>X</kbd> RUDAL PETIR</span>
-          <b id="spearcount">3/3</b>
-        </div>
-        <div id="spearpips" class="spear-pips"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-        <div id="spearhint" class="spear-hint">Pecah zirah &amp; ledakan area · Isi di Depot</div>
+    <div id="hp-panel">
+      <div class="hp-head">
+        <span class="hp-lbl">VITALS</span>
+        <span id="hpnum">100</span>
+        <span id="viewbadge">1ST</span>
+      </div>
+      <div class="bar hp-bar"><i id="hpb"></i></div>
+    </div>
+    <div id="spear-alert" class="hidden">
+      <kbd id="spear-key-alert">X</kbd>
+      <span id="spearhint">DETONATE THUNDER SPEAR</span>
+    </div>
+  </div>
+
+  <div id="right-hud">
+    <div class="radar-row">
+      <div class="score-col">
+        <div id="kills"><b>0</b><span>KILLS</span></div>
+        <div id="combo"></div>
+      </div>
+      <canvas id="radar" width="128" height="128"></canvas>
+    </div>
+    <div id="squad-box">
+      <div id="flare-row" class="cmd-banner"><kbd id="cmd-key-hud">T</kbd><span id="flaretxt">RALLY &amp; RESUPPLY</span></div>
+      <div id="squad-list" class="squad-list">
+        <div class="sq-chip" style="--c:#7ac8ff"><b>R</b><span>Reno</span><em id="sq0">FORMATION</em></div>
+        <div class="sq-chip" style="--c:#ffcc55"><b>M</b><span>Mira</span><em id="sq1">FORMATION</em></div>
+        <div class="sq-chip" style="--c:#58ff9a"><b>D</b><span>Dax</span><em id="sq2">FORMATION</em></div>
       </div>
     </div>
   </div>
-  <div class="hooks">
-    <span id="hl">Q · L</span>
-    <span id="spd">0</span>
-    <span id="hr">R · E</span>
-    <span id="hmode" class="mode auto">OTOMATIS [F]</span>
-    <span id="fps" class="hidden"></span>
+
+  <div id="odm-bar">
+    <div id="gas-pod" class="inst-wing left">
+      <div class="wing-meta">
+        <span class="wing-tag">GAS <kbd id="gas-key-hud">C</kbd></span>
+        <b id="gasnum">100</b>
+      </div>
+      <div class="wing-track"><i id="gasb"></i></div>
+      <div class="pips-row" id="gaspips"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+
+    <div class="inst-core">
+      <div class="hook-pills">
+        <span id="hl">Q</span>
+        <div id="spd">0</div>
+        <span id="hr">E</span>
+      </div>
+      <div id="hmode" class="mode auto">SMART [F]</div>
+    </div>
+
+    <div id="blade-pod" class="inst-wing right">
+      <div class="wing-meta">
+        <b id="bladenum">100</b>
+        <span class="wing-tag"><kbd id="blade-key-hud">R</kbd> BLADE</span>
+      </div>
+      <div class="wing-track"><i id="bladeb"></i></div>
+      <div class="blade-bottom">
+        <div class="pips-row" id="bladepips"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="spear-mini" id="spear-mini">
+          <kbd id="spear-key-hud">X</kbd>
+          <span id="spearcount">3</span>
+        </div>
+      </div>
+    </div>
   </div>
+
+  <span id="fps" class="hidden"></span>
+  <div id="killfeed"></div>
   <div id="radio" class="hidden"></div>
+
   <div id="upgrades" class="hidden">
-    <div class="up-title">REKUISISI TEKNIS KORPS <small>Tekan [1] [2] [3] · gamepad ◀ ▼ ▶</small></div>
+    <div class="up-title">FIELD REQUISITION <small>Press [1] [2] [3] · Gamepad ◀ ▼ ▶</small></div>
     <div id="upcards" class="up-cards"></div>
   </div>
+
   <div id="toast"></div>
-  <div id="struggle" class="hidden"><div>TERTANGKAP! Tekan <kbd>KLIK</kbd> / <kbd>SPASI</kbd> (atau tunggu Skuadron)!</div><div class="bar"><i id="strb"></i></div></div>
+  <div id="struggle" class="hidden">
+    <div>GRABBED! Mash <kbd>LMB</kbd> / <kbd id="struggle-key">SPACE</kbd> to sever fingers!</div>
+    <div class="bar"><i id="strb"></i></div>
+  </div>
+
   <div id="help" class="hidden">
-    <div class="help-title">KONTROL CEPAT <small>[H] tutup</small></div>
-    <div class="help-grid">
-      <div><kbd>Q</kbd> <kbd>E</kbd> kait kiri / kanan</div><div><kbd>Klik Kanan</kbd> tahan dua kait</div>
-      <div><kbd>F</kbd> mode kait Fokus / Otomatis</div><div><kbd>Spasi</kbd> tarik kabel · lompat · pantul · 2× tahan gas naik</div>
-      <div><kbd>Shift</kbd>+<kbd>WASD</kbd> belok jet tajam</div><div><kbd>S</kbd>+<kbd>Shift</kbd> rem · <kbd>Shift</kbd>+<kbd>Spasi</kbd> tukik</div>
-      <div><kbd>Klik Kiri</kbd> tebas / eksekusi tengkuk</div><div><kbd>X</kbd> tembak / ledakkan Rudal Petir</div>
-      <div><kbd>T</kbd> perintah Skuadron &amp; Meriam</div><div><kbd>R</kbd> ganti pedang · <kbd>C</kbd> silinder gas</div>
-      <div><kbd>H</kbd> bantuan</div><div><kbd>G</kbd> grafis · <kbd>M</kbd> musik · <kbd>1-3</kbd> upgrade · <kbd>[</kbd> <kbd>]</kbd> sens</div>
-    </div>
-    <div class="help-pad"><b>Gamepad:</b> LT/RT kait · LB/RB jet belok · A tarik/lompat · X eksekusi · B mode F · Y silinder C · D-Pad ↑R ↓X →T · D-Pad ◀▼▶ pilih upgrade · Start jeda</div>
+    <div class="help-title">CONTROLS <small id="help-close-hint">[H] Close</small></div>
+    <div id="help-grid" class="help-grid"></div>
+    <div class="help-pad"><b>Gamepad:</b> LT/RT Hooks · LB/RB Vector Boost · A Reel/Jump · X Slash · B Mode · Y Gas · D-Pad ↑Blade ↓Spear →Squad</div>
   </div>
 </div>
 
 <div id="title">
-  <div class="logo">
-    <small>KORPS PENGINTAI &amp; GARNISUN DISTRIK HALVARD</small>
-    <h1>WINGS OF STEEL</h1>
-    <h2>ODM Tactical Squadron Action</h2>
+  <div class="title-shell">
+    <div class="logo">
+      <small>SURVEY CORPS · HALVARD DISTRICT</small>
+      <h1>WINGS OF STEEL</h1>
+      <div class="title-rule"></div>
+    </div>
+    <nav class="main-nav">
+      <button id="openplay" class="primary-btn">PLAY</button>
+      <button id="opencust" class="nav-btn">CUSTOMIZE</button>
+      <button id="opensettings" class="nav-btn">SETTINGS</button>
+      <button id="openguide" class="nav-btn">FIELD GUIDE</button>
+    </nav>
+    <div id="bestbanner" class="best-banner"></div>
+    <div id="loading"></div>
   </div>
-  <div id="bestbanner" class="best-banner"></div>
-  <div class="section-label">PILIH OPERASI</div>
-  <div id="modes" class="card-row">
-    <button type="button" data-mode="campaign" class="selected">
-      <b>OPERASI: GERBANG SELATAN</b>
-      <small>5 Fase · Pimpin Skuadron AI &amp; kawal Regu Insinyur menutup tembok</small>
-    </button>
-    <button type="button" data-mode="endless">
-      <b>PERTAHANAN TANPA AKHIR</b>
-      <small>Serbuan horde 5 jenis Titan + Rekuisisi Upgrade tiap gelombang</small>
-    </button>
-    <button type="button" data-mode="training">
-      <b>ARENA LATIHAN ODM</b>
-      <small>Lintasan cincin udara + sasaran Titan Pelari, Raksasa &amp; Lapis</small>
-    </button>
+</div>
+
+<div id="deploy" class="hidden">
+  <div class="modal-card wide">
+    <div class="modal-head">
+      <small>MISSION BRIEFING</small>
+      <h2>SELECT OPERATION</h2>
+    </div>
+    <div class="section-label">OPERATION</div>
+    <div id="modes" class="card-row">
+      <button type="button" data-mode="campaign" class="selected">
+        <b>OPERATION: SOUTH GATE</b>
+        <small>5 Phases · Lead your AI squad &amp; escort the Engineer Convoy to seal the breach.</small>
+      </button>
+      <button type="button" data-mode="endless">
+        <b>ENDLESS DEFENSE</b>
+        <small>Escalating waves of all Titan classes with between-wave field requisitions.</small>
+      </button>
+      <button type="button" data-mode="training">
+        <b>ODM PROVING GROUNDS</b>
+        <small>Aerial grapple course and sparring Titans to sharpen swings and executions.</small>
+      </button>
+    </div>
+    <div class="section-label">ODM LOADOUT</div>
+    <div id="classes" class="card-row">
+      <button type="button" data-class="light">
+        <b>VANGUARD</b>
+        <small>Agile swing turn &amp; burst · 2 Gas · 4 Blades · 2 Spears</small>
+      </button>
+      <button type="button" data-class="balanced" class="selected">
+        <b>SCOUT</b>
+        <small>Balanced corps standard · 4 Gas · 6 Blades · 3 Spears</small>
+      </button>
+      <button type="button" data-class="heavy">
+        <b>ASSAULT</b>
+        <small>Extended ordnance · 6 Gas · 8 Blades · 5 Spears</small>
+      </button>
+    </div>
+    <div id="deploy-opts" class="deploy-opts">
+      <button type="button" id="opt-intro" class="ghost sm toggle-on">INTRO CUTSCENE: ON</button>
+      <button type="button" id="opt-tut" class="ghost sm">FIELD TUTORIAL: OFF</button>
+    </div>
+    <div class="btns">
+      <button id="start" class="primary-btn">DEPLOY</button>
+      <button id="closedeploy" class="ghost">BACK</button>
+    </div>
   </div>
-  <div class="section-label">PILIH PERLENGKAPAN</div>
-  <div id="classes" class="card-row">
-    <button type="button" data-class="light">
-      <b>SKUADRON RINGAN</b>
-      <small>2 silinder · 4 pedang · 2 rudal · belokan udara paling tajam</small>
-    </button>
-    <button type="button" data-class="balanced" class="selected">
-      <b>SKUADRON SEIMBANG</b>
-      <small>4 silinder · 6 pedang · 3 rudal · standar tempur serbaguna</small>
-    </button>
-    <button type="button" data-class="heavy">
-      <b>SKUADRON PENGGEMPUR</b>
-      <small>6 silinder · 8 pedang · 5 rudal · penghancur Titan Lapis &amp; Raksasa</small>
-    </button>
-  </div>
-  <div class="btns">
-    <button id="start">TERJUN OPERASI</button>
-    <button id="opencust" class="ghost">KUSTOMISASI PRAJURIT</button>
-    <button id="prologue" class="ghost">PROLOG &amp; PELATIHAN</button>
-    <button id="opensettings" class="ghost">PENGATURAN</button>
-  </div>
-  <div class="controls compact">
-    <div><kbd>Q</kbd><kbd>E</kbd> / <kbd>Klik Kanan</kbd> Kait ODM</div>
-    <div><kbd>Shift</kbd>+<kbd>WASD</kbd> Jet Belok Tajam</div>
-    <div><kbd>Klik Kiri</kbd> Tebas &amp; Eksekusi</div>
-    <div><kbd>X</kbd> Rudal Petir (Tembak/Ledak)</div>
-    <div><kbd>T</kbd> Perintah Skuadron &amp; Meriam</div>
-    <div><kbd>Spasi</kbd> Gulung / Lompat · 2× Naik</div>
-    <div><kbd>R</kbd> Pedang · <kbd>C</kbd> Gas · <kbd>F</kbd> Fokus/Auto</div>
-    <div><kbd>H</kbd> Bantuan</div>
-  </div>
-  <div id="loading"></div>
 </div>
 
 <div id="customize" class="hidden">
   <div class="cust-panel">
-    <h2>KUSTOMISASI PRAJURIT</h2>
+    <h2>SOLDIER WARDROBE</h2>
     <div class="cust-group">
-      <label>Putar Tampilan Karakter</label>
+      <label>Rotate Character</label>
       <input id="cust-rot" type="range" min="-3.14" max="3.14" step="0.05" value="0.35" />
     </div>
     <div class="cust-group">
-      <label>Gaya Rambut</label>
+      <label>Hairstyle</label>
       <div id="cust-hairstyle" class="chip-row"></div>
     </div>
     <div class="cust-group">
-      <label>Warna Rambut</label>
+      <label>Hair Color</label>
       <div id="cust-haircolor" class="swatch-row"></div>
     </div>
     <div class="cust-group">
-      <label>Jubah Korps</label>
+      <label>Corps Cloak</label>
       <div id="cust-cape" class="chip-row"></div>
     </div>
     <div class="cust-group">
-      <label>Warna Syal</label>
+      <label>Scarf Color</label>
       <div id="cust-scarf" class="swatch-row"></div>
     </div>
     <div class="cust-group">
-      <label>Seragam Jaket</label>
+      <label>Jacket Uniform</label>
       <div id="cust-jacket" class="swatch-row"></div>
     </div>
     <div class="cust-group">
-      <label>Kilau Pedang &amp; Efek Tebasan</label>
+      <label>Blade Edge Gleam</label>
       <div id="cust-aura" class="swatch-row"></div>
     </div>
     <div class="btns">
-      <button id="closecust">SIMPAN PENAMPILAN</button>
+      <button id="closecust" class="primary-btn">SAVE &amp; BACK</button>
     </div>
   </div>
 </div>
 
 <div id="settings" class="hidden">
-  <div class="modal-card">
-    <h2>PENGATURAN</h2>
-    <div class="set-row">
-      <label>Kualitas Grafis</label>
-      <div id="qual-btns" class="seg-btns">
-        <button type="button" data-q="0">RENDAH</button>
-        <button type="button" data-q="1">SEDANG</button>
-        <button type="button" data-q="2">TINGGI</button>
+  <div class="modal-card wide">
+    <div class="modal-head">
+      <small>SYSTEM CONFIGURATION</small>
+      <h2>SETTINGS</h2>
+    </div>
+    <div class="tab-bar" id="settings-tabs">
+      <button type="button" data-tab="gameplay" class="active">GAMEPLAY</button>
+      <button type="button" data-tab="controls">CONTROLS</button>
+      <button type="button" data-tab="audio">AUDIO</button>
+      <button type="button" data-tab="graphics">GRAPHICS</button>
+    </div>
+
+    <div class="tab-pane active" data-pane="gameplay">
+      <div class="set-row">
+        <label>Mouse Sensitivity <b id="sens-val">1.00×</b></label>
+        <input id="sens-range" type="range" min="0.3" max="2.5" step="0.05" value="1" />
+      </div>
+      <div class="set-row toggles">
+        <button type="button" id="invy-btn" class="ghost sm">INVERT Y-AXIS: OFF</button>
+        <button type="button" id="shake-btn" class="ghost sm">CAMERA SHAKE: ON</button>
+      </div>
+      <div class="set-row toggles">
+        <button type="button" id="view-btn" class="ghost sm">CAMERA: FIRST-PERSON</button>
+        <button type="button" id="autocycle-btn" class="ghost sm">AUTO-CYCLE CABLES: ON</button>
       </div>
     </div>
-    <div class="set-row">
-      <label>Sensitivitas Mouse <b id="sens-val">1.00×</b></label>
-      <input id="sens-range" type="range" min="0.3" max="2.5" step="0.05" value="1" />
+
+    <div class="tab-pane" data-pane="controls">
+      <div class="bind-note">Click any action to rebind. Press <kbd>ESC</kbd> to cancel. Right-Click always fires dual hooks; Left-Click slashes.</div>
+      <div id="bind-list" class="bind-list"></div>
+      <div class="bind-actions">
+        <button type="button" id="reset-binds" class="ghost sm">RESET DEFAULTS</button>
+      </div>
     </div>
-    <div class="set-row">
-      <label>Sudut Pandang (FOV) <b id="fov-val">72°</b></label>
-      <input id="fov-range" type="range" min="64" max="92" step="1" value="72" />
+
+    <div class="tab-pane" data-pane="audio">
+      <div class="set-row">
+        <label>Master Volume <b id="vol-val">80%</b></label>
+        <input id="vol-range" type="range" min="0" max="100" step="5" value="80" />
+      </div>
+      <div class="set-row">
+        <label>Music Volume <b id="musvol-val">65%</b></label>
+        <input id="musvol-range" type="range" min="0" max="100" step="5" value="65" />
+      </div>
+      <div class="set-row">
+        <label>SFX Volume <b id="sfxvol-val">90%</b></label>
+        <input id="sfxvol-range" type="range" min="0" max="100" step="5" value="90" />
+      </div>
+      <div class="set-row toggles">
+        <button type="button" id="music-btn" class="ghost sm">COMBAT SOUNDTRACK: ON</button>
+      </div>
     </div>
-    <div class="set-row">
-      <label>Volume Utama <b id="vol-val">80%</b></label>
-      <input id="vol-range" type="range" min="0" max="100" step="5" value="80" />
+
+    <div class="tab-pane" data-pane="graphics">
+      <div class="set-row">
+        <label>Graphics Preset</label>
+        <div id="qual-btns" class="seg-btns">
+          <button type="button" data-q="0">LOW</button>
+          <button type="button" data-q="1">MEDIUM</button>
+          <button type="button" data-q="2">HIGH</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <label>Field of View (FOV) <b id="fov-val">75°</b></label>
+        <input id="fov-range" type="range" min="64" max="96" step="1" value="75" />
+      </div>
+      <div class="set-row toggles">
+        <button type="button" id="fps-btn" class="ghost sm">FPS COUNTER: OFF</button>
+      </div>
     </div>
-    <div class="set-row toggles">
-      <button type="button" id="invy-btn" class="ghost sm">BALIK SUMBU Y: MATI</button>
-      <button type="button" id="music-btn" class="ghost sm">MUSIK TEMPUR: AKTIF</button>
+
+    <div class="btns">
+      <button id="closesettings" class="primary-btn">SAVE &amp; CLOSE</button>
     </div>
-    <div class="set-row toggles">
-      <button type="button" id="shake-btn" class="ghost sm">GOYANGAN KAMERA: AKTIF</button>
-      <button type="button" id="fps-btn" class="ghost sm">FPS: MATI</button>
+  </div>
+</div>
+
+<div id="guide" class="hidden">
+  <div class="modal-card wide">
+    <div class="modal-head">
+      <small>SURVEY CORPS MANUAL</small>
+      <h2>FIELD GUIDE</h2>
+    </div>
+    <div class="guide-grid">
+      <div class="guide-col">
+        <h3>ODM GRAPPLING</h3>
+        <p>Your steel cables are your primary engine. Anchor high onto eaves, clocktowers, or trees with <b>Q / E</b> for pendulum swings, or hold <b>Right-Click</b> for twin-cable pull.</p>
+        <p>Hold <b>Space</b> to winch-reel rapidly along taut cables. Release at the upward apex of a fast swing to trigger a slingshot launch.</p>
+      </div>
+      <div class="guide-col">
+        <h3>MOMENTUM BOOST</h3>
+        <p>Gas Boost (<b>Shift + WASD</b>) amplifies your existing swing speed and smoothly curves your trajectory toward where you steer.</p>
+        <p>Build speed with cables first, then engage gas to carve through streets and line up high-velocity nape strikes. Hold <b>S + Shift</b> to air-brake.</p>
+      </div>
+      <div class="guide-col">
+        <h3>COMBAT &amp; SQUAD</h3>
+        <p>Aim near a Titan's nape to engage soft-lock. Faster approaches deal exponentially higher blade damage. Hold <b>Left-Click</b> mid-air for a Spiral Slash.</p>
+        <p>Use <b>Thunder Spears [X]</b> to shatter Armored plating, and issue <b>Squad Orders [T]</b> to call focus attacks, Garrison cannons, or field resupplies.</p>
+      </div>
     </div>
     <div class="btns">
-      <button id="closesettings">SIMPAN &amp; TUTUP</button>
+      <button id="closeguide" class="primary-btn">CLOSE</button>
     </div>
   </div>
 </div>
@@ -265,48 +368,45 @@
 <div id="fade"></div>
 <div id="bars"><i></i><i></i></div>
 <div id="cap"></div>
-<div id="skip" class="hidden"><kbd>Spasi</kbd> / <kbd>Klik</kbd> lewati</div>
+<div id="skip" class="hidden"><kbd>SPACE</kbd> / <kbd>CLICK</kbd> Skip Cutscene</div>
 <div id="tut" class="hidden"></div>
 
 <div id="win" class="hidden">
-  <small>LAPORAN OPERASI</small>
-  <h1>GERBANG SELATAN TERTUTUP</h1>
-  <p>Skuadron Pengintai dan Regu Insinyur berhasil mengunci segel tembok serta menumpas seluruh gelombang titan.</p>
+  <small>OPERATION REPORT</small>
+  <h1>SOUTH GATE SEALED</h1>
+  <p>The Survey Corps and Engineer Convoy successfully locked the southern wall breach and repelled the Titan assault.</p>
   <div id="winrank" class="rank-badge">S</div>
   <div id="winstats" class="stats"></div>
   <div class="btns">
-    <button id="cont">LANJUT: TANPA AKHIR</button>
-    <button id="again" class="ghost">MAIN LAGI</button>
-    <button id="winmenu" class="ghost">MENU UTAMA</button>
+    <button id="cont" class="primary-btn">CONTINUE: ENDLESS</button>
+    <button id="again" class="ghost">REPLAY</button>
+    <button id="winmenu" class="ghost">MAIN MENU</button>
   </div>
 </div>
 
 <div id="dead" class="hidden">
-  <h1 id="deadtitle">KAMU GUGUR</h1>
+  <h1 id="deadtitle">KILLED IN ACTION</h1>
   <p id="deadwhy"></p>
   <div id="deadstats" class="stats"></div>
   <div class="btns">
-    <button id="retry">COBA LAGI</button>
-    <button id="deadmenu" class="ghost">MENU UTAMA</button>
+    <button id="retry" class="primary-btn">RETRY</button>
+    <button id="deadmenu" class="ghost">MAIN MENU</button>
   </div>
 </div>
 
 <div id="paused" class="hidden">
-  <h1>OPERASI DIJEDA</h1>
-  <p class="tip">Klik LANJUT atau area kosong untuk kembali ke pertempuran</p>
+  <small>TACTICAL PAUSE</small>
+  <h1>OPERATION PAUSED</h1>
+  <p class="tip">Click RESUME or anywhere outside buttons to return to combat</p>
   <div class="btns pause-btns">
-    <button id="resume">LANJUT</button>
-    <button id="psettings" class="ghost">PENGATURAN</button>
-    <button id="prestart" class="ghost">ULANGI</button>
-    <button id="pmenu" class="ghost">MENU UTAMA</button>
+    <button id="resume" class="primary-btn">RESUME</button>
+    <button id="psettings" class="ghost">SETTINGS</button>
+    <button id="prestart" class="ghost">RESTART</button>
+    <button id="pmenu" class="ghost">MAIN MENU</button>
   </div>
-  <div class="controls compact">
-    <div><kbd>Q</kbd> <kbd>E</kbd> / <kbd>Klik Kanan</kbd> kait</div><div><kbd>Shift</kbd>+<kbd>WASD</kbd> jet belok tajam</div>
-    <div><kbd>Spasi</kbd> tarik kabel · lompat · 2× naik</div><div><kbd>Klik Kiri</kbd> tebas &amp; eksekusi</div>
-    <div><kbd>X</kbd> Rudal Petir (tembak/ledak)</div><div><kbd>T</kbd> perintah Skuadron &amp; Meriam</div>
-    <div><kbd>R</kbd> ganti pedang · <kbd>C</kbd> silinder gas</div><div><kbd>H</kbd> bantuan</div>
-  </div>
+  <div id="pause-binds" class="controls compact"></div>
 </div>
+
 <script type="module" src="/src/main.js"></script>
 </body>
 </html>

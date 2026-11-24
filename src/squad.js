@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { PlayerModel } from './playerModel.js';
 import { Ribbon } from './particles.js';
-import { VFX_COLORS } from './vfx.js';
 import { clamp, rand } from './util.js';
 
 const _v = new THREE.Vector3();
@@ -13,20 +12,20 @@ const _q = new THREE.Quaternion();
 
 const ROSTER = [
   {
-    name: 'Kapt. Reno',
-    role: 'Penyerbu',
+    name: 'Capt. Reno',
+    role: 'Vanguard',
     appearance: { hairStyle: 'levi', hairColor: '#181512', capeStyle: 'survey', scarfColor: '#d8a848', jacketColor: '#2a2d32', bladeAura: '#7ac8ff' },
     offset: new THREE.Vector3(-9, 6, -6),
   },
   {
-    name: 'Sersan Mira',
-    role: 'Pemotong',
+    name: 'Sgt. Mira',
+    role: 'Flanker',
     appearance: { hairStyle: 'ponytail', hairColor: '#7c2820', capeStyle: 'survey', scarfColor: '#b82924', jacketColor: '#9a7a55', bladeAura: '#ffcc55' },
     offset: new THREE.Vector3(9, 7, -6),
   },
   {
-    name: 'Kopral Dax',
-    role: 'Pengawal',
+    name: 'Cpl. Dax',
+    role: 'Support',
     appearance: { hairStyle: 'scout', hairColor: '#c8a25c', capeStyle: 'survey', scarfColor: '#e8e8e2', jacketColor: '#606b76', bladeAura: '#58ff9a' },
     offset: new THREE.Vector3(0, 9, -11),
   },
@@ -52,7 +51,7 @@ export class Squad {
       const cfg = ROSTER[i];
       const model = new PlayerModel(game.scene, cfg.appearance, { lightweight: true });
       const cable = new Ribbon(game.scene, 12, { color: 0x2e2c2a, opacity: 0.95, fog });
-      const trail = new Ribbon(game.scene, 10, { color: 0xffffff, color2: cfg.appearance.bladeAura, additive: true, opacity: 0.85, fog });
+      const trail = new Ribbon(game.scene, 10, { color: 0xffffff, color2: cfg.appearance.bladeAura, additive: true, opacity: 0.8, fog });
       this.members.push({
         idx: i,
         name: cfg.name,
@@ -70,12 +69,14 @@ export class Squad {
         vel: new THREE.Vector3(),
         quat: new THREE.Quaternion(),
         anchor: new THREE.Vector3(),
+        anchorHouse: null,
         hasAnchor: false,
         anchorT: 0,
         target: null,
-        attackCD: rand(0.5, 2.0),
+        attackCD: rand(0.5, 1.8),
+        spearCD: rand(6, 10),
         slashT: -1,
-        status: 'SIAGA',
+        status: 'STANDBY',
         orbitPhase: i * 2.1,
       });
     }
@@ -94,14 +95,25 @@ export class Squad {
       m.pos.copy(pSpawn).add(m.offset);
       m.vel.set(0, 0, 0);
       m.hasAnchor = false;
+      m.anchorHouse = null;
       m.target = null;
       m.slashT = -1;
       m.trailLen = 0;
-      m.status = 'FORMASI';
+      m.status = 'FORMATION';
       m.model.capeInit = false;
       m.model.setVisible(visible);
       m.cable.hide();
       m.trail.hide();
+    }
+  }
+
+  detachHouse(house) {
+    for (const m of this.members) {
+      if (m.anchorHouse === house) {
+        m.hasAnchor = false;
+        m.anchorHouse = null;
+        m.anchorT = 0;
+      }
     }
   }
 
@@ -138,13 +150,13 @@ export class Squad {
       g.vfx.signalFlare(p.pos, 'red');
       for (const m of this.members) {
         m.target = tgt;
-        m.attackCD = Math.min(m.attackCD, 0.3 + m.idx * 0.25);
+        m.attackCD = Math.min(m.attackCD, 0.25 + m.idx * 0.22);
       }
       const cannonsAssigned = g.engineers?.requestArtillery(tgt) || 0;
       g.hud.radio(
         cannonsAssigned > 0
-          ? `KAPT. RENO: Target dikunci! Skuadron menyerbu & ${cannonsAssigned} Meriam menembak!`
-          : 'KAPT. RENO: Perintah diterima! Seluruh skuadron serbu target itu!',
+          ? `CAPT. RENO: Target marked! Squad converging & ${cannonsAssigned} Garrison cannons firing!`
+          : 'CAPT. RENO: Copy that! All wings converging on marked Titan!',
       );
     } else {
       if (this.focusTarget) this.focusTarget.squadMarked = false;
@@ -161,7 +173,7 @@ export class Squad {
         g.engineers.moraleT = 8.0;
         g.engineers.convoyHP = Math.min(100, g.engineers.convoyHP + 15);
       }
-      g.hud.radio('SERSAN MIRA: Skuadron berkumpul! Suplai gas, pedang & rudal diserahkan!');
+      g.hud.radio('SGT. MIRA: Regrouping on your six! Gas, blades & spear resupplied.');
     }
     return true;
   }
@@ -178,8 +190,13 @@ export class Squad {
       const t = g.titans[i];
       if (!t.alive || t.state === 'emerge') continue;
       const d = t.root.position.distanceTo(refPos);
-      if (d > 195) continue;
-      const score = d * (t.type === 'sprinter' ? 0.75 : t.type === 'abnormal' ? 0.8 : 1);
+      if (d > 210) continue;
+      let mult = 1;
+      if (m.idx === 0 && (t.type === 'sprinter' || t.type === 'crawler' || t.hp < 220)) mult = 0.65;
+      else if (m.idx === 1 && (t.type === 'tank' || t.type === 'armored') && t.legCut <= 0) mult = 0.6;
+      else if (m.idx === 2 && t.type === 'armored') mult = 0.55;
+      else if (t.type === 'abnormal') mult = 0.8;
+      const score = d * mult;
       if (score < bestScore) { bestScore = score; best = t; }
     }
     return best;
@@ -187,81 +204,102 @@ export class Squad {
 
   pickSwingAnchor(m, goal) {
     const g = this.game;
-    let bestPt = null, bestScore = -Infinity;
+    let bestPt = null, bestHouse = null, bestScore = -Infinity;
     _v2.subVectors(goal, m.pos);
     const goalDist = _v2.length();
     if (goalDist > 1e-3) _v2.divideScalar(goalDist);
-    for (let k = 0; k < 8; k++) {
-      const ob = g.world.obstacles[(m.idx * 37 + Math.floor(g.elapsed * 7) + k * 19) % g.world.obstacles.length];
-      if (!ob || ob.dead || ob.h < 10) continue;
-      _v.set(ob.x, Math.min(ob.h, 28), ob.z);
+    const obs = g.world.obstacles;
+    for (let k = 0; k < 12; k++) {
+      const ob = obs[(m.idx * 37 + Math.floor(g.elapsed * 9) + k * 17) % obs.length];
+      if (!ob || ob.dead || ob.h < 9) continue;
+      _v.set(ob.x, Math.min(ob.h, 30), ob.z);
       _v3.subVectors(_v, m.pos);
       const d = _v3.length();
-      if (d < 12 || d > 110) continue;
+      if (d < 12 || d > 115) continue;
       const align = _v3.dot(_v2) / d;
-      const score = align * 40 + _v.y * 0.4 - Math.abs(d - 48) * 0.25;
-      if (score > bestScore) { bestScore = score; bestPt = _v.clone(); }
+      const score = align * 42 + _v.y * 0.45 - Math.abs(d - 46) * 0.24;
+      if (score > bestScore) { bestScore = score; bestPt = _v.clone(); bestHouse = ob.house || null; }
     }
     if (bestPt) {
       m.anchor.copy(bestPt);
+      m.anchorHouse = bestHouse;
       m.hasAnchor = true;
-      m.anchorT = rand(0.7, 1.4);
+      m.anchorT = rand(0.65, 1.25);
     } else {
       m.hasAnchor = false;
-      m.anchorT = 0.4;
+      m.anchorHouse = null;
+      m.anchorT = 0.35;
     }
   }
 
   performStrike(m, t) {
     const g = this.game, p = g.player;
     m.slashT = 0;
-    m.attackCD = rand(2.3, 3.8);
-    g.vfx.slashArc(m.pos, m.quat, 2.5);
-    g.audio.whoosh(m.pos, 0.8);
+    m.attackCD = rand(2.1, 3.5);
+    g.vfx.slashArc(m.pos, m.quat, 2.3);
+    g.audio.whoosh(m.pos, 0.75);
 
     if (p.grabbedBy === t) {
-      t.hit('arm', 180, m.pos, m.vel, t.grabSide === 1 ? 1 : -1);
-      g.hud.radio(`${m.name.toUpperCase()}: Bertahan Komandan! Tangannya kupotong!`);
+      t.hit('arm', 190, m.pos, m.vel, t.grabSide === 1 ? 1 : -1);
+      g.hud.radio(`${m.name.toUpperCase()}: Hang on Commander! Severing its grip!`);
       return;
     }
 
-    if (t.type === 'armored' && t.armor > 0) {
-      const r = t.hit('nape', 140, t.nape.c, m.vel, 0, { heavy: true });
+    if (m.idx === 2 && m.spearCD <= 0 && (t.armor > 0 || t.type === 'tank')) {
+      m.spearCD = 12;
+      g.audio.rocketLaunch();
+      g.vfx.flash(t.nape.c, 3.4, 0xffaa44);
+      g.vfx.impactRing(t.nape.c, _up, 7.5, 0xffd29a, 0.25);
+      const r = t.hit('nape', 210, t.nape.c, m.vel, 0, { explosive: true });
       if (r.result === 'armor-break') {
         g.vfx.armorShatter(t.nape.c, m.vel);
         g.audio.armorShatter(t.nape.c);
-        g.hud.radio(`${m.name.toUpperCase()}: Zirah Titan Lapis retak! Selesaikan tengkuknya!`);
-      } else if (t.legCut <= 0 && Math.random() < 0.65) {
-        t.hit('ankle', 180, t.root.position, m.vel, 1);
-        g.vfx.bloodSpray(t.root.position, m.vel, 22, 0.85);
-        g.hud.pop(t.root.position, 'SKUAD: TENDON', 'small');
+        g.hud.radio('CPL. DAX: Thunder Spear landed — nape armor shattered! Move in!');
       } else {
-        g.vfx.sparks(t.nape.c, 14);
+        t.stagger(3.0);
+        g.hud.pop(t.nape.c, 'SQUAD SPEAR', 'small');
       }
       return;
     }
 
-    const executeSmall = t.type === 'sprinter' || t.hp <= 220 || (this.focusTarget === t && t.hp <= 340);
+    if (t.type === 'armored' && t.armor > 0) {
+      const r = t.hit('nape', 145, t.nape.c, m.vel, 0, { heavy: true });
+      if (r.result === 'armor-break') {
+        g.vfx.armorShatter(t.nape.c, m.vel);
+        g.audio.armorShatter(t.nape.c);
+        g.hud.radio(`${m.name.toUpperCase()}: Armored nape cracked open! Finish it!`);
+      } else if (t.legCut <= 0 && Math.random() < 0.7) {
+        t.hit('ankle', 180, t.root.position, m.vel, 1);
+        g.vfx.bloodSpray(t.root.position, m.vel, 18, 0.85);
+        g.hud.pop(t.root.position, 'TENDON CUT', 'small');
+      } else {
+        g.vfx.sparks(t.nape.c, 12);
+      }
+      return;
+    }
+
+    const executeSmall = t.type === 'sprinter' || t.type === 'crawler' || t.hp <= 220 || (this.focusTarget === t && t.hp <= 340);
     if (executeSmall) {
-      const r = t.hit('nape', 420, t.nape.c, m.vel);
+      const r = t.hit('nape', 420, t.nape.c, m.vel, 0, { heavy: true });
       if (r.result === 'kill') {
         g.kills++;
         g.vfx.napeKill(t.nape.c, m.vel);
         g.audio.flesh(t.nape.c, false);
         g.hud.pop(t.nape.c, m.name.split(' ')[1].toUpperCase(), 'small');
-        g.hud.killFeed(`<b>${m.name}</b> mengeksekusi <em>Titan ${t.label}</em>`);
+        g.hud.killFeed(`<b>${m.name}</b> eliminated <em>${t.label}</em>`);
       } else {
-        g.vfx.bloodSpray(t.nape.c, m.vel, 24, 0.9);
+        g.vfx.bloodSpray(t.nape.c, m.vel, 18, 0.85);
       }
     } else if (t.legCut <= 0 && (m.idx === 1 || Math.random() < 0.6)) {
       t.hit('ankle', 190, t.root.position, m.vel, 1);
-      g.vfx.bloodSpray(t.root.position, m.vel, 24, 0.9);
-      g.hud.pop(t.root.position, 'LUMPUH!', 'small');
+      g.vfx.bloodSpray(t.root.position, m.vel, 18, 0.85);
+      g.hud.pop(t.root.position, 'CRIPPLED!', 'small');
+      if (m.idx === 1 && Math.random() < 0.4) g.hud.radio('SGT. MIRA: Tendons severed — nape is wide open!');
     } else if (t.armCut[1] <= 1.2 && Math.random() < 0.5) {
       t.hit('arm', 170, m.pos, m.vel, 1);
     } else {
-      t.hit('nape', 150, t.nape.c, m.vel);
-      g.vfx.bloodSpray(t.nape.c, m.vel, 24, 0.9);
+      t.hit('nape', 155, t.nape.c, m.vel, 0, { heavy: true });
+      g.vfx.bloodSpray(t.nape.c, m.vel, 18, 0.85);
     }
   }
 
@@ -288,7 +326,7 @@ export class Squad {
       this.targetBeacon.visible = true;
       this.targetBeacon.position.copy(this.focusTarget.nape.c).setY(this.focusTarget.nape.c.y + 3.2 * this.focusTarget.s);
       this.targetBeacon.rotation.y += dt * 3.5;
-      this.targetBeacon.scale.setScalar(this.focusTarget.s * (1.2 + Math.sin(g.elapsed * 7) * 0.2));
+      this.targetBeacon.scale.setScalar(this.focusTarget.s * (1.15 + Math.sin(g.elapsed * 7) * 0.18));
     } else {
       this.targetBeacon.visible = false;
     }
@@ -299,8 +337,9 @@ export class Squad {
       if (!activeMode) { m.cable.hide(); m.trail.hide(); continue; }
 
       m.attackCD -= dt;
+      m.spearCD = Math.max(0, (m.spearCD || 0) - dt);
       m.anchorT -= dt;
-      m.orbitPhase += dt * (1.35 + i * 0.18);
+      m.orbitPhase += dt * (1.4 + i * 0.18);
       if (m.slashT >= 0) {
         m.slashT += dt / 0.3;
         if (m.slashT > 1) m.slashT = -1;
@@ -312,62 +351,68 @@ export class Squad {
 
       if (p.grabbedBy === tgt && tgt) {
         tgt.handPos(tgt.grabSide, goal);
-        m.status = 'MENYELAMATKAN!';
+        m.status = 'RESCUING';
       } else if (tgt) {
-        const orbitR = m.attackCD <= 0.35 ? 1.8 : 14 + i * 3;
+        const orbitR = m.attackCD <= 0.35 ? 1.8 : 13 + i * 3;
         const oa = m.orbitPhase + i * 2.09;
-        const aimLow = tgt.legCut <= 0 && tgt.type !== 'sprinter' && m.idx === 1;
+        const aimLow = tgt.legCut <= 0 && tgt.type !== 'sprinter' && tgt.type !== 'crawler' && m.idx === 1;
         if (aimLow && m.attackCD <= 0.35) {
           goal.copy(tgt.root.position).setY(2.2 * tgt.s);
         } else {
           goal.copy(tgt.nape.c);
           goal.x += Math.cos(oa) * orbitR;
           goal.z += Math.sin(oa) * orbitR;
-          goal.y = Math.max(4, goal.y + (m.attackCD <= 0.35 ? 0.5 : 3.5));
+          goal.y = Math.max(4, goal.y + (m.attackCD <= 0.35 ? 0.5 : 3.4));
         }
-        m.status = this.focusTarget === tgt ? 'FOKUS SERBU' : 'MENYERANG';
+        m.status = this.focusTarget === tgt ? 'FOCUS FIRE' : aimLow ? 'FLANKING' : 'ENGAGING';
       } else {
         const base = m.idx === 2 && g.engineers?.activeConvoy && this.rallyT <= 0 ? g.engineers.convoyPos : p.pos;
         const oa = m.orbitPhase * 0.55 + i * 2.1;
         const rad = this.rallyT > 0 ? 7.5 : 16;
-        goal.set(base.x + Math.cos(oa) * rad, Math.max(10, base.y + 5 + (i % 2) * 3), base.z + Math.sin(oa) * rad);
-        m.status = this.rallyT > 0 ? 'BERKUMPUL' : m.idx === 2 && g.engineers?.activeConvoy ? 'KAWAL KONVOI' : 'PATROLI';
+        goal.set(base.x + Math.cos(oa) * rad, Math.max(11, base.y + 5 + (i % 2) * 3), base.z + Math.sin(oa) * rad);
+        m.status = this.rallyT > 0 ? 'RALLYING' : m.idx === 2 && g.engineers?.activeConvoy ? 'ESCORT' : 'FORMATION';
       }
 
       _v2.subVectors(goal, m.pos);
       const dist = _v2.length();
-      const maxSpd = p.grabbedBy === tgt ? 40 : this.focusTarget === tgt ? 33 : 26;
+      const maxSpd = p.grabbedBy === tgt ? 42 : this.focusTarget === tgt ? 35 : 28;
       if (dist > 0.5) {
         _v2.divideScalar(dist);
-        const wantSpd = clamp(dist * 2.1, 9, maxSpd);
+        const wantSpd = clamp(dist * 2.1, 10, maxSpd);
         _v2.multiplyScalar(wantSpd);
-        m.vel.lerp(_v2, 1 - Math.exp(-4.5 * dt));
+        m.vel.lerp(_v2, 1 - Math.exp(-4.6 * dt));
       }
-      m.vel.y += Math.sin(g.elapsed * 3.2 + i * 1.7) * 4 * dt;
+      if (m.hasAnchor) {
+        _v3.subVectors(m.anchor, m.pos);
+        const ad = _v3.length();
+        if (ad > 1) m.vel.addScaledVector(_v3.divideScalar(ad), 6.5 * dt);
+      }
+      m.vel.y += Math.sin(g.elapsed * 3.0 + i * 1.7) * 3.5 * dt;
       m.pos.addScaledVector(m.vel, dt);
-      if (m.pos.y < 2.2) { m.pos.y = 2.2; if (m.vel.y < 0) m.vel.y = 3; }
+      if (m.pos.y < 2.6) { m.pos.y = 2.6; if (m.vel.y < 0) m.vel.y = 3.5; }
 
       if (tgt && m.attackCD <= 0) {
         const hitPt = p.grabbedBy === tgt ? tgt.handPos(tgt.grabSide, _v3) : (m.idx === 1 && tgt.legCut <= 0 && tgt.type !== 'sprinter' ? _v3.copy(tgt.root.position).setY(2.2 * tgt.s) : tgt.nape.c);
-        if (m.pos.distanceTo(hitPt) < 4.5 + tgt.s * 1.4) {
+        if (m.pos.distanceTo(hitPt) < 4.8 + tgt.s * 1.4) {
           this.performStrike(m, tgt);
         }
       }
 
       if (m.anchorT <= 0) {
-        if (tgt && m.pos.distanceTo(tgt.nape.c) < 55) {
+        if (tgt && m.pos.distanceTo(tgt.nape.c) < 58) {
           m.anchor.copy(tgt.nape.c);
+          m.anchorHouse = null;
           m.hasAnchor = true;
-          m.anchorT = rand(0.45, 0.9);
+          m.anchorT = rand(0.45, 0.85);
         } else {
           this.pickSwingAnchor(m, goal);
         }
       }
 
       const spd = m.vel.length();
-      if (spd > 18 && Math.random() < dt * 12) {
+      if (spd > 19 && Math.random() < dt * 10) {
         _v3.copy(m.vel).normalize();
-        g.vfx.gas(m.pos, _v3, 0.5);
+        g.vfx.gas(m.pos, _v3, 0.45);
       }
 
       const fwd = _v2.copy(m.vel);
@@ -377,7 +422,7 @@ export class Squad {
       const upOrtho = _v.crossVectors(fwd, right).normalize();
       _m.makeBasis(right, upOrtho, fwd);
       _q.setFromRotationMatrix(_m);
-      m.quat.slerp(_q, 1 - Math.exp(-10 * dt));
+      m.quat.slerp(_q, 1 - Math.exp(-9 * dt));
 
       m.model.update(dt, m.pos, m.quat, {
         grounded: false,
@@ -398,9 +443,9 @@ export class Squad {
         for (let k = 0; k < pts.length; k++) {
           const u = k / (pts.length - 1);
           pts[k].lerpVectors(gearFrom, m.anchor, u);
-          pts[k].y -= Math.sin(u * Math.PI) * 0.6;
+          pts[k].y -= Math.sin(u * Math.PI) * 0.55;
         }
-        m.cable.set(pts, camPos, 0.045, 0.85);
+        m.cable.set(pts, camPos, 0.042, 0.85);
       } else {
         m.cable.hide();
       }
@@ -416,7 +461,7 @@ export class Squad {
       if (m.trailLen > 1) {
         m.trailSlice.length = m.trailLen;
         for (let k = 0; k < m.trailLen; k++) m.trailSlice[k] = m.trailPts[(m.trailHead + k) % m.trailPts.length];
-        m.trail.set(m.trailSlice, camPos, (k, nn) => 0.24 * (1 - k / nn), (k, nn) => (1 - k / nn) * 0.7);
+        m.trail.set(m.trailSlice, camPos, (k, nn) => 0.22 * (1 - k / nn), (k, nn) => (1 - k / nn) * 0.65);
       } else {
         m.trail.hide();
       }

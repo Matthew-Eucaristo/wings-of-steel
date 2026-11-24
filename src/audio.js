@@ -1,5 +1,8 @@
 import { clamp } from './util.js';
 
+const OSTINATO = [146.83, 174.61, 220.0, 174.61, 130.81, 174.61, 196.0, 164.81];
+const HORN_PHRASE = [293.66, 0, 349.23, 0, 440.0, 392.0, 349.23, 329.63];
+
 export class Audio {
   constructor(game) {
     this.game = game;
@@ -7,7 +10,8 @@ export class Audio {
     this.enabled = true;
     this.musicOn = true;
     this.masterVol = 0.8;
-    this.sfxVol = 1.0;
+    this.musicVol = 0.65;
+    this.sfxVol = 0.9;
     this.beatAcc = 0;
     this.beatStep = 0;
   }
@@ -44,13 +48,20 @@ export class Audio {
       b[i] = last * 3.5;
     }
     this.wind = this.loop(this.noise, 'bandpass', 600, 0.6);
-    this.gasL = this.loop(this.noise, 'highpass', 2500, 0.5);
+    this.gasL = this.loop(this.noise, 'highpass', 2400, 0.5);
+    this.winchL = this.loop(this.noise, 'bandpass', 1800, 7.5);
     this.spinL = this.loop(this.noise, 'bandpass', 900, 4);
     this.music();
   }
   setVolume(v) {
     this.masterVol = clamp(v, 0, 1);
     if (this.master && this.ctx) this.master.gain.setTargetAtTime(this.masterVol, this.ctx.currentTime, 0.04);
+  }
+  setMusicVolume(v) {
+    this.musicVol = clamp(v, 0, 1);
+  }
+  setSfxVolume(v) {
+    this.sfxVol = clamp(v, 0, 1);
   }
   impulse(sec) {
     const ctx = this.ctx, len = Math.floor(ctx.sampleRate * sec), buf = ctx.createBuffer(2, len, ctx.sampleRate);
@@ -118,187 +129,194 @@ export class Audio {
   hookFire() {
     if (!this.ok()) return;
     const o = this.out(null, 0.5, 0.05);
-    this.burst(o, { type: 'highpass', f0: 3000, f1: 6000, dur: 0.12, vol: 0.5 });
-    this.tone(o, { type: 'square', f0: 220, f1: 90, dur: 0.06, vol: 0.12 });
-    this.burst(o, { f0: 2600, f1: 1400, q: 8, dur: 0.32, vol: 0.2, att: 0.03 });
+    this.burst(o, { type: 'highpass', f0: 3200, f1: 6400, dur: 0.11, vol: 0.48 });
+    this.tone(o, { type: 'square', f0: 240, f1: 95, dur: 0.055, vol: 0.11 });
+    this.burst(o, { f0: 2800, f1: 1500, q: 9, dur: 0.28, vol: 0.18, att: 0.025 });
   }
   hookHit(pos, flesh) {
     if (!this.ok()) return;
-    const o = this.out(pos, 0.9, 0.3, 22);
-    if (flesh) this.burst(o, { type: 'lowpass', f0: 900, f1: 200, dur: 0.18, vol: 0.8 });
+    const o = this.out(pos, 0.85, 0.28, 22);
+    if (flesh) this.burst(o, { type: 'lowpass', f0: 900, f1: 200, dur: 0.18, vol: 0.78 });
     else {
-      this.burst(o, { f0: 3200, f1: 1800, q: 3, dur: 0.12, vol: 0.9 });
-      this.tone(o, { type: 'triangle', f0: 1800, f1: 1500, dur: 0.15, vol: 0.08 });
+      this.burst(o, { f0: 3400, f1: 1800, q: 3.5, dur: 0.11, vol: 0.85 });
+      this.tone(o, { type: 'triangle', f0: 1900, f1: 1500, dur: 0.14, vol: 0.09 });
     }
   }
   hookRetract() {
     if (!this.ok()) return;
-    const o = this.out(null, 0.25, 0);
-    this.burst(o, { f0: 1500, f1: 3500, q: 6, dur: 0.22, vol: 0.24, att: 0.02 });
+    const o = this.out(null, 0.24, 0);
+    this.burst(o, { f0: 1600, f1: 3600, q: 7, dur: 0.2, vol: 0.22, att: 0.02 });
+  }
+  structureCrack(pos) {
+    if (!this.ok()) return;
+    const o = this.out(pos, 0.85, 0.35, 55);
+    this.burst(o, { buf: this.brown, type: 'bandpass', f0: 520, f1: 160, q: 1.5, dur: 0.38, vol: 1.0, att: 0.004 });
+    this.burst(o, { f0: 2400, f1: 900, q: 2, dur: 0.18, vol: 0.45, att: 0.002 });
+  }
+  buildingCollapse(pos) {
+    if (!this.ok()) return;
+    const o = this.out(pos, 1.35, 0.65, 85);
+    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 440, f1: 35, dur: 1.85, vol: 2.0, att: 0.015 });
+    this.burst(o, { f0: 1900, f1: 520, q: 1.8, dur: 0.65, vol: 0.65, att: 0.01 });
+    this.tone(o, { f0: 62, f1: 24, dur: 1.1, vol: 0.6 });
   }
   jump() {
     if (!this.ok()) return;
-    this.burst(this.out(null, 0.3, 0), { type: 'lowpass', f0: 600, f1: 200, dur: 0.12, vol: 0.4 });
+    this.burst(this.out(null, 0.28, 0), { type: 'lowpass', f0: 600, f1: 200, dur: 0.12, vol: 0.38 });
   }
   slash(speed) {
     if (!this.ok()) return;
-    const o = this.out(null, 0.6 + Math.min(0.4, speed / 80), 0.1);
-    this.burst(o, { f0: 1800, f1: 5400, q: 2, dur: 0.2, vol: 0.9, att: 0.02 });
-    this.tone(o, { type: 'sawtooth', f0: 3200, f1: 2300, dur: 0.16, vol: 0.04 });
+    const o = this.out(null, 0.58 + Math.min(0.38, speed / 80), 0.1);
+    this.burst(o, { f0: 1900, f1: 5600, q: 2.2, dur: 0.19, vol: 0.86, att: 0.015 });
+    this.tone(o, { type: 'sawtooth', f0: 3200, f1: 2300, dur: 0.15, vol: 0.038 });
   }
   spin() {
     if (!this.ok()) return;
-    const o = this.out(null, 0.7, 0.2);
+    const o = this.out(null, 0.68, 0.2);
     for (let i = 0; i < 4; i++) {
-      this.burst(o, { f0: 1500 + i * 400, f1: 5200, q: 2, dur: 0.15, vol: 0.7, att: 0.02, delay: i * 0.085 });
+      this.burst(o, { f0: 1500 + i * 400, f1: 5200, q: 2, dur: 0.15, vol: 0.68, att: 0.02, delay: i * 0.085 });
     }
   }
   hitImpact(heavy) {
     if (!this.ok()) return;
-    const o = this.out(null, heavy ? 1.35 : 0.85, 0.22);
-    this.tone(o, { type: 'sine', f0: heavy ? 140 : 165, f1: 26, dur: heavy ? 0.38 : 0.18, vol: heavy ? 0.95 : 0.55, att: 0.001 });
-    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 420, f1: 48, dur: heavy ? 0.32 : 0.14, vol: heavy ? 1.1 : 0.5, att: 0.001 });
-    this.burst(o, { f0: 4400, f1: 950, q: 2.2, dur: 0.11, vol: heavy ? 0.9 : 0.5, att: 0.001 });
+    const o = this.out(null, heavy ? 1.25 : 0.8, 0.2);
+    this.tone(o, { type: 'sine', f0: heavy ? 140 : 165, f1: 26, dur: heavy ? 0.34 : 0.18, vol: heavy ? 0.9 : 0.52, att: 0.001 });
+    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 420, f1: 48, dur: heavy ? 0.3 : 0.14, vol: heavy ? 1.0 : 0.48, att: 0.001 });
+    this.burst(o, { f0: 4400, f1: 950, q: 2.2, dur: 0.11, vol: heavy ? 0.85 : 0.48, att: 0.001 });
     if (heavy) {
-      this.tone(o, { type: 'triangle', f0: 2600, f1: 1200, dur: 0.24, vol: 0.18, att: 0.002 });
-      this.burst(o, { type: 'highpass', f0: 2400, f1: 6200, dur: 0.26, vol: 0.55, att: 0.01, delay: 0.11 });
+      this.tone(o, { type: 'triangle', f0: 2500, f1: 1200, dur: 0.22, vol: 0.16, att: 0.002 });
+      this.burst(o, { type: 'highpass', f0: 2400, f1: 6000, dur: 0.24, vol: 0.48, att: 0.01, delay: 0.1 });
     }
   }
   flesh(pos, big) {
     if (!this.ok()) return;
-    const o = this.out(pos, big ? 1.35 : 0.9, 0.3, 28);
-    this.burst(o, { type: 'lowpass', f0: 2200, f1: 300, dur: big ? 0.48 : 0.24, vol: 1 });
-    this.burst(o, { f0: 5000, f1: 7000, q: 1, dur: 0.08, vol: 0.5 });
-    this.burst(o, { type: 'highpass', f0: 1200, f1: 400, dur: big ? 1.4 : 0.55, vol: 0.25, att: 0.08 });
+    const o = this.out(pos, big ? 1.25 : 0.88, 0.28, 28);
+    this.burst(o, { type: 'lowpass', f0: 2200, f1: 300, dur: big ? 0.44 : 0.24, vol: 0.95 });
+    this.burst(o, { f0: 5000, f1: 7000, q: 1, dur: 0.08, vol: 0.45 });
+    this.burst(o, { type: 'highpass', f0: 1200, f1: 400, dur: big ? 1.2 : 0.5, vol: 0.22, att: 0.08 });
     this.hitImpact(big);
   }
   limbSever(pos) {
     if (!this.ok()) return;
-    const o = this.out(pos, 1.15, 0.35, 30);
-    this.burst(o, { type: 'lowpass', f0: 1800, f1: 180, dur: 0.42, vol: 1.1, att: 0.002 });
-    this.burst(o, { f0: 3600, f1: 900, q: 2.5, dur: 0.14, vol: 0.8 });
+    const o = this.out(pos, 1.1, 0.32, 30);
+    this.burst(o, { type: 'lowpass', f0: 1800, f1: 180, dur: 0.4, vol: 1.0, att: 0.002 });
+    this.burst(o, { f0: 3600, f1: 900, q: 2.5, dur: 0.14, vol: 0.75 });
     this.hitImpact(false);
   }
   rocketLaunch() {
     if (!this.ok()) return;
-    const o = this.out(null, 1.0, 0.28);
-    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 680, f1: 120, dur: 0.45, vol: 1.2, att: 0.003 });
-    this.burst(o, { type: 'bandpass', f0: 1600, f1: 4800, q: 3.5, dur: 0.55, vol: 0.85, att: 0.01 });
-    this.tone(o, { type: 'sawtooth', f0: 520, f1: 1680, dur: 0.35, vol: 0.14, att: 0.01 });
+    const o = this.out(null, 0.95, 0.26);
+    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 680, f1: 120, dur: 0.42, vol: 1.1, att: 0.003 });
+    this.burst(o, { type: 'bandpass', f0: 1600, f1: 4800, q: 3.5, dur: 0.5, vol: 0.8, att: 0.01 });
+    this.tone(o, { type: 'sawtooth', f0: 520, f1: 1680, dur: 0.32, vol: 0.13, att: 0.01 });
   }
   fuseBeep(pos, pitch = 1) {
     if (!this.ok()) return;
-    const o = this.out(pos, 0.65, 0.15, 45);
-    this.tone(o, { type: 'square', f0: 1650 * pitch, f1: 1850 * pitch, dur: 0.06, vol: 0.16, att: 0.002 });
+    const o = this.out(pos, 0.62, 0.15, 45);
+    this.tone(o, { type: 'square', f0: 1650 * pitch, f1: 1850 * pitch, dur: 0.06, vol: 0.15, att: 0.002 });
   }
   boulderThrow(pos) {
     if (!this.ok()) return;
-    const o = this.out(pos, 1.2, 0.5, 80);
-    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 360, f1: 60, dur: 0.85, vol: 1.7, att: 0.01 });
+    const o = this.out(pos, 1.15, 0.48, 80);
+    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 360, f1: 60, dur: 0.8, vol: 1.6, att: 0.01 });
   }
   clang(pos) {
     if (!this.ok()) return;
-    const o = this.out(pos, 0.8, 0.4);
-    this.tone(o, { type: 'triangle', f0: 2200, f1: 1850, dur: 0.38, vol: 0.18 });
-    this.tone(o, { type: 'sine', f0: 3420, f1: 3100, dur: 0.25, vol: 0.1 });
-    this.burst(o, { f0: 4200, f1: 2400, q: 5, dur: 0.1, vol: 0.65 });
+    const o = this.out(pos, 0.78, 0.38);
+    this.tone(o, { type: 'triangle', f0: 2200, f1: 1850, dur: 0.36, vol: 0.18 });
+    this.tone(o, { type: 'sine', f0: 3420, f1: 3100, dur: 0.24, vol: 0.1 });
+    this.burst(o, { f0: 4200, f1: 2400, q: 5, dur: 0.1, vol: 0.6 });
   }
   armorShatter(pos) {
     if (!this.ok()) return;
-    const o = this.out(pos, 1.25, 0.45, 35);
-    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 620, f1: 65, dur: 0.65, vol: 1.5, att: 0.004 });
-    this.tone(o, { type: 'sawtooth', f0: 1450, f1: 420, dur: 0.32, vol: 0.18 });
-    this.burst(o, { f0: 4800, f1: 1400, q: 2.2, dur: 0.26, vol: 0.85 });
+    const o = this.out(pos, 1.2, 0.42, 35);
+    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 620, f1: 65, dur: 0.6, vol: 1.4, att: 0.004 });
+    this.tone(o, { type: 'sawtooth', f0: 1450, f1: 420, dur: 0.3, vol: 0.17 });
+    this.burst(o, { f0: 4800, f1: 1400, q: 2.2, dur: 0.25, vol: 0.8 });
     this.hitImpact(true);
   }
   cannonBoom(pos) {
     if (!this.ok()) return;
-    const o = this.out(pos, 1.4, 0.75, 85);
-    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 520, f1: 38, dur: 1.4, vol: 1.9, att: 0.004 });
-    this.tone(o, { type: 'sine', f0: 88, f1: 28, dur: 0.65, vol: 0.65, att: 0.004 });
+    const o = this.out(pos, 1.35, 0.7, 85);
+    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 520, f1: 38, dur: 1.3, vol: 1.8, att: 0.004 });
+    this.tone(o, { type: 'sine', f0: 88, f1: 28, dur: 0.6, vol: 0.6, att: 0.004 });
   }
   flareLaunch() {
     if (!this.ok()) return;
-    const o = this.out(null, 0.7, 0.35);
-    this.burst(o, { type: 'bandpass', f0: 1400, f1: 3800, q: 6, dur: 0.55, vol: 0.58, att: 0.02 });
-    this.tone(o, { type: 'sine', f0: 950, f1: 2450, dur: 0.5, vol: 0.16, att: 0.03 });
+    const o = this.out(null, 0.68, 0.32);
+    this.burst(o, { type: 'bandpass', f0: 1400, f1: 3800, q: 6, dur: 0.52, vol: 0.55, att: 0.02 });
+    this.tone(o, { type: 'sine', f0: 950, f1: 2450, dur: 0.48, vol: 0.15, att: 0.03 });
   }
   squadAck() {
     if (!this.ok()) return;
-    const o = this.out(null, 0.45, 0.1);
-    this.tone(o, { type: 'triangle', f0: 660, f1: 880, dur: 0.09, vol: 0.14 });
-    this.tone(o, { type: 'triangle', f0: 880, f1: 1120, dur: 0.11, vol: 0.14, delay: 0.08 });
+    const o = this.out(null, 0.42, 0.1);
+    this.tone(o, { type: 'triangle', f0: 660, f1: 880, dur: 0.09, vol: 0.13 });
+    this.tone(o, { type: 'triangle', f0: 880, f1: 1120, dur: 0.11, vol: 0.13, delay: 0.08 });
   }
   horn() {
     if (!this.ok()) return;
-    const o = this.out(null, 0.75, 0.65);
-    this.tone(o, { type: 'sawtooth', f0: 196, f1: 196, dur: 1.1, vol: 0.12, att: 0.15 });
-    this.tone(o, { type: 'triangle', f0: 293.7, f1: 294, dur: 1.2, vol: 0.14, att: 0.18 });
+    const o = this.out(null, 0.72, 0.6);
+    this.tone(o, { type: 'sawtooth', f0: 146.8, f1: 146.8, dur: 1.15, vol: 0.11, att: 0.14 });
+    this.tone(o, { type: 'triangle', f0: 220, f1: 220, dur: 1.2, vol: 0.13, att: 0.18 });
   }
   bladeBreak() {
     if (!this.ok()) return;
-    const o = this.out(null, 0.8, 0.3);
-    this.tone(o, { type: 'square', f0: 3200, f1: 800, dur: 0.25, vol: 0.12 });
-    this.burst(o, { f0: 6000, f1: 2000, q: 2, dur: 0.3, vol: 0.6 });
+    const o = this.out(null, 0.78, 0.28);
+    this.tone(o, { type: 'square', f0: 3200, f1: 800, dur: 0.24, vol: 0.12 });
+    this.burst(o, { f0: 6000, f1: 2000, q: 2, dur: 0.28, vol: 0.56 });
   }
   alarm() {
     if (!this.ok()) return;
-    const o = this.out(null, 0.55, 0.3);
+    const o = this.out(null, 0.5, 0.28);
     for (let i = 0; i < 3; i++) {
-      this.tone(o, { type: 'square', f0: 620, f1: 620, dur: 0.16, vol: 0.09, delay: i * 0.44 });
-      this.tone(o, { type: 'square', f0: 470, f1: 470, dur: 0.16, vol: 0.09, delay: i * 0.44 + 0.2 });
+      this.tone(o, { type: 'square', f0: 620, f1: 620, dur: 0.15, vol: 0.08, delay: i * 0.44 });
+      this.tone(o, { type: 'square', f0: 470, f1: 470, dur: 0.15, vol: 0.08, delay: i * 0.44 + 0.2 });
     }
   }
   bladeSwap() {
     if (!this.ok()) return;
-    const o = this.out(null, 0.6, 0.1);
-    this.tone(o, { type: 'triangle', f0: 1400, f1: 1200, dur: 0.1, vol: 0.1 });
-    this.burst(o, { f0: 3000, f1: 5000, q: 3, dur: 0.18, vol: 0.5, delay: 0.11 });
+    const o = this.out(null, 0.58, 0.1);
+    this.tone(o, { type: 'triangle', f0: 1450, f1: 1220, dur: 0.09, vol: 0.1 });
+    this.burst(o, { f0: 3200, f1: 5400, q: 3.5, dur: 0.17, vol: 0.48, delay: 0.1 });
   }
   click() {
     if (!this.ok()) return;
-    this.tone(this.out(null, 0.3, 0), { type: 'square', f0: 340, f1: 220, dur: 0.045, vol: 0.09 });
+    this.tone(this.out(null, 0.28, 0), { type: 'square', f0: 340, f1: 220, dur: 0.045, vol: 0.08 });
   }
   struggle() {
     if (!this.ok()) return;
-    this.burst(this.out(null, 0.5, 0.2), { type: 'lowpass', f0: 500, f1: 150, dur: 0.15, vol: 0.6 });
+    this.burst(this.out(null, 0.48, 0.2), { type: 'lowpass', f0: 500, f1: 150, dur: 0.15, vol: 0.58 });
   }
   hurt() {
     if (!this.ok()) return;
-    const o = this.out(null, 0.9, 0.2);
-    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 400, f1: 60, dur: 0.5, vol: 1.4 });
+    const o = this.out(null, 0.85, 0.2);
+    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 400, f1: 60, dur: 0.48, vol: 1.3 });
   }
   land(v) {
     if (!this.ok()) return;
-    this.burst(this.out(null, Math.min(1, v / 20), 0.1), { buf: this.brown, type: 'lowpass', f0: 500, f1: 80, dur: 0.25, vol: 1.2 });
+    this.burst(this.out(null, Math.min(1, v / 20), 0.1), { buf: this.brown, type: 'lowpass', f0: 500, f1: 80, dur: 0.24, vol: 1.15 });
   }
   dash() {
     if (!this.ok()) return;
-    const o = this.out(null, 0.7, 0.1);
-    this.burst(o, { type: 'highpass', f0: 1200, f1: 3000, dur: 0.32, vol: 0.78, att: 0.01 });
+    const o = this.out(null, 0.65, 0.1);
+    this.burst(o, { type: 'highpass', f0: 1300, f1: 3100, dur: 0.28, vol: 0.72, att: 0.01 });
   }
-  step(pos, size) {
+  fall(pos) {
     if (!this.ok()) return;
-    const o = this.out(pos, 0.6 + size * 0.08, 0.5, 70);
-    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 260, f1: 40, dur: 0.7, vol: 1.6 });
-    this.tone(o, { f0: 55, f1: 30, dur: 0.5, vol: 0.5 });
-  }
-  fall(pos, size) {
-    if (!this.ok()) return;
-    const o = this.out(pos, 1.6, 0.8, 90);
-    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 400, f1: 30, dur: 2.2, vol: 2.2, att: 0.02 });
-    this.tone(o, { f0: 50, f1: 22, dur: 1.6, vol: 0.9 });
+    const o = this.out(pos, 1.5, 0.75, 90);
+    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 400, f1: 30, dur: 2.0, vol: 2.0, att: 0.02 });
+    this.tone(o, { f0: 50, f1: 22, dur: 1.5, vol: 0.85 });
   }
   step(pos, height) {
     if (!this.ok()) return;
-    const o = this.out(pos, 0.5 + height * 0.02, 0.35, 70);
-    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 220, f1: 40, dur: 0.26, vol: 1.1, att: 0.01 });
-    this.tone(o, { f0: 58, f1: 28, dur: 0.2, vol: 0.45 });
+    const o = this.out(pos, 0.48 + height * 0.018, 0.32, 70);
+    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 220, f1: 40, dur: 0.24, vol: 1.05, att: 0.01 });
+    this.tone(o, { f0: 58, f1: 28, dur: 0.18, vol: 0.42 });
   }
   roar(pos, height, vol = 1, delay = 0) {
     if (!this.ok()) return;
-    const ctx = this.ctx, t = ctx.currentTime + delay, o = this.out(pos, vol * 1.4, 0.7, 60);
-    const base = 140 / Math.sqrt(height / 6), dur = 0.9 + vol * 0.8;
+    const ctx = this.ctx, t = ctx.currentTime + delay, o = this.out(pos, vol * 1.35, 0.65, 60);
+    const base = 140 / Math.sqrt(height / 6), dur = 0.9 + vol * 0.75;
     for (const det of [1, 1.51, 2.02]) {
       const os = ctx.createOscillator(); os.type = 'sawtooth';
       os.frequency.setValueAtTime(base * det * 0.8, t);
@@ -307,71 +325,75 @@ export class Audio {
       const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900; f.Q.value = 4;
       const g = ctx.createGain();
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.08, t + 0.15);
+      g.gain.exponentialRampToValueAtTime(0.075, t + 0.15);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
       os.connect(f); f.connect(g); g.connect(o); os.start(t); os.stop(t + dur + 0.05);
     }
-    this.burst(o, { type: 'bandpass', f0: 500, f1: 300, q: 1, dur, vol: 0.4, att: 0.1, delay });
+    this.burst(o, { type: 'bandpass', f0: 500, f1: 300, q: 1, dur, vol: 0.38, att: 0.1, delay });
   }
   thunder() {
     if (!this.ok()) return;
-    const o = this.out(null, 1.5, 1);
-    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 800, f1: 40, dur: 3, vol: 2.5, att: 0.01 });
-    this.burst(o, { type: 'highpass', f0: 2000, f1: 200, dur: 0.6, vol: 0.5 });
+    const o = this.out(null, 1.4, 0.95);
+    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 800, f1: 40, dur: 2.8, vol: 2.3, att: 0.01 });
+    this.burst(o, { type: 'highpass', f0: 2000, f1: 200, dur: 0.55, vol: 0.45 });
   }
   whoosh(pos, size = 1) {
     if (!this.ok()) return;
-    const o = this.out(pos, 0.9, 0.35, 42);
-    this.burst(o, { type: 'bandpass', f0: 240, f1: 950, q: 0.9, dur: 0.34, vol: Math.min(1.5, 0.55 * size + 0.4), att: 0.045 });
-    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 460, f1: 130, dur: 0.42, vol: 0.9, att: 0.02 });
+    const o = this.out(pos, 0.85, 0.32, 42);
+    this.burst(o, { type: 'bandpass', f0: 240, f1: 950, q: 0.9, dur: 0.32, vol: Math.min(1.4, 0.5 * size + 0.38), att: 0.04 });
+    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 460, f1: 130, dur: 0.38, vol: 0.85, att: 0.02 });
   }
   fanfare() {
     if (!this.ok()) return;
-    const o = this.out(null, 0.95, 0.6);
-    const seq = [196, 247, 294, 392, 494];
+    const o = this.out(null, 0.9, 0.58);
+    const seq = [293.66, 349.23, 440.0, 523.25, 587.33];
     seq.forEach((f, i) => {
       const long = i === seq.length - 1;
-      this.tone(o, { type: 'sawtooth', f0: f, f1: f * 1.005, dur: long ? 1.5 : 0.42, vol: 0.1, att: 0.02, delay: i * 0.13 });
-      this.tone(o, { type: 'triangle', f0: f * 0.5, f1: f * 0.5, dur: long ? 1.5 : 0.42, vol: 0.13, att: 0.02, delay: i * 0.13 });
+      this.tone(o, { type: 'sawtooth', f0: f, f1: f * 1.004, dur: long ? 1.5 : 0.4, vol: 0.09, att: 0.02, delay: i * 0.14 });
+      this.tone(o, { type: 'triangle', f0: f * 0.5, f1: f * 0.5, dur: long ? 1.5 : 0.4, vol: 0.12, att: 0.02, delay: i * 0.14 });
     });
-    this.burst(o, { f0: 3200, f1: 6200, q: 2, dur: 0.55, vol: 0.3, att: 0.05, delay: seq.length * 0.13 });
+    this.burst(o, { f0: 3200, f1: 6200, q: 2, dur: 0.5, vol: 0.25, att: 0.05, delay: seq.length * 0.14 });
   }
   comboSting(n) {
     if (!this.ok()) return;
-    const o = this.out(null, 0.4, 0.25);
-    const base = 700 + Math.min(n, 10) * 90;
-    this.tone(o, { type: 'triangle', f0: base, f1: base * 1.5, dur: 0.12, vol: 0.15 });
-    this.tone(o, { type: 'triangle', f0: base * 1.25, f1: base * 1.9, dur: 0.15, vol: 0.11, delay: 0.07 });
+    const o = this.out(null, 0.38, 0.22);
+    const base = 680 + Math.min(n, 10) * 85;
+    this.tone(o, { type: 'triangle', f0: base, f1: base * 1.5, dur: 0.12, vol: 0.14 });
+    this.tone(o, { type: 'triangle', f0: base * 1.25, f1: base * 1.9, dur: 0.15, vol: 0.1, delay: 0.07 });
   }
   empty() {
     if (!this.ok()) return;
-    const o = this.out(null, 0.35, 0);
-    this.tone(o, { type: 'square', f0: 220, f1: 140, dur: 0.05, vol: 0.1 });
-    this.burst(o, { type: 'highpass', f0: 4200, f1: 2600, dur: 0.11, vol: 0.13 });
+    const o = this.out(null, 0.32, 0);
+    this.tone(o, { type: 'square', f0: 220, f1: 140, dur: 0.05, vol: 0.09 });
+    this.burst(o, { type: 'highpass', f0: 4200, f1: 2600, dur: 0.1, vol: 0.12 });
   }
   refill(pos) {
     if (!this.ok()) return;
-    const o = this.out(pos, 0.5, 0.3, 26);
-    this.burst(o, { type: 'bandpass', f0: 2000, f1: 4400, q: 4, dur: 0.42, vol: 0.42, att: 0.05 });
-    this.tone(o, { type: 'sine', f0: 880, f1: 1320, dur: 0.32, vol: 0.1, att: 0.02 });
+    const o = this.out(pos, 0.48, 0.28, 26);
+    this.burst(o, { type: 'bandpass', f0: 2000, f1: 4400, q: 4, dur: 0.4, vol: 0.4, att: 0.05 });
+    this.tone(o, { type: 'sine', f0: 880, f1: 1320, dur: 0.3, vol: 0.09, att: 0.02 });
   }
   heartbeat() {
     if (!this.ok()) return;
-    const o = this.out(null, 0.7, 0.05);
-    this.tone(o, { type: 'sine', f0: 62, f1: 34, dur: 0.15, vol: 0.8, att: 0.002 });
-    this.tone(o, { type: 'sine', f0: 55, f1: 30, dur: 0.13, vol: 0.6, att: 0.002, delay: 0.17 });
+    const o = this.out(null, 0.65, 0.05);
+    this.tone(o, { type: 'sine', f0: 62, f1: 34, dur: 0.15, vol: 0.75, att: 0.002 });
+    this.tone(o, { type: 'sine', f0: 55, f1: 30, dur: 0.13, vol: 0.55, att: 0.002, delay: 0.17 });
   }
 
   update(rdt, active = true) {
     if (!this.ok()) return;
     const p = this.game.player, t = this.ctx.currentTime;
     const s = active ? p.speed : 0;
-    this.wind.g.gain.setTargetAtTime(active ? (clamp((s - 4) / 50, 0, 1) * 0.55 + 0.03) * this.sfxVol : 0.01, t, 0.1);
-    this.wind.f.frequency.setTargetAtTime(300 + s * 25, t, 0.1);
-    this.gasL.g.gain.setTargetAtTime(active && p.gasOn ? 0.22 * this.sfxVol : 0, t, 0.04);
+    this.wind.g.gain.setTargetAtTime(active ? (clamp((s - 4) / 48, 0, 1) * 0.5 + 0.025) * this.sfxVol : 0.01, t, 0.1);
+    this.wind.f.frequency.setTargetAtTime(280 + s * 24, t, 0.1);
+    this.gasL.g.gain.setTargetAtTime(active && p.gasOn ? 0.2 * this.sfxVol : 0, t, 0.04);
+    if (this.winchL) {
+      this.winchL.g.gain.setTargetAtTime(active && p.reeling ? 0.16 * this.sfxVol : 0, t, 0.04);
+      this.winchL.f.frequency.setTargetAtTime(1400 + s * 32, t, 0.06);
+    }
     if (this.spinL) {
       const ch = active && !p.dead ? p.charge || 0 : 0;
-      this.spinL.g.gain.setTargetAtTime(ch > 0.05 ? ch * 0.22 * this.sfxVol : 0, t, 0.08);
+      this.spinL.g.gain.setTargetAtTime(ch > 0.05 ? ch * 0.2 * this.sfxVol : 0, t, 0.08);
       this.spinL.f.frequency.setTargetAtTime(650 + ch * 2400, t, 0.08);
     }
     if (active && !p.dead && p.hp < 30 && p.hp > 0) {
@@ -387,17 +409,36 @@ export class Audio {
         if (far.alive && far.root.position.distanceTo(p.pos) > 55) this.roar(far.root.position, far.height, 0.13);
       }
     }
+
     const I = active ? (this.game.intensity || 0) : 0;
+    const mv = this.musicOn ? this.musicVol : 0;
     if (this.mus) {
-      this.mus.g.gain.setTargetAtTime(this.musicOn && active ? I * 0.16 + 0.045 : 0, t, 0.5);
+      const targetGain = mv * (active ? 0.08 + I * 0.22 : 0.06);
+      this.mus.g.gain.setTargetAtTime(targetGain, t, 0.45);
     }
-    if (this.musicOn && active && this.mus) {
+    if (mv > 0.01 && active && this.mus) {
       this.beatAcc += rdt;
-      if (this.beatAcc >= 0.23) {
-        this.beatAcc -= 0.23;
+      if (this.beatAcc >= 0.21) {
+        this.beatAcc -= 0.21;
         this.beatStep++;
-        if (I > 0.22 && this.beatStep % 2 === 0) this.tone(this.mus.g, { f0: 90, f1: 45, dur: 0.38, vol: 0.58 * I });
-        if (I > 0.58 && this.beatStep % 4 === 1) this.burst(this.mus.g, { buf: this.brown, type: 'lowpass', f0: 300, f1: 60, dur: 0.28, vol: 1.15 * I });
+        const st = this.beatStep;
+        if (I > 0.18) {
+          const note = OSTINATO[st % OSTINATO.length];
+          this.tone(this.mus.g, { type: 'sawtooth', f0: note, f1: note, dur: 0.17, vol: 0.12 * (0.3 + I * 0.7), att: 0.008 });
+        }
+        if (I > 0.25 && st % 2 === 0) {
+          this.tone(this.mus.g, { type: 'sine', f0: st % 4 === 0 ? 86 : 68, f1: 38, dur: 0.34, vol: 0.48 * I, att: 0.004 });
+        }
+        if (I > 0.52 && st % 4 === 2) {
+          this.burst(this.mus.g, { buf: this.brown, type: 'lowpass', f0: 340, f1: 65, dur: 0.26, vol: 0.95 * I, att: 0.004 });
+        }
+        if (I > 0.62 && st % 4 === 0) {
+          const hn = HORN_PHRASE[(st >> 2) % HORN_PHRASE.length];
+          if (hn) {
+            this.tone(this.mus.g, { type: 'sawtooth', f0: hn, f1: hn * 1.003, dur: 0.68, vol: 0.085 * I, att: 0.05 });
+            this.tone(this.mus.g, { type: 'triangle', f0: hn * 0.5, f1: hn * 0.5, dur: 0.68, vol: 0.1 * I, att: 0.05 });
+          }
+        }
       }
     }
   }
@@ -405,15 +446,15 @@ export class Audio {
   music() {
     const ctx = this.ctx;
     const g = ctx.createGain(); g.gain.value = 0; g.connect(this.master);
-    const s = ctx.createGain(); s.gain.value = 0.6; g.connect(s); s.connect(this.verb);
-    const notes = [55, 82.4, 110, 130.8, 164.8];
+    const s = ctx.createGain(); s.gain.value = 0.55; g.connect(s); s.connect(this.verb);
+    const notes = [73.42, 110.0, 146.83, 174.61, 220.0];
     for (const n of notes) {
       for (const det of [-3, 3]) {
         const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = n; o.detune.value = det;
-        const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 500;
-        const lfo = ctx.createOscillator(); lfo.frequency.value = 0.05 + Math.random() * 0.1;
-        const lg = ctx.createGain(); lg.gain.value = 250; lfo.connect(lg); lg.connect(f.frequency); lfo.start();
-        const og = ctx.createGain(); og.gain.value = 0.05;
+        const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 420;
+        const lfo = ctx.createOscillator(); lfo.frequency.value = 0.05 + Math.random() * 0.08;
+        const lg = ctx.createGain(); lg.gain.value = 180; lfo.connect(lg); lg.connect(f.frequency); lfo.start();
+        const og = ctx.createGain(); og.gain.value = 0.04;
         o.connect(f); f.connect(og); og.connect(g); o.start();
       }
     }

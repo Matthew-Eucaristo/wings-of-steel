@@ -242,7 +242,7 @@ export class Engineers {
       p.gas = Math.min(100, p.gas + 25);
       p.blade = Math.min(100, p.blade + 25);
       p.hp = Math.min(100, p.hp + 15);
-      this.game.hud.radio('REGU INSINYUR: Jalur bersih! Suplai darurat dilempar (+Gas/+Pedang)');
+      this.game.hud.radio('ENGINEER CORPS: Avenue clear! Field supplies dropped (+Gas / +Blades).');
     }
   }
 
@@ -264,23 +264,23 @@ export class Engineers {
       g.player.releaseGrab(target);
       target.setState('kneel');
       target.legCut = 3.8;
-      g.hud.radio('MERIAM GARNISUN: Tembakan penyelamat memutus cengkeraman titan!');
+      g.hud.radio('GARRISON ARTILLERY: Rescue round on target — Titan grip broken!');
     } else if (target.armor > 0) {
       const r = target.hit('nape', dmg, aimPt, _v2.set(0, 0, -1), 0, { explosive: true });
       if (r.result === 'armor-break') {
         g.vfx.armorShatter(aimPt, _v2.set(0, 1, 0));
         g.audio.armorShatter(aimPt);
-        g.hud.pop(aimPt, 'ZIRAH HANCUR!', 'kill');
-        g.hud.radio('MERIAM GARNISUN: Zirah tengkuk Titan Lapis pecah! Serang sekarang!');
+        g.hud.pop(aimPt, 'ARMOR SHATTERED!', 'kill');
+        g.hud.radio('GARRISON ARTILLERY: Armored Titan nape plating shattered! Move in!');
       } else {
-        g.vfx.sparks(aimPt, 16);
-        g.hud.pop(aimPt, '-' + r.armorDmg + ' ZIRAH', 'small');
+        g.vfx.sparks(aimPt, 14);
+        g.hud.pop(aimPt, '-' + r.armorDmg + ' ARMOR', 'small');
       }
     } else {
       target.stagger(barrage ? 3.8 : 2.4);
       target.hp = Math.max(60, target.hp - dmg * 0.65);
-      g.vfx.bloodSpray(aimPt, _v2.set(0, 1, 0), 22, 0.9);
-      g.hud.pop(aimPt, barrage ? 'MERIAM!' : 'STAGGER', 'small');
+      g.vfx.bloodSpray(aimPt, _v2.set(0, 1, 0), 18, 0.85);
+      g.hud.pop(aimPt, barrage ? 'ARTILLERY!' : 'STAGGER', 'small');
     }
   }
 
@@ -300,9 +300,9 @@ export class Engineers {
           p.gas = Math.min(100, p.gas + 35);
           g.audio.hookHit(r.pos, false);
           g.vfx.impactRing(r.pos, p.vel, 5.5, 0x5be4ff, 0.25);
-          g.hud.toast(`CINCIN ${this.ringsCleared}/${this.rings.length}<br><span style="font-size:17px">${Math.round(p.speed)} m/s</span>`, 0.9);
+          g.hud.toast(`RING ${this.ringsCleared}/${this.rings.length}<br><span style="font-size:17px">${Math.round(p.speed)} m/s</span>`, 0.9);
           if (this.ringsCleared === this.rings.length) {
-            g.hud.radio('PELATIH: Semua cincin udara diselesaikan! Kecepatan luar biasa!');
+            g.hud.radio('INSTRUCTOR: All aerial rings cleared! Outstanding momentum control.');
             setTimeout(() => {
               if (this.mode === 'training') this.spawnTrainingCourse();
             }, 1500);
@@ -374,7 +374,7 @@ export class Engineers {
       this.convoyHP = Math.max(0, this.convoyHP - Math.min(3.2, threatCount * 1.05) * dt);
       if (this.alarmCD <= 0) {
         this.alarmCD = 7.5;
-        g.hud.radio('PERINGATAN: Konvoi Insinyur dihadang titan! Tekan [T] panggil skuadron!');
+        g.hud.radio('ALERT: Engineer Convoy pinned by Titans! Clear the avenue or rally your squad!');
       }
       if (this.convoyHP <= 0) {
         g.onMissionFail('convoy');

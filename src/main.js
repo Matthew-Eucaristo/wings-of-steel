@@ -12,19 +12,19 @@ import { HUD } from './hud.js';
 import { Post } from './post.js';
 import { Story } from './story.js';
 import { createRayHit } from './collision.js';
-import { clamp, damp, lerp, rand, easeOutQuart, loadPrefs, savePrefs } from './util.js';
+import { clamp, damp, lerp, rand, easeOutQuart, loadPrefs, savePrefs, DEFAULT_BINDS, BIND_LABELS, formatKey } from './util.js';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _boulderHit = createRayHit();
 
 const UPGRADE_POOL = [
-  { id: 'blade', title: 'Baja Ultra-Keras', desc: 'Ketahanan pedang +30% & daya tebas +15%', apply: (p) => { p.mods.bladeSaver *= 0.72; p.mods.damageBonus *= 1.15; } },
-  { id: 'turbine', title: 'Turbin Vektor Ganda', desc: 'Dorongan jet & kelincahan belok +18%', apply: (p) => { p.mods.thrustBonus *= 1.18; } },
-  { id: 'hook', title: 'Pelontar Reaksi Cepat', desc: 'Kecepatan kait +28% & jangkauan +25m', apply: (p) => { p.mods.hookSpeedBonus *= 1.28; p.mods.hookRangeBonus += 25; } },
-  { id: 'spear', title: 'Rak Rudal Tambahan', desc: '+2 kapasitas Rudal Petir & isi penuh sekarang', apply: (p) => { p.mods.maxSpearBonus += 2; p.spears = p.maxSpears; } },
-  { id: 'valve', title: 'Katup Hemat Gas', desc: 'Konsumsi gas -25% & +1 silinder cadangan', apply: (p) => { p.mods.gasSaver *= 0.75; p.gasCylinders = Math.min(6, p.gasCylinders + 1); p.gas = 100; } },
-  { id: 'spin', title: 'Teknik Putaran Levi', desc: 'Pengisian serangan putar +45% lebih cepat', apply: (p) => { p.mods.spinRateBonus *= 1.45; } },
+  { id: 'blade', title: 'Ultrahard Steel', desc: 'Blade durability +30% & slash damage +15%', apply: (p) => { p.mods.bladeSaver *= 0.72; p.mods.damageBonus *= 1.15; } },
+  { id: 'turbine', title: 'Dual Vector Turbine', desc: 'Momentum boost & air turn agility +18%', apply: (p) => { p.mods.thrustBonus *= 1.18; } },
+  { id: 'hook', title: 'High-Torque Winch', desc: 'Cable speed +28% & grapple range +25m', apply: (p) => { p.mods.hookSpeedBonus *= 1.28; p.mods.hookRangeBonus += 25; } },
+  { id: 'spear', title: 'Ordnance Rack', desc: '+2 Thunder Spear capacity & full restock', apply: (p) => { p.mods.maxSpearBonus += 2; p.spears = p.maxSpears; } },
+  { id: 'valve', title: 'Pressure Regulator', desc: 'Gas consumption -25% & +1 spare canister', apply: (p) => { p.mods.gasSaver *= 0.75; p.gasCylinders = Math.min(6, p.gasCylinders + 1); p.gas = 100; } },
+  { id: 'spin', title: 'Spiral Mastery', desc: 'Spiral Slash charge rate +45%', apply: (p) => { p.mods.spinRateBonus *= 1.45; } },
 ];
 
 class Input {
@@ -33,8 +33,17 @@ class Input {
     this.keys = new Set();
     this.edge = new Set();
     this.padKeys = new Set();
+    this.padActions = new Set();
+    this.padEdge = new Set();
+    this.rebinding = null;
     this.mouse = { l: false, r: false, lPressed: false, dx: 0, dy: 0 };
     addEventListener('keydown', (e) => {
+      if (this.rebinding) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.rebinding(e.code);
+        return;
+      }
       if (['Space', 'Tab', 'KeyQ', 'KeyE'].includes(e.code)) e.preventDefault();
       if (!this.keys.has(e.code)) this.edge.add(e.code);
       this.keys.add(e.code);
@@ -52,24 +61,25 @@ class Input {
   }
   pollGamepad() {
     const p = navigator.getGamepads?.()[0];
-    const next = new Set();
+    const nextK = new Set();
+    const nextA = new Set();
     if (p) {
       const ax = p.axes, bt = p.buttons, dead = 0.22;
-      if (ax[0] < -dead) next.add('KeyA'); if (ax[0] > dead) next.add('KeyD');
-      if (ax[1] < -dead) next.add('KeyW'); if (ax[1] > dead) next.add('KeyS');
-      if (bt[6]?.value > 0.25) next.add('KeyQ'); if (bt[7]?.value > 0.25) next.add('KeyE');
-      if (bt[4]?.pressed || bt[5]?.pressed) next.add('ShiftLeft');
-      if (bt[0]?.pressed) next.add('Space');
-      if (bt[1]?.pressed) next.add('KeyF');
-      if (bt[3]?.pressed) next.add('KeyC');
-      if (bt[12]?.pressed) next.add('KeyR');
-      if (bt[13]?.pressed) next.add('KeyX');
-      if (bt[15]?.pressed) next.add('KeyT');
-      if (bt[9]?.pressed) next.add('Escape');
+      if (ax[0] < -dead) nextA.add('left'); if (ax[0] > dead) nextA.add('right');
+      if (ax[1] < -dead) nextA.add('forward'); if (ax[1] > dead) nextA.add('back');
+      if (bt[6]?.value > 0.25) nextA.add('hookL'); if (bt[7]?.value > 0.25) nextA.add('hookR');
+      if (bt[4]?.pressed || bt[5]?.pressed) nextA.add('boost');
+      if (bt[0]?.pressed) nextA.add('reel');
+      if (bt[1]?.pressed) nextA.add('hookMode');
+      if (bt[3]?.pressed) nextA.add('reloadGas');
+      if (bt[12]?.pressed) nextA.add('reloadBlade');
+      if (bt[13]?.pressed) nextA.add('spear');
+      if (bt[15]?.pressed) nextA.add('command');
+      if (bt[9]?.pressed) nextK.add('Escape');
       if (this.game.pendingUpgrades) {
-        if (bt[14]?.pressed) next.add('Digit1');
-        if (bt[13]?.pressed) { next.delete('KeyX'); next.add('Digit2'); }
-        if (bt[15]?.pressed) { next.delete('KeyT'); next.add('Digit3'); }
+        if (bt[14]?.pressed) nextK.add('Digit1');
+        if (bt[13]?.pressed) { nextA.delete('spear'); nextK.add('Digit2'); }
+        if (bt[15]?.pressed) { nextA.delete('command'); nextK.add('Digit3'); }
       }
       this.mouse.dx += Math.abs(ax[2] || 0) > dead ? ax[2] * 17 : 0;
       this.mouse.dy += Math.abs(ax[3] || 0) > dead ? ax[3] * 14 : 0;
@@ -77,12 +87,26 @@ class Input {
       if (slash && !this.padSlash) this.mouse.lPressed = true;
       this.mouse.l = slash; this.padSlash = slash;
     }
-    for (const k of next) if (!this.padKeys.has(k)) this.edge.add(k);
-    this.padKeys = next;
+    for (const k of nextK) if (!this.padKeys.has(k)) this.edge.add(k);
+    for (const a of nextA) if (!this.padActions.has(a)) this.padEdge.add(a);
+    this.padKeys = nextK;
+    this.padActions = nextA;
   }
   key(c) { return this.keys.has(c) || this.padKeys.has(c); }
   pressed(c) { return this.edge.has(c); }
-  endFrame() { this.edge.clear(); this.mouse.lPressed = false; this.mouse.dx = this.mouse.dy = 0; }
+  action(name) {
+    const code = this.game.prefs?.binds?.[name] || DEFAULT_BINDS[name];
+    if (this.keys.has(code) || this.padActions.has(name)) return true;
+    if (name === 'boost' && code === 'ShiftLeft' && this.keys.has('ShiftRight')) return true;
+    return false;
+  }
+  actionPressed(name) {
+    const code = this.game.prefs?.binds?.[name] || DEFAULT_BINDS[name];
+    if (this.edge.has(code) || this.padEdge.has(name)) return true;
+    if (name === 'boost' && code === 'ShiftLeft' && this.edge.has('ShiftRight')) return true;
+    return false;
+  }
+  endFrame() { this.edge.clear(); this.padEdge.clear(); this.mouse.lPressed = false; this.mouse.dx = this.mouse.dy = 0; }
 }
 
 class Game {
@@ -90,16 +114,23 @@ class Game {
     this.prefs = loadPrefs({
       quality: 2,
       sensMult: 1.0,
-      fov: 72,
+      fov: 75,
       volume: 0.8,
+      musicVol: 0.65,
+      sfxVol: 0.9,
       invertY: false,
       music: true,
       shake: true,
       showFps: false,
+      fpDefault: true,
+      autoCycle: true,
+      introCutscene: true,
+      fieldTutorial: false,
       bestKills: 0,
       bestWave: 0,
       bestRank: '',
       appearance: { ...DEFAULT_APPEARANCE },
+      binds: { ...DEFAULT_BINDS },
     });
     this.prefs.appearance = { ...DEFAULT_APPEARANCE, ...(this.prefs.appearance || {}) };
 
@@ -138,7 +169,7 @@ class Game {
     this.maxWave = 5;
     this.kills = 0;
     this.wave = 0;
-    this.waveT = 2.5;
+    this.waveT = 2.4;
     this.timeScale = 1;
     this.hitstopT = 0;
     this.hitstopScale = 1;
@@ -166,7 +197,8 @@ class Game {
 
     this.syncPause = () => {
       const settingsOpen = !document.getElementById('settings').classList.contains('hidden');
-      const hide = settingsOpen || this.locked || !this.started || this.story.active || this.player.dead || (this.won && !this.endless);
+      const guideOpen = !document.getElementById('guide').classList.contains('hidden');
+      const hide = settingsOpen || guideOpen || this.locked || !this.started || this.story.active || this.player.dead || (this.won && !this.endless);
       document.getElementById('paused').classList.toggle('hidden', hide);
       if (this.hud?.el?.hud) this.hud.el.hud.classList.toggle('dim', !hide || settingsOpen);
       if (!hide && this.hud?.el?.help) this.hud.el.help.classList.add('hidden');
@@ -176,12 +208,47 @@ class Game {
     const lock = () => { try { const p = canvas.requestPointerLock?.(); if (p && p.catch) p.catch(() => {}); } catch {} };
     this.lock = lock;
 
+    const deployEl = document.getElementById('deploy');
+    const titleEl = document.getElementById('title');
+    const guideEl = document.getElementById('guide');
+    const optIntro = document.getElementById('opt-intro');
+    const optTut = document.getElementById('opt-tut');
+
+    const syncDeployOpts = () => {
+      const isCamp = this.mode === 'campaign';
+      document.getElementById('deploy-opts').classList.toggle('hidden', !isCamp);
+      optIntro.textContent = `INTRO CUTSCENE: ${this.prefs.introCutscene ? 'ON' : 'OFF'}`;
+      optIntro.classList.toggle('toggle-on', !!this.prefs.introCutscene);
+      optTut.textContent = `FIELD TUTORIAL: ${this.prefs.fieldTutorial ? 'ON' : 'OFF'}`;
+      optTut.classList.toggle('toggle-on', !!this.prefs.fieldTutorial);
+    };
+
+    document.getElementById('openplay').onclick = () => {
+      this.audio.init();
+      syncDeployOpts();
+      titleEl.classList.add('hidden');
+      deployEl.classList.remove('hidden');
+    };
+    document.getElementById('closedeploy').onclick = () => {
+      deployEl.classList.add('hidden');
+      titleEl.classList.remove('hidden');
+    };
+    document.getElementById('openguide').onclick = () => {
+      this.audio.init();
+      guideEl.classList.remove('hidden');
+    };
+    document.getElementById('closeguide').onclick = () => {
+      guideEl.classList.add('hidden');
+    };
+    optIntro.onclick = () => { this.prefs.introCutscene = !this.prefs.introCutscene; savePrefs(this.prefs); syncDeployOpts(); };
+    optTut.onclick = () => { this.prefs.fieldTutorial = !this.prefs.fieldTutorial; savePrefs(this.prefs); syncDeployOpts(); };
+
     for (const b of document.querySelectorAll('#modes button')) {
       b.onclick = () => {
         this.mode = b.dataset.mode;
         this.endless = this.mode === 'endless';
         document.querySelectorAll('#modes button').forEach((x) => x.classList.toggle('selected', x === b));
-        document.getElementById('prologue').classList.toggle('hidden', this.mode !== 'campaign');
+        syncDeployOpts();
       };
     }
     for (const b of document.querySelectorAll('#classes button')) {
@@ -192,8 +259,10 @@ class Game {
       };
     }
 
-    document.getElementById('start').onclick = () => { this.startSession(false); lock(); };
-    document.getElementById('prologue').onclick = () => { this.mode = 'campaign'; this.startSession(true); lock(); };
+    document.getElementById('start').onclick = () => {
+      this.startSession(this.mode === 'campaign' && !!this.prefs.introCutscene, this.mode === 'campaign' && !!this.prefs.fieldTutorial);
+      lock();
+    };
     document.getElementById('cont').onclick = () => {
       this.mode = 'endless';
       this.endless = true;
@@ -284,6 +353,7 @@ class Game {
     };
 
     document.getElementById('opencust').onclick = () => {
+      this.audio.init();
       refresh();
       titleEl.classList.add('hidden');
       panel.classList.remove('hidden');
@@ -304,10 +374,58 @@ class Game {
     const sensR = document.getElementById('sens-range');
     const fovR = document.getElementById('fov-range');
     const volR = document.getElementById('vol-range');
+    const musVolR = document.getElementById('musvol-range');
+    const sfxVolR = document.getElementById('sfxvol-range');
     const invBtn = document.getElementById('invy-btn');
     const musBtn = document.getElementById('music-btn');
     const shakeBtn = document.getElementById('shake-btn');
+    const viewBtn = document.getElementById('view-btn');
+    const autoCycleBtn = document.getElementById('autocycle-btn');
     const fpsBtn = document.getElementById('fps-btn');
+    const bindList = document.getElementById('bind-list');
+
+    const tabs = [...document.querySelectorAll('#settings-tabs button')];
+    const panes = [...modal.querySelectorAll('.tab-pane')];
+    const switchTab = (tab) => {
+      this.input.rebinding = null;
+      tabs.forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+      panes.forEach((p) => p.classList.toggle('active', p.dataset.pane === tab));
+    };
+    tabs.forEach((b) => { b.onclick = () => switchTab(b.dataset.tab); });
+
+    const renderBinds = () => {
+      bindList.innerHTML = '';
+      for (const [action, label] of BIND_LABELS) {
+        const row = document.createElement('div');
+        row.className = 'bind-row';
+        const span = document.createElement('span');
+        span.textContent = label;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'bind-key';
+        btn.textContent = formatKey(this.prefs.binds[action]);
+        btn.onclick = () => {
+          [...bindList.querySelectorAll('.bind-key')].forEach((x) => x.classList.remove('listening'));
+          btn.classList.add('listening');
+          btn.textContent = 'PRESS KEY…';
+          this.input.rebinding = (code) => {
+            this.input.rebinding = null;
+            if (code !== 'Escape') {
+              const prev = this.prefs.binds[action];
+              for (const k of Object.keys(this.prefs.binds)) {
+                if (this.prefs.binds[k] === code) this.prefs.binds[k] = prev;
+              }
+              this.prefs.binds[action] = code;
+              savePrefs(this.prefs);
+              this.hud.syncBindHints();
+            }
+            renderBinds();
+          };
+        };
+        row.append(span, btn);
+        bindList.appendChild(row);
+      }
+    };
 
     const syncModal = () => {
       document.querySelectorAll('#qual-btns button').forEach((b) => b.classList.toggle('selected', +b.dataset.q === this.prefs.quality));
@@ -317,14 +435,28 @@ class Game {
       document.getElementById('fov-val').textContent = this.prefs.fov + '°';
       volR.value = Math.round(this.prefs.volume * 100);
       document.getElementById('vol-val').textContent = Math.round(this.prefs.volume * 100) + '%';
-      invBtn.textContent = `BALIK SUMBU Y: ${this.prefs.invertY ? 'AKTIF' : 'MATI'}`;
-      musBtn.textContent = `MUSIK TEMPUR: ${this.prefs.music ? 'AKTIF' : 'MATI'}`;
-      shakeBtn.textContent = `GOYANGAN KAMERA: ${this.prefs.shake ? 'AKTIF' : 'MATI'}`;
-      fpsBtn.textContent = `FPS: ${this.prefs.showFps ? 'AKTIF' : 'MATI'}`;
+      musVolR.value = Math.round(this.prefs.musicVol * 100);
+      document.getElementById('musvol-val').textContent = Math.round(this.prefs.musicVol * 100) + '%';
+      sfxVolR.value = Math.round(this.prefs.sfxVol * 100);
+      document.getElementById('sfxvol-val').textContent = Math.round(this.prefs.sfxVol * 100) + '%';
+      invBtn.textContent = `INVERT Y-AXIS: ${this.prefs.invertY ? 'ON' : 'OFF'}`;
+      invBtn.classList.toggle('toggle-on', !!this.prefs.invertY);
+      musBtn.textContent = `COMBAT SOUNDTRACK: ${this.prefs.music ? 'ON' : 'OFF'}`;
+      musBtn.classList.toggle('toggle-on', !!this.prefs.music);
+      shakeBtn.textContent = `CAMERA SHAKE: ${this.prefs.shake ? 'ON' : 'OFF'}`;
+      shakeBtn.classList.toggle('toggle-on', !!this.prefs.shake);
+      viewBtn.textContent = `CAMERA: ${this.prefs.fpDefault ? 'FIRST-PERSON' : 'THIRD-PERSON'}`;
+      viewBtn.classList.toggle('toggle-on', !!this.prefs.fpDefault);
+      autoCycleBtn.textContent = `AUTO-CYCLE CABLES: ${this.prefs.autoCycle ? 'ON' : 'OFF'}`;
+      autoCycleBtn.classList.toggle('toggle-on', !!this.prefs.autoCycle);
+      fpsBtn.textContent = `FPS COUNTER: ${this.prefs.showFps ? 'ON' : 'OFF'}`;
+      fpsBtn.classList.toggle('toggle-on', !!this.prefs.showFps);
+      renderBinds();
     };
 
     const open = (e) => {
       if (e) e.stopPropagation();
+      this.audio.init();
       syncModal();
       modal.classList.remove('hidden');
       if (document.pointerLockElement) document.exitPointerLock();
@@ -344,11 +476,23 @@ class Game {
     sensR.oninput = () => { this.prefs.sensMult = +sensR.value; this.applyPrefs(false); syncModal(); };
     fovR.oninput = () => { this.prefs.fov = +fovR.value; this.applyPrefs(false); syncModal(); };
     volR.oninput = () => { this.prefs.volume = +volR.value / 100; this.applyPrefs(false); syncModal(); };
+    musVolR.oninput = () => { this.prefs.musicVol = +musVolR.value / 100; this.applyPrefs(false); syncModal(); };
+    sfxVolR.oninput = () => { this.prefs.sfxVol = +sfxVolR.value / 100; this.applyPrefs(false); syncModal(); };
     invBtn.onclick = () => { this.prefs.invertY = !this.prefs.invertY; this.applyPrefs(false); syncModal(); };
     musBtn.onclick = () => { this.prefs.music = !this.prefs.music; this.applyPrefs(false); syncModal(); };
     shakeBtn.onclick = () => { this.prefs.shake = !this.prefs.shake; this.applyPrefs(false); syncModal(); };
+    viewBtn.onclick = () => { this.prefs.fpDefault = !this.prefs.fpDefault; this.cam.fp = this.prefs.fpDefault; this.applyPrefs(false); syncModal(); };
+    autoCycleBtn.onclick = () => { this.prefs.autoCycle = !this.prefs.autoCycle; this.applyPrefs(false); syncModal(); };
     fpsBtn.onclick = () => { this.prefs.showFps = !this.prefs.showFps; this.applyPrefs(false); syncModal(); };
+    document.getElementById('reset-binds').onclick = () => {
+      this.input.rebinding = null;
+      this.prefs.binds = { ...DEFAULT_BINDS };
+      savePrefs(this.prefs);
+      this.hud.syncBindHints();
+      renderBinds();
+    };
     document.getElementById('closesettings').onclick = () => {
+      this.input.rebinding = null;
       savePrefs(this.prefs);
       modal.classList.add('hidden');
       if (this.started && !this.player.dead && !(this.won && !this.endless)) this.lock();
@@ -360,10 +504,14 @@ class Game {
     this.cam.sens = 0.0022 * this.prefs.sensMult;
     this.cam.baseFov = this.prefs.fov;
     this.cam.invertY = !!this.prefs.invertY;
+    this.cam.fp = this.prefs.fpDefault !== false;
     this.audio.musicOn = !!this.prefs.music;
     this.audio.setVolume(this.prefs.volume);
+    this.audio.setMusicVolume(this.prefs.musicVol ?? 0.65);
+    this.audio.setSfxVolume(this.prefs.sfxVol ?? 0.9);
     const fpsEl = document.getElementById('fps');
     if (fpsEl) fpsEl.classList.toggle('hidden', !this.prefs.showFps);
+    this.hud?.syncBindHints();
     this.setQuality(this.prefs.quality, showToast);
     savePrefs(this.prefs);
   }
@@ -372,15 +520,16 @@ class Game {
     const el = document.getElementById('bestbanner');
     if (!el) return;
     if (this.prefs.bestKills > 0) {
-      el.textContent = `REKOR TERBAIK: Peringkat ${this.prefs.bestRank || 'B'} · ${this.prefs.bestKills} Titan · Gelombang ${this.prefs.bestWave}`;
+      el.textContent = `BEST RECORD · RANK ${this.prefs.bestRank || 'B'} · ${this.prefs.bestKills} TITANS · PHASE ${this.prefs.bestWave}`;
     } else {
-      el.textContent = 'MISI: Pimpin Skuadron Pengintai & kawal Regu Insinyur menutup Gerbang Selatan';
+      el.textContent = 'SURVEY CORPS SPECIAL OPERATIONS SQUADRON';
     }
   }
 
-  startSession(withPrologue) {
+  startSession(withCutscene = false, withTutorial = false) {
     this.cam.customizing = false;
     document.getElementById('customize').classList.add('hidden');
+    document.getElementById('deploy').classList.add('hidden');
     this.endless = this.mode === 'endless';
     this.won = false;
     this.stats = { maxSpeed: 0, bestCombo: 0, time: 0 };
@@ -389,7 +538,7 @@ class Game {
     this.clearTransientState();
     this.engineers.reset(this.mode);
     this.squad.reset(false);
-    this.story.begin(this.mode, withPrologue);
+    this.story.begin(this.mode, withCutscene, withTutorial);
   }
 
   clearBoulders() {
@@ -480,17 +629,17 @@ class Game {
       b.m.rotation.x += b.rv.x * dt;
       b.m.rotation.y += b.rv.y * dt;
       if (b.mark) b.mark.material.opacity = 0.4 + Math.sin(b.age * 9) * 0.18 + Math.min(0.3, b.age * 0.06);
-      if (Math.random() < dt * 16) this.vfx.dust(b.pos, b.r * 1.2, 2);
+      if (Math.random() < dt * 14) this.vfx.dust(b.pos, b.r * 1.1, 2);
 
       if (hit || b.age > 6) {
-        this.vfx.dust(b.pos, b.r * 4, 18);
-        this.vfx.debris(b.pos, 8, 10);
-        this.vfx.impactRing(b.pos, _v.set(0, 1, 0), b.r * 4.5, VFX_COLORS.ARMOR_C, 0.25);
+        this.vfx.dust(b.pos, b.r * 3.8, 14);
+        this.vfx.debris(b.pos, 7, 10);
+        this.vfx.impactRing(b.pos, _v.set(0, 1, 0), b.r * 4.2, VFX_COLORS.ARMOR_C, 0.25);
         this.audio.fall(b.pos, 8);
-        this.world.destroyNear(b.pos, b.r * 3.5);
-        this.cam.shake(clamp(0.8 - b.pos.distanceTo(p.pos) / 90, 0.08, 0.55));
+        this.world.destroyNear(b.pos, b.r * 3.5, 145, b.vel);
+        this.cam.shake(clamp(0.75 - b.pos.distanceTo(p.pos) / 90, 0.08, 0.5));
         if (!b.struck && b.minDist < 9) {
-          this.hud.pop(p.pos, 'NYARIS!', 'small');
+          this.hud.pop(p.pos, 'CLOSE CALL!', 'small');
           p.gas = Math.min(100, p.gas + 5);
         }
         b.m.visible = false;
@@ -535,14 +684,15 @@ class Game {
   beginPlay(quiet) {
     this.started = true;
     document.getElementById('title').classList.add('hidden');
+    document.getElementById('deploy').classList.add('hidden');
     document.getElementById('dead').classList.add('hidden');
     document.getElementById('win').classList.add('hidden');
     this.hud.show(true);
     if (!quiet) {
       const msg = this.mode === 'endless'
-        ? 'PERTAHANAN DIMULAI<br><span style="font-size:18px">Skuadron Pengintai siap di udara!</span>'
-        : 'OPERASI DIMULAI<br><span style="font-size:18px">Kawal Konvoi Insinyur ke Gerbang Selatan!</span>';
-      this.hud.toast(msg, 2.4);
+        ? 'DEFENSE LIVE<br><span style="font-size:17px">Survey Corps squadron airborne!</span>'
+        : 'OPERATION LIVE<br><span style="font-size:17px">Escort the Engineer Convoy to the South Gate!</span>';
+      this.hud.toast(msg, 2.2);
     }
     this.syncPause();
   }
@@ -553,6 +703,7 @@ class Game {
     this.started = true;
     this.stats = { maxSpeed: 0, bestCombo: 0, time: 0 };
     document.getElementById('title').classList.add('hidden');
+    document.getElementById('deploy').classList.add('hidden');
     document.getElementById('win').classList.add('hidden');
     document.getElementById('dead').classList.add('hidden');
     this.story.reset('play');
@@ -566,9 +717,9 @@ class Game {
     this.hud.show(true);
     this.hud.toast(
       this.mode === 'training'
-        ? 'ARENA LATIHAN<br><span style="font-size:18px">Lewati cincin biru & latih eksekusi</span>'
-        : 'BERSIAP<br><span style="font-size:18px">Skuadron mengudara · Titan mendekat dari jauh</span>',
-      1.9,
+        ? 'PROVING GROUNDS<br><span style="font-size:17px">Swing through aerial rings &amp; practice nape strikes</span>'
+        : 'ENGAGE<br><span style="font-size:17px">Squadron airborne · Titans inbound from the breach</span>',
+      1.8,
     );
     this.syncPause();
   }
@@ -589,6 +740,8 @@ class Game {
     document.getElementById('paused').classList.add('hidden');
     document.getElementById('settings').classList.add('hidden');
     document.getElementById('customize').classList.add('hidden');
+    document.getElementById('deploy').classList.add('hidden');
+    document.getElementById('guide').classList.add('hidden');
     this.hud.show(false);
     this.updateBestBanner();
     document.getElementById('title').classList.remove('hidden');
@@ -598,10 +751,11 @@ class Game {
 
   spawnTrainingTargets() {
     const spots = [
-      [-26, 62, 'sprinter', 8.5],
+      [-28, 60, 'sprinter', 8.5],
       [0, 68, 'normal', 13],
       [28, 86, 'tank', 18],
-      [0, 118, 'armored', 20],
+      [-18, 96, 'crawler', 7.5],
+      [0, 120, 'armored', 20],
     ];
     for (const [x, z, type, h] of spots) {
       const ti = new Titan(this, new THREE.Vector3(x, 0, z), { type, height: h, passive: true, instant: true });
@@ -636,27 +790,28 @@ class Game {
       this.offerUpgrades();
     }
     const isBossWave = (this.mode === 'campaign' && this.wave === this.maxWave) || (this.mode === 'endless' && this.wave % 4 === 0);
-    const n = Math.min(6 + this.wave * 2, 16);
+    const n = Math.min(8 + this.wave * 2, 18);
     for (let i = 0; i < n; i++) {
       const pos = this.pickFarSpawnPoint();
       const roll = Math.random();
       let type = 'normal';
-      if (roll < 0.28) type = 'sprinter';
-      else if (this.wave >= 2 && roll < 0.48) type = 'abnormal';
-      else if (this.wave >= 2 && roll > 0.82) type = 'tank';
+      if (roll < 0.2) type = 'sprinter';
+      else if (roll < 0.34) type = 'crawler';
+      else if (this.wave >= 2 && roll < 0.56) type = 'abnormal';
+      else if (this.wave >= 2 && roll > 0.8) type = 'tank';
       this.titans.push(new Titan(this, pos, { type }));
     }
     if (isBossWave) {
       const bossPos = this.pickFarSpawnPoint();
       this.titans.push(new Titan(this, bossPos, { type: 'armored', height: 20.5 }));
-      this.hud.radio('PERINGATAN DARURAT: TITAN LAPIS muncul di kejauhan! Hancurkan zirahnya dengan Rudal Petir [X] atau Perintah Skuadron [T]!');
+      this.hud.radio('PRIORITY ALERT: ARMORED TITAN spotted! Shatter its nape armor with Thunder Spears or Focus Fire!');
     }
-    const label = this.mode === 'endless' ? `GELOMBANG ${this.wave}` : `FASE ${this.wave} / ${this.maxWave}`;
+    const label = this.mode === 'endless' ? `WAVE ${this.wave}` : `PHASE ${this.wave} / ${this.maxWave}`;
     document.getElementById('wave').textContent = label;
     const totalAdded = n + (isBossWave ? 1 : 0);
-    this.hud.toast(`${label}<br><span style="font-size:18px">${totalAdded} titan mendekat dari luar distrik${isBossWave ? ' · TITAN LAPIS!' : ''}</span>`, 2.3);
+    this.hud.toast(`${label}<br><span style="font-size:17px">${totalAdded} Titans inbound${isBossWave ? ' · ARMORED TITAN DETECTED!' : ''}</span>`, 2.2);
     this.audio.horn();
-    this.cam.shake(0.45);
+    this.cam.shake(0.4);
   }
 
   offerUpgrades() {
@@ -678,7 +833,7 @@ class Game {
     this.pendingUpgrades = null;
     this.hud.showUpgrades(null);
     this.audio.bladeSwap();
-    this.hud.toast(`AKTIF: ${chosen.title}`, 1.3);
+    this.hud.toast(`EQUIPPED: ${chosen.title}`, 1.2);
   }
 
   triggerImpact(freezeDur, freezeScale, rampDur, rampFrom, pulse) {
@@ -700,9 +855,9 @@ class Game {
     const flesh = !!h.owner;
     this.audio.hookHit(h.tip, flesh);
     if (flesh) this.vfx.bloodSpray(h.tip, _v.set(0, 1, 0), 6, 0.5);
-    else { this.vfx.sparks(h.tip, 8); this.vfx.dust(h.tip, 1, 4); }
-    this.cam.shake(flesh ? 0.07 : 0.055);
-    this.cam.impactFov = Math.max(this.cam.impactFov, 0.9);
+    else { this.vfx.sparks(h.tip, 7); this.vfx.dust(h.tip, 1, 3); }
+    this.cam.shake(flesh ? 0.06 : 0.045);
+    this.cam.impactFov = Math.max(this.cam.impactFov, 0.75);
   }
 
   onSlashHit(t, result, dmg, point) {
@@ -718,87 +873,88 @@ class Game {
       this.audio.flesh(point, true);
       this.hud.pop(point, dmg, 'kill');
       this.hud.hitmarker('kill');
-      const lbl = p.speed > 40 ? 'EKSEKUSI DEWA!' : p.spin > 0 ? 'TEBASAN PUTAR!' : p.combo >= 3 ? 'PEMBANTAIAN!' : 'EKSEKUSI BERSIH!';
-      this.hud.toast(lbl, 1.25);
+      const lbl = p.speed > 40 ? 'LIGHTNING EXECUTION!' : p.spin > 0 ? 'SPIRAL SEVER!' : p.combo >= 3 ? 'UNSTOPPABLE!' : 'CLEAN SEVER!';
+      this.hud.toast(lbl, 1.15);
       this.hud.combo(p.combo);
       if (p.combo >= 3) this.audio.comboSting(p.combo);
-      this.hud.killFeed(`<b>KAMU</b> mengeksekusi <em>Titan ${t.label}</em>${p.combo >= 2 ? ` · ${p.combo}×` : ''}`);
+      this.hud.killFeed(`<b>YOU</b> eliminated <em>${t.label}</em>${p.combo >= 2 ? ` · ${p.combo}×` : ''}`);
       this.stats.bestCombo = Math.max(this.stats.bestCombo, p.combo);
-      this.triggerImpact(0.135, 0.006, 0.44, 0.16, 1.0);
-      this.flash = 0.26;
-      if (this.cam.isFP()) this.bloodMist = 0.82;
-      this.cam.shake(0.65);
-      this.cam.hitJolt(1.15, 0.14);
+      this.triggerImpact(0.11, 0.008, 0.36, 0.18, 0.85);
+      this.flash = 0.2;
+      if (this.cam.isFP()) this.bloodMist = 0.58;
+      this.cam.shake(0.55);
+      this.cam.hitJolt(0.95, 0.12);
       this.cam.triggerExecution(point);
       this.engineers.onNearKill(point);
       t.root.updateMatrixWorld();
     } else if (result === 'armor-break') {
       this.vfx.armorShatter(point, dir);
       this.audio.armorShatter(point);
-      this.hud.pop(point, 'ZIRAH PECAH!', 'kill');
+      this.hud.pop(point, 'ARMOR BROKEN!', 'kill');
       this.hud.hitmarker('kill');
-      this.hud.toast('<span style="font-size:21px;color:#ffe29a">ZIRAH TENGKUK HANCUR — EKSEKUSI SEKARANG!</span>', 1.5);
-      this.triggerImpact(0.125, 0.008, 0.36, 0.2, 0.95);
-      this.flash = 0.22;
-      this.cam.hitJolt(1.0, 0.13);
+      this.hud.toast('<span style="font-size:19px;color:#ffe29a">NAPE ARMOR SHATTERED — EXECUTE NOW!</span>', 1.4);
+      this.triggerImpact(0.105, 0.01, 0.32, 0.22, 0.82);
+      this.flash = 0.18;
+      this.cam.hitJolt(0.88, 0.12);
     } else if (result === 'armor') {
-      this.vfx.sparks(point, 20, VFX_COLORS.ARMOR_C);
-      this.vfx.flash(point, 2.0, VFX_COLORS.ARMOR_C);
+      this.vfx.sparks(point, 16, VFX_COLORS.ARMOR_C);
+      this.vfx.flash(point, 1.8, VFX_COLORS.ARMOR_C);
       this.audio.clang(point);
-      this.hud.pop(point, `-${dmg} ZIRAH`, 'small');
+      this.hud.pop(point, `-${dmg} ARMOR`, 'small');
       this.hud.hitmarker('armor');
-      this.hud.toast('<span style="font-size:18px;color:#ffd996">Zirah keras! Tembak Rudal Petir [X] atau Perintah [T]</span>', 1.1);
-      this.triggerImpact(0.055, 0.03, 0.12, 0.55, 0.5);
-      this.cam.hitJolt(0.55, 0.08);
+      this.hud.toast('<span style="font-size:17px;color:#ffd996">Reinforced armor! Fire Thunder Spear or Focus Order</span>', 1.0);
+      this.triggerImpact(0.05, 0.03, 0.12, 0.55, 0.45);
+      this.cam.hitJolt(0.5, 0.08);
     } else if (result === 'nape') {
-      this.vfx.flash(point, 2.4, VFX_COLORS.HIT_FLASH);
-      this.vfx.bloodSpray(point, dir, 44, 1.15);
-      this.vfx.impactRing(point, dir, 4.2, VFX_COLORS.HIT_FLASH, 0.2);
+      this.vfx.flash(point, 2.0, VFX_COLORS.HIT_FLASH);
+      this.vfx.bloodSpray(point, dir, 30, 1.0);
+      this.vfx.impactRing(point, dir, 3.6, VFX_COLORS.HIT_FLASH, 0.18);
       this.audio.flesh(point, false);
       this.hud.pop(point, dmg);
       this.hud.hitmarker('hit');
-      this.triggerImpact(0.085, 0.018, 0.2, 0.36, 0.72);
-      this.cam.hitJolt(0.75, 0.1);
+      this.triggerImpact(0.075, 0.02, 0.18, 0.38, 0.62);
+      this.cam.hitJolt(0.68, 0.09);
     } else if (result === 'deflect') {
       this.vfx.sparks(point, 14);
       this.audio.clang(point);
+      this.hud.pop(point, 'GUARDED!', 'small');
       this.hud.hitmarker('armor');
-      this.triggerImpact(0.04, 0.05, 0.1, 0.65, 0.38);
+      this.triggerImpact(0.04, 0.05, 0.1, 0.65, 0.35);
     } else {
-      this.vfx.flash(point, 2.2, VFX_COLORS.HIT_FLASH);
-      this.vfx.bloodSpray(point, dir, 36, 1.05);
+      this.vfx.flash(point, 1.8, VFX_COLORS.HIT_FLASH);
+      this.vfx.bloodSpray(point, dir, 26, 0.95);
       this.audio.flesh(point, false);
-      const txt = { ankle: 'TENDON PUTUS!', arm: 'TANGAN PUTUS!', eyes: 'MATA BUTA!' }[result] || dmg;
+      const txt = { ankle: 'TENDON SEVERED!', arm: 'ARM SEVERED!', eyes: 'BLINDED!' }[result] || dmg;
       this.hud.pop(point, txt, 'small');
       if (result === 'ankle') {
-        this.hud.toast('<span style="font-size:18px;color:#ffd996">Titan lumpuh — tengkuknya terbuka! Serbu sekarang.</span>', 1.4);
+        this.hud.toast('<span style="font-size:17px;color:#ffd996">Titan crippled — nape exposed!</span>', 1.3);
       }
       this.hud.hitmarker('hit');
-      this.triggerImpact(0.095, 0.015, 0.22, 0.32, 0.78);
-      this.cam.hitJolt(0.82, 0.11);
+      this.triggerImpact(0.082, 0.018, 0.2, 0.35, 0.68);
+      this.cam.hitJolt(0.72, 0.1);
     }
   }
 
   onTitanStep(t, i) {
     const f = t.ankles[i].getWorldPosition(_v);
     f.y = 0.2;
-    this.vfx.dust(f, t.s * 2.5, 6);
+    this.vfx.dust(f, t.s * 2.4, 5);
     this.audio.step(f, t.height);
     const d = f.distanceTo(this.player.pos);
-    this.cam.shake(clamp((t.height * 3 - d) / (t.height * 6), 0, 0.22));
+    this.cam.shake(clamp((t.height * 3 - d) / (t.height * 6), 0, 0.2));
   }
 
   onTitanFall(t) {
     const pos = t.head.getWorldPosition(_v); pos.y = 0.5;
-    this.vfx.dust(pos, t.s * 6, 28);
+    this.vfx.dust(pos, t.s * 5.5, 22);
     this.audio.fall(pos, t.height);
-    this.cam.shake(clamp(1 - pos.distanceTo(this.player.pos) / 120, 0.1, 0.75));
+    this.cam.shake(clamp(1 - pos.distanceTo(this.player.pos) / 120, 0.1, 0.68));
     const feet = t.root.position;
     const dirV = _v2.set(Math.sin(t.fallDir), 0, Math.cos(t.fallDir));
     for (let i = 0; i < 4; i++) {
       _v.set(feet.x + dirV.x * t.height * i * 0.3, 0, feet.z + dirV.z * t.height * i * 0.3);
-      const n = this.world.destroyNear(_v, t.s * 2.5);
-      if (n) { this.vfx.dust(_v, t.s * 4, 14); this.audio.thunder(); }
+      const n = this.world.destroyNear(_v, t.s * 2.5, 190, dirV);
+      if (n) { this.vfx.dust(_v, t.s * 3.8, 12); this.audio.thunder(); }
     }
     const pp = this.player.pos;
     if (!this.player.dead && pp.y < t.height * 0.45 && this.player.invuln <= 0) {
@@ -807,29 +963,29 @@ class Game {
       if (latD < t.s * 2.4) {
         _v.subVectors(pp, feet).setY(0.6).normalize();
         this.player.vel.addScaledVector(_v, 14);
-        this.cam.shake(0.4);
-        this.hud.pop(pp, 'TERTIMPA!', 'small');
+        this.cam.shake(0.35);
+        this.hud.pop(pp, 'SHOCKWAVE!', 'small');
       }
     }
   }
 
   explode(pos) {
     const R = 19;
-    this.vfx.flash(pos, 7.2, VFX_COLORS.KILL_FLASH);
-    this.vfx.impactRing(pos, _v.set(0, 1, 0), 13.5, VFX_COLORS.KILL_FLASH, 0.34);
-    this.vfx.burst(pos, _v.set(0, 1, 0), 56);
-    this.vfx.sparks(pos, 34);
-    this.vfx.dust(pos, 12, 28);
-    this.vfx.steam(pos, 7.5, 2.6);
+    this.vfx.flash(pos, 5.8, VFX_COLORS.KILL_FLASH);
+    this.vfx.impactRing(pos, _v.set(0, 1, 0), 11.5, VFX_COLORS.KILL_FLASH, 0.3);
+    this.vfx.burst(pos, _v.set(0, 1, 0), 40);
+    this.vfx.sparks(pos, 26);
+    this.vfx.dust(pos, 10, 22);
+    this.vfx.steam(pos, 6.5, 2.4);
     this.audio.thunder();
     this.audio.fall(pos, 10);
-    this.cam.shake(clamp(1.35 - pos.distanceTo(this.player.pos) / 45, 0.32, 1.3));
-    this.triggerImpact(0.115, 0.01, 0.32, 0.24, 0.94);
-    this.flash = 0.32;
+    this.cam.shake(clamp(1.2 - pos.distanceTo(this.player.pos) / 45, 0.28, 1.1));
+    this.triggerImpact(0.1, 0.012, 0.28, 0.26, 0.8);
+    this.flash = 0.24;
 
     for (let i = this.boulders.length - 1; i >= 0; i--) {
       if (this.boulders[i].pos.distanceTo(pos) < R) {
-        this.vfx.debris(this.boulders[i].pos, 10, 14);
+        this.vfx.debris(this.boulders[i].pos, 8, 12);
         this.boulders[i].m.visible = false;
         this.boulderPool.push(this.boulders[i]);
         this.boulders.splice(i, 1);
@@ -848,18 +1004,23 @@ class Game {
         this.onSlashHit(t, r.result, r.armorDmg || dmg, t.nape.c.clone());
       } else {
         t.stagger(3.5);
-        this.vfx.bloodSpray(t.nape.c, _v2.set(0, 1, 0), 40, 1.15);
+        this.vfx.bloodSpray(t.nape.c, _v2.set(0, 1, 0), 28, 1.0);
         this.hud.pop(t.nape.c, r.armorDmg || dmg);
         this.audio.flesh(t.nape.c, true);
       }
     }
-    const n = this.world.destroyNear(pos, 9.5);
-    if (n) this.hud.toast(`<span style="font-size:18px">${n} BANGUNAN HANCUR</span>`, 0.8);
+    const n = this.world.destroyNear(pos, 9.5, 220);
+    if (n) this.hud.toast(`<span style="font-size:17px">${n} STRUCTURE${n > 1 ? 'S' : ''} COLLAPSED</span>`, 0.9);
     const pd = this.player.pos.distanceTo(pos);
     if (pd < R * 0.42) {
       _v.copy(this.player.pos).sub(pos).normalize();
       this.player.knockback(_v, 16, 18 * (1 - pd / (R * 0.42)));
     }
+  }
+
+  onHouseCollapse(house) {
+    this.player?.detachHouse?.(house);
+    this.squad?.detachHouse?.(house);
   }
 
   onDistrictDamage(amount) {
@@ -873,47 +1034,43 @@ class Game {
   onMissionFail(reason) {
     if (this.player.dead) return;
     this.player.dead = true;
-    for (const h of this.player.hooks) this.player.release(h);
-    this.onPlayerDeath(reason, 'OPERASI GAGAL');
+    for (const h of this.player.hooks) this.player.release(h, true);
+    this.onPlayerDeath(reason, 'OPERATION FAILED');
   }
 
   onHouseDown(house) {
-    this.world.destroyHouse(house);
     const p = _v.set(house.x, house.h * 0.5, house.z);
-    this.vfx.dust(p, 10, 22);
-    this.vfx.sparks(p, 10);
-    this.audio.fall(p, 12);
-    this.cam.shake(clamp(1 - p.distanceTo(this.player.pos) / 90, 0.14, 0.55));
+    this.cam.shake(clamp(1 - p.distanceTo(this.player.pos) / 90, 0.14, 0.5));
   }
 
   onLand(v) {
     if (v > 6) {
       this.audio.land(v);
-      this.vfx.dust(_v.copy(this.player.pos).setY(this.player.pos.y - 0.9), 0.8, 6);
+      this.vfx.dust(_v.copy(this.player.pos).setY(this.player.pos.y - 0.9), 0.8, 5);
     }
-    if (v > 14) this.cam.shake(v / 85);
+    if (v > 14) this.cam.shake(v / 90);
   }
-  onCrash() { this.cam.shake(0.75); this.flash = 0.16; this.hud.toast('<span style="font-size:20px">TABRAKAN KERAS!</span>', 0.8); }
+  onCrash() { this.cam.shake(0.65); this.flash = 0.14; this.hud.toast('<span style="font-size:19px">HEAVY IMPACT!</span>', 0.8); }
   onBump(v) { this.cam.shake(v / 120); }
   onSlingshot(pos, vel) {
     _v.copy(vel).normalize();
-    this.vfx.impactRing(pos, _v, 3.2, VFX_COLORS.SLASH, 0.22);
-    this.vfx.burst(pos, _v.negate(), 8);
+    this.vfx.impactRing(pos, _v, 2.8, VFX_COLORS.SLASH, 0.2);
+    this.vfx.burst(pos, _v.negate(), 6);
     this.audio.dash();
-    this.cam.impactFov = Math.max(this.cam.impactFov, 3.2);
-    this.cam.shake(0.08);
+    this.cam.impactFov = Math.max(this.cam.impactFov, 2.6);
+    this.cam.shake(0.07);
   }
   activeAttackers() {
     let n = 0;
     for (let i = 0; i < this.titans.length; i++) {
       const s = this.titans[i].state;
-      if (this.titans[i].alive && (s === 'swipe' || s === 'slam' || s === 'reach' || s === 'throw')) n++;
+      if (this.titans[i].alive && (s === 'swipe' || s === 'slam' || s === 'reach' || s === 'throw' || s === 'leap')) n++;
     }
     return n;
   }
-  onDash(dir) { this.story.onDash(); this.audio.dash(); this.vfx.burst(this.player.pos, dir, 16); this.cam.shake(0.11); this.cam.impactFov = Math.max(this.cam.impactFov, 1.8); }
-  onPlayerHurt(d) { this.hud.hurt(d); this.audio.hurt(); this.cam.shake(0.45); }
-  onGrabbed() { this.audio.roar(this.player.pos, 10, 0.6); this.cam.shake(0.55); }
+  onDash(dir) { this.story.onDash(); this.audio.dash(); this.vfx.burst(this.player.pos, dir, 12); this.cam.shake(0.09); this.cam.impactFov = Math.max(this.cam.impactFov, 1.5); }
+  onPlayerHurt(d) { this.hud.hurt(d); this.audio.hurt(); this.cam.shake(0.38); }
+  onGrabbed() { this.audio.roar(this.player.pos, 10, 0.6); this.cam.shake(0.5); }
 
   recordScore(rank = '') {
     let changed = false;
@@ -924,13 +1081,13 @@ class Game {
     if (changed) savePrefs(this.prefs);
   }
 
-  onPlayerDeath(why, customTitle = 'KAMU GUGUR') {
+  onPlayerDeath(why, customTitle = 'KILLED IN ACTION') {
     const msg = {
-      eaten: 'Dimangsa titan.',
-      crash: 'Menghantam struktur pada kecepatan ekstrem.',
-      swat: 'Terhempas serangan titan.',
-      convoy: 'Gerobak Regu Insinyur hancur sebelum Gerbang Selatan tertutup.',
-      district: 'Distrik Halvard runtuh diterjang gelombang titan.',
+      eaten: 'Devoured by a Titan.',
+      crash: 'Fatal high-velocity structural impact.',
+      swat: 'Overwhelmed by Titan strike.',
+      convoy: 'The Engineer Convoy was destroyed before sealing the South Gate.',
+      district: 'Halvard District fell under the Titan assault.',
     }[why] || '';
     this.recordScore('C');
     if (this.deathTimer) clearTimeout(this.deathTimer);
@@ -946,7 +1103,7 @@ class Game {
       if (document.pointerLockElement) document.exitPointerLock();
     }, why === 'eaten' ? 400 : 1200);
     if (why === 'eaten') {
-      this.vfx.bloodSpray(this.player.pos, _v.set(0, 1, 0), 60, 0.8);
+      this.vfx.bloodSpray(this.player.pos, _v.set(0, 1, 0), 36, 0.8);
       this.player.model.setVisible(false);
     }
   }
@@ -961,7 +1118,7 @@ class Game {
   statsHTML() {
     const s = this.stats, m = Math.floor(s.time / 60), sec = Math.floor(s.time % 60);
     const dist = Math.round(this.engineers.districtHP);
-    return `<span>Titan <b>${this.kills}</b></span><span>Fase <b>${this.wave}</b></span><span>Keutuhan Distrik <b>${dist}%</b></span><span>Laju Puncak <b>${Math.round(s.maxSpeed)} m/s</b></span><span>Combo <b>${s.bestCombo}×</b></span><span>Waktu <b>${m}:${String(sec).padStart(2, '0')}</b></span>`;
+    return `<span>Titans <b>${this.kills}</b></span><span>Phase <b>${this.wave}</b></span><span>District Integrity <b>${dist}%</b></span><span>Peak Speed <b>${Math.round(s.maxSpeed)} m/s</b></span><span>Best Streak <b>${s.bestCombo}×</b></span><span>Time <b>${m}:${String(sec).padStart(2, '0')}</b></span>`;
   }
 
   victory() {
@@ -994,7 +1151,7 @@ class Game {
       if (sh.map) { sh.map.dispose(); sh.map = null; }
     }
     if (showToast && this.hud) {
-      this.hud.toast(`<span style="font-size:20px">Grafis: ${['RENDAH', 'SEDANG', 'TINGGI'][q]}</span>`, 1.1);
+      this.hud.toast(`<span style="font-size:18px">Graphics: ${['LOW', 'MEDIUM', 'HIGH'][q]}</span>`, 1.0);
     }
   }
 
@@ -1044,7 +1201,11 @@ class Game {
     const paused = this.started && !this.locked && !this.player.dead && !(this.won && !this.endless);
     const dt = paused ? 0 : rdt * this.timeScale;
 
-    if (inp.pressed('KeyH')) document.getElementById('help').classList.toggle('hidden');
+    if (inp.actionPressed('help')) document.getElementById('help').classList.toggle('hidden');
+    if (inp.actionPressed('viewToggle') && this.started) {
+      this.cam.fp = !this.cam.fp;
+      this.hud.toast(`<span style="font-size:18px">CAMERA: ${this.cam.fp ? 'FIRST-PERSON' : 'THIRD-PERSON'}</span>`, 0.9);
+    }
     if (this.pendingUpgrades) {
       if (inp.pressed('Digit1')) this.pickUpgrade(0);
       else if (inp.pressed('Digit2')) this.pickUpgrade(1);
@@ -1055,30 +1216,30 @@ class Game {
         this.prefs.sensMult = clamp(this.prefs.sensMult * f, 0.3, 2.5);
         this.cam.sens = 0.0022 * this.prefs.sensMult;
         savePrefs(this.prefs);
-        this.hud.toast(`<span style="font-size:20px">Sensitivitas ${this.prefs.sensMult.toFixed(2)}×</span>`, 1);
+        this.hud.toast(`<span style="font-size:18px">Sensitivity ${this.prefs.sensMult.toFixed(2)}×</span>`, 0.9);
       }
     }
-    if (inp.pressed('KeyF')) {
+    if (inp.actionPressed('hookMode')) {
       const p = this.player;
       p.hookMode = p.hookMode === 'focus' ? 'auto' : 'focus';
-      this.hud.toast(p.hookMode === 'focus' ? 'KAIT: FOKUS<br><span style="font-size:16px">dua kabel ke satu titik bidik</span>' : 'KAIT: OTOMATIS<br><span style="font-size:16px">jangkar kiri/kanan pintar</span>', 1.1);
+      this.hud.toast(p.hookMode === 'focus' ? 'GRAPPLE: FOCUS<br><span style="font-size:15px">Pinpoint reticle anchoring</span>' : 'GRAPPLE: SMART<br><span style="font-size:15px">Elevated left/right anchor assist</span>', 1.1);
     }
     if (inp.pressed('KeyM')) {
       this.prefs.music = !this.prefs.music;
       this.audio.musicOn = this.prefs.music;
       savePrefs(this.prefs);
-      this.hud.toast(`<span style="font-size:20px">Musik: ${this.audio.musicOn ? 'AKTIF' : 'MATI'}</span>`, 1);
+      this.hud.toast(`<span style="font-size:18px">Soundtrack: ${this.audio.musicOn ? 'ON' : 'OFF'}</span>`, 0.9);
     }
 
     if (dt > 0) {
       if (this.started) {
         let alive = 0;
         for (let i = 0; i < this.titans.length; i++) if (this.titans[i].alive) alive++;
-        if (alive === 0 && this._prevAlive > 0 && !this.player.dead && this.story.allowWaves()) {
-          const label = this.mode === 'endless' ? `GELOMBANG ${this.wave} BERSIH` : `FASE ${this.wave} BERSIH`;
-          this.hud.toast(`<span style="font-size:22px;color:#9effc4">${label}</span>`, 1.8);
+        if (alive === 0 && this._prevAlive > 0 && this.wave > 0 && !this.player.dead && this.story.allowWaves()) {
+          const label = this.mode === 'endless' ? `WAVE ${this.wave} CLEARED` : `PHASE ${this.wave} CLEARED`;
+          this.hud.toast(`<span style="font-size:21px;color:#9effc4">${label}</span>`, 1.7);
           this.audio.comboSting(3);
-          this.triggerImpact(0.3, 0.3, 0.5, 1, false);
+          this.triggerImpact(0.24, 0.35, 0.45, 1, 0);
         }
         this._prevAlive = alive;
         this.stats.time += dt;
@@ -1093,7 +1254,7 @@ class Game {
             }
           } else if (!this.won || this.endless || this.mode === 'training') {
             this.waveT -= dt;
-            if (this.waveT <= 0) { this.spawnWave(); this.waveT = this.mode === 'training' ? 2.5 : 5.0; }
+            if (this.waveT <= 0) { this.spawnWave(); this.waveT = this.mode === 'training' ? 2.5 : 4.8; }
           }
         }
       }
@@ -1124,8 +1285,8 @@ class Game {
 
     this.story.update(rdt);
     if (!this.started && !this.story.active && !this.cam.customizing) {
-      this.cam.yaw += rdt * 0.06;
-      this.cam.pitch = 0.08 + Math.sin(this.elapsed * 0.15) * 0.06;
+      this.cam.yaw += rdt * 0.055;
+      this.cam.pitch = 0.06 + Math.sin(this.elapsed * 0.14) * 0.05;
     }
     this.cam.update(dt, rdt);
     this.world.followShadow(this.player.pos);
@@ -1140,13 +1301,13 @@ class Game {
     if (this.started) this.hud.update(rdt);
 
     const u = this.post.u;
-    u.uSpeed.value = damp(u.uSpeed.value, clamp((this.player.speed - 15) / 45, 0, 1), 5, rdt);
+    u.uSpeed.value = damp(u.uSpeed.value, clamp((this.player.speed - 16) / 44, 0, 1), 5, rdt);
     u.uHurt.value = this.hud.hurtT;
-    this.flash = Math.max(0, this.flash - rdt * 3.2);
+    this.flash = Math.max(0, this.flash - rdt * 3.5);
     u.uFlash.value = this.flash * this.flash;
-    this.impactPulse = Math.max(0, this.impactPulse - rdt * 4.2);
+    this.impactPulse = Math.max(0, this.impactPulse - rdt * 4.5);
     u.uImpact.value = this.impactPulse;
-    this.bloodMist = Math.max(0, this.bloodMist - rdt * 0.85);
+    this.bloodMist = Math.max(0, this.bloodMist - rdt * 1.1);
     u.uBlood.value = this.cam.isFP() ? this.bloodMist : 0;
   }
 }

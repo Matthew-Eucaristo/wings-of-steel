@@ -112,16 +112,17 @@ export class VFX {
       this.smoke.spawn(p, _d, { life: rand(0.8, 1.6), size0: 0.5, size1: rand(3, 5), color: GAS, colorEnd: GAS_E, alpha: 0.28, drag: 4, buoy: 0.3 });
     }
   }
-  bloodSpray(p, dir, n = 30, big = 1) {
+  bloodSpray(p, dir, n = 22, big = 1) {
     const hasDir = dir && dir.lengthSq() > 1e-6;
-    for (let i = 0; i < n; i++) {
-      if (hasDir) _d.copy(dir).normalize().multiplyScalar(rand(5, 19) * big);
-      else _d.set(0, rand(2, 9) * big, 0);
-      _d.add(_v.set(rand(-4.5, 4.5), rand(-1, 6.5), rand(-4.5, 4.5)));
-      this.blood.spawn(p, _d, { life: rand(0.65, 1.45), size0: rand(0.24, 0.54) * big, size1: 0.12, color: BLOOD, colorEnd: BLOOD_E, alpha: 1, drag: 0.38, buoy: -1.35, stretch: 0.1, fadeIn: 0.01 });
+    const count = Math.max(4, Math.round(n * 0.65));
+    for (let i = 0; i < count; i++) {
+      if (hasDir) _d.copy(dir).normalize().multiplyScalar(rand(5, 16) * big);
+      else _d.set(0, rand(2, 8) * big, 0);
+      _d.add(_v.set(rand(-3.6, 3.6), rand(-0.8, 5.2), rand(-3.6, 3.6)));
+      this.blood.spawn(p, _d, { life: rand(0.55, 1.25), size0: rand(0.16, 0.36) * big, size1: 0.08, color: BLOOD, colorEnd: BLOOD_E, alpha: 0.92, drag: 0.45, buoy: -1.45, stretch: 0.08, fadeIn: 0.01 });
     }
-    const sc = Math.ceil(n * 0.18);
-    for (let i = 0; i < sc; i++) this.steam(_v.copy(p).add(_v2.set(rand(-1, 1), rand(-1, 1), rand(-1, 1))), 1.2 * big, 2);
+    const sc = Math.ceil(count * 0.22);
+    for (let i = 0; i < sc; i++) this.steam(_v.copy(p).add(_v2.set(rand(-0.8, 0.8), rand(-0.6, 0.9), rand(-0.8, 0.8))), 1.0 * big, 1.8);
   }
   severedLimb(p, dir, scale = 1.4) {
     if (!this.limbGeo) this.limbGeo = new THREE.CapsuleGeometry(0.28, 1.5, 4, 8);
@@ -192,14 +193,14 @@ export class VFX {
     }
   }
   napeKill(p, dir, quat = null) {
-    this.flash(p, 4.6, HOT);
-    this.impactRing(p, dir, 9.5, KILL_FLASH, 0.3);
-    if (quat) this.doubleCrossSlash(p, quat, 4.4);
-    this.bloodSpray(p, dir, 105, 1.7);
-    this.bloodPool(p, 3.6);
-    this.sparks(p, 36, this.bladeAura);
-    for (let i = 0; i < 16; i++) this.steam(_v.copy(p).add(_v2.set(rand(-1, 1), rand(0, 2.5), rand(-1, 1))), 2.3, 3.3);
-    for (let i = 0; i < 6; i++) this.wisp(_v.copy(p).add(_v2.set(rand(-0.6, 0.6), rand(0, 1), rand(-0.6, 0.6))), 2.5);
+    this.flash(p, 3.0, HOT);
+    this.impactRing(p, dir, 6.8, KILL_FLASH, 0.24);
+    if (quat) this.doubleCrossSlash(p, quat, 3.4);
+    this.bloodSpray(p, dir, 58, 1.25);
+    this.bloodPool(p, 3.0);
+    this.sparks(p, 22, this.bladeAura);
+    for (let i = 0; i < 10; i++) this.steam(_v.copy(p).add(_v2.set(rand(-0.9, 0.9), rand(0, 2.0), rand(-0.9, 0.9))), 1.8, 2.8);
+    for (let i = 0; i < 4; i++) this.wisp(_v.copy(p).add(_v2.set(rand(-0.5, 0.5), rand(0, 1), rand(-0.5, 0.5))), 2.0);
   }
   signalFlare(pos, kind = 'red') {
     const col = kind === 'green' ? FLARE_GREEN : kind === 'gold' ? FLARE_GOLD : FLARE_RED;

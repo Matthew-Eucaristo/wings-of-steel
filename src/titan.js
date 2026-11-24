@@ -114,7 +114,8 @@ export class Titan {
     const isBoss = this.type === 'armored';
     const isTank = this.type === 'tank';
     const isSprinter = this.type === 'sprinter';
-    this.height = opts.height ?? (isBoss ? 20 : isTank ? rand(17, 20) : isSprinter ? rand(7.5, 10) : rand(11, 15.5));
+    const isCrawler = this.type === 'crawler';
+    this.height = opts.height ?? (isBoss ? 20 : isTank ? rand(17, 20.5) : isCrawler ? rand(6.8, 8.8) : isSprinter ? rand(8, 10.5) : rand(11.5, 15.5));
     this.passive = !!opts.passive;
     this.s = this.height / 10;
     this.seed = opts.seed ?? Math.floor(Math.random() * 1e9);
@@ -126,7 +127,7 @@ export class Titan {
     this.heading = Math.random() * Math.PI * 2;
     this.walkPhase = 0;
     this.speed = 0;
-    this.napeHP = isBoss ? 680 : isTank ? 560 : isSprinter ? 150 : this.type === 'abnormal' ? 280 : 250;
+    this.napeHP = isBoss ? 680 : isTank ? 560 : isCrawler ? 140 : isSprinter ? 160 : this.type === 'abnormal' ? 280 : 250;
     this.hp = this.napeHP;
     this.maxArmor = isBoss ? 620 : 0;
     this.armor = this.maxArmor;
@@ -139,8 +140,12 @@ export class Titan {
     this.legCut = 0;
     this.stumpBleedT = 0;
     this.grabSide = 1;
-    this.cooldown = rand(1.0, 2.4);
-    this.throwCD = rand(3.5, 7.5);
+    this.cooldown = rand(1.0, 2.2);
+    this.throwCD = rand(3.5, 7.0);
+    this.leapCD = rand(3.5, 6.5);
+    this.guardT = 0;
+    this.leapVel = new THREE.Vector3();
+    this.leapAir = false;
     this.stuckT = 0; this.detour = 0; this.detourDir = 1;
     this.steamT = 0;
     this.deadT = 0;
@@ -154,14 +159,14 @@ export class Titan {
     this._hand = new THREE.Vector3();
     this._front = new THREE.Vector3();
     this.prop = {
-      head: isBoss ? 0.96 : isSprinter ? 1.18 : lerp(0.88, 1.3, r()) * (this.type === 'abnormal' ? 1.12 : 1),
-      arm: isBoss ? 1.12 : isSprinter ? 1.15 : lerp(0.92, 1.15, r()),
-      girth: isBoss ? 1.32 : isTank ? 1.42 : isSprinter ? 0.78 : lerp(0.88, 1.2, r()),
-      belly: isTank ? 0.75 : isBoss || isSprinter ? 0 : (r() < 0.3 ? lerp(0.3, 0.7, r()) : 0),
+      head: isBoss ? 0.94 : isCrawler ? 1.08 : isSprinter ? 1.12 : lerp(0.88, 1.22, r()) * (this.type === 'abnormal' ? 1.1 : 1),
+      arm: isBoss ? 1.12 : isCrawler ? 1.26 : isSprinter ? 1.15 : lerp(0.94, 1.14, r()),
+      girth: isBoss ? 1.32 : isTank ? 1.42 : isCrawler ? 0.72 : isSprinter ? 0.8 : lerp(0.88, 1.18, r()),
+      belly: isTank ? 0.72 : isBoss || isSprinter || isCrawler ? 0 : (r() < 0.28 ? lerp(0.28, 0.65, r()) : 0),
       grin: r(),
-      hair: isBoss ? 0.82 : r(),
+      hair: isBoss ? 0.85 : r(),
     };
-    const defaultTone = isBoss ? '#8e3d32' : isTank ? '#988880' : this.type === 'abnormal' ? '#b39892' : isSprinter ? '#bfa89b' : SKIN_TONES[Math.floor(r() * SKIN_TONES.length)];
+    const defaultTone = isBoss ? '#8b3e33' : isTank ? '#96877e' : isCrawler ? '#9e8f88' : this.type === 'abnormal' ? '#b0968e' : isSprinter ? '#bca698' : SKIN_TONES[Math.floor(r() * SKIN_TONES.length)];
     this.build(opts.tone || defaultTone);
     this.root.position.copy(pos);
     this.root.rotation.y = this.heading;
@@ -244,49 +249,54 @@ export class Titan {
     }
     const head = G(neck, 0, 0.75, 0.05); this.head = head;
     const hs = P.head;
-    const skull = mk(new THREE.SphereGeometry(0.85 * hs, 18, 14), mat, head); skull.scale.set(0.92, 1.12, 1.0); skull.position.set(0, 0.55 * hs, 0);
-    const jaw = mk(new THREE.SphereGeometry(0.7 * hs, 16, 12), isBoss ? S.armor : mat, head);
-    jaw.scale.set(0.95, 0.7, 1.0); jaw.position.set(0, 0.05 * hs, 0.12 * hs);
-    this.jaw = jaw; this.jawY0 = jaw.position.y; this.jawDrop = 0.32 * hs;
-    keepSet.add(jaw);
-    const brow = mk(new THREE.CapsuleGeometry(0.11 * hs, 0.7 * hs, 4, 8), isBoss ? S.armor : mat, head);
-    brow.rotation.z = Math.PI / 2; brow.position.set(0, 0.72 * hs, 0.72 * hs);
-    const nose = mk(new THREE.ConeGeometry(0.13 * hs, 0.36 * hs, 8), mat, head); nose.position.set(0, 0.5 * hs, 0.86 * hs); nose.rotation.x = 0.35;
+    const skull = mk(new THREE.SphereGeometry(0.82 * hs, 18, 14), mat, head); skull.scale.set(0.86, 1.12, 0.96); skull.position.set(0, 0.58 * hs, -0.02 * hs);
     for (const sx of [-1, 1]) {
-      const ear = mk(new THREE.SphereGeometry(0.2 * hs, 8, 6), mat, head); ear.scale.set(0.4, 1, 0.7); ear.position.set(sx * 0.8 * hs, 0.5 * hs, 0);
-      const socket = mk(new THREE.SphereGeometry(0.17 * hs, 10, 8), S.socket, head); socket.scale.set(1.1, 0.75, 0.5); socket.position.set(sx * 0.3 * hs, 0.6 * hs, 0.74 * hs);
-      const eye = mk(new THREE.SphereGeometry(0.12 * hs, 10, 8), isBoss || isAbn || isTank ? S.abnEye : S.eye, head); eye.position.set(sx * 0.3 * hs, 0.6 * hs, 0.72 * hs);
-      const look = (this.r() - 0.5) * 0.05 * hs;
+      const cheek = mk(new THREE.SphereGeometry(0.32 * hs, 10, 8), mat, head);
+      cheek.scale.set(0.9, 0.72, 0.85);
+      cheek.position.set(sx * 0.42 * hs, 0.44 * hs, 0.44 * hs);
+    }
+    const jaw = mk(new THREE.SphereGeometry(0.64 * hs, 14, 10), isBoss ? S.armor : mat, head);
+    jaw.scale.set(0.86, 0.62, 0.94);
+    jaw.position.set(0, 0.08 * hs, 0.1 * hs);
+    this.jaw = jaw; this.jawY0 = jaw.position.y; this.jawDrop = 0.26 * hs;
+    keepSet.add(jaw);
+    const brow = mk(new THREE.CapsuleGeometry(0.095 * hs, 0.66 * hs, 4, 8), isBoss ? S.armor : mat, head);
+    brow.rotation.z = Math.PI / 2;
+    brow.position.set(0, 0.71 * hs, 0.66 * hs);
+    const nose = mk(new THREE.ConeGeometry(0.11 * hs, 0.32 * hs, 6), mat, head); nose.position.set(0, 0.51 * hs, 0.78 * hs); nose.rotation.x = 0.34;
+    for (const sx of [-1, 1]) {
+      const ear = mk(new THREE.SphereGeometry(0.18 * hs, 8, 6), mat, head); ear.scale.set(0.35, 1, 0.65); ear.position.set(sx * 0.72 * hs, 0.52 * hs, -0.02 * hs);
+      const socket = mk(new THREE.SphereGeometry(0.16 * hs, 10, 8), S.socket, head); socket.scale.set(1.12, 0.66, 0.45); socket.position.set(sx * 0.28 * hs, 0.59 * hs, 0.68 * hs);
+      const eye = mk(new THREE.SphereGeometry(0.105 * hs, 10, 8), isBoss || isAbn || isTank ? S.abnEye : S.eye, head); eye.position.set(sx * 0.28 * hs, 0.59 * hs, 0.67 * hs);
+      const look = (this.r() - 0.5) * 0.04 * hs;
       if (!isBoss && !isAbn && !isTank) {
-        const iris = mk(new THREE.SphereGeometry(0.075 * hs, 8, 6), irisM, head); iris.scale.set(1, 1, 0.5); iris.position.set(sx * 0.3 * hs + look, 0.6 * hs, 0.815 * hs);
+        const iris = mk(new THREE.SphereGeometry(0.062 * hs, 8, 6), irisM, head); iris.scale.set(1, 1, 0.5); iris.position.set(sx * 0.28 * hs + look, 0.59 * hs, 0.75 * hs);
       }
-      const pupil = mk(new THREE.SphereGeometry(0.035 * hs, 6, 6), S.dark, head); pupil.scale.set(1, 1, 0.4); pupil.position.set(sx * 0.3 * hs + look, 0.6 * hs, 0.845 * hs);
-      const lid = mk(new THREE.SphereGeometry(0.135 * hs, 10, 6, 0, Math.PI * 2, 0, Math.PI * (0.38 + this.r() * 0.1)), mat, head); lid.position.copy(eye.position); lid.rotation.x = 0.35;
+      const pupil = mk(new THREE.SphereGeometry(0.03 * hs, 6, 6), S.dark, head); pupil.scale.set(1, 1, 0.4); pupil.position.set(sx * 0.28 * hs + look, 0.59 * hs, 0.775 * hs);
+      const lid = mk(new THREE.SphereGeometry(0.12 * hs, 10, 6, 0, Math.PI * 2, 0, Math.PI * (0.42 + this.r() * 0.08)), mat, head); lid.position.copy(eye.position); lid.rotation.x = 0.38;
       (this.lids ||= []).push(lid);
     }
-    const grinW = lerp(0.35, 0.75, P.grin);
-    const mouth = mk(new THREE.SphereGeometry(0.5 * hs, 16, 8, -grinW * 1.2 + Math.PI / 2, grinW * 2.4, Math.PI * 0.52, Math.PI * 0.14), S.dark, head);
-    mouth.position.set(0, 0.42 * hs, 0.25 * hs); mouth.scale.set(1.2, 1, 1.25);
-    const nt = Math.round(9 + grinW * 8);
+    const grinW = lerp(0.34, 0.6, P.grin);
+    const mouth = mk(new THREE.SphereGeometry(0.46 * hs, 14, 8, -grinW * 1.1 + Math.PI / 2, grinW * 2.2, Math.PI * 0.53, Math.PI * 0.13), S.dark, head);
+    mouth.position.set(0, 0.38 * hs, 0.24 * hs); mouth.scale.set(1.12, 0.92, 1.16);
+    const nt = Math.round(7 + grinW * 5);
     for (let i = 0; i < nt; i++) {
-      const a = (i / (nt - 1) - 0.5) * grinW * 2.1;
+      const a = (i / (nt - 1) - 0.5) * grinW * 1.65;
       for (const row of [0, 1]) {
-        const tooth = mk(new THREE.BoxGeometry(0.058 * hs, (0.085 + this.r() * 0.03) * hs, 0.05 * hs), S.teeth, head);
-        const rad = 0.8 * hs;
-        tooth.position.set(Math.sin(a) * rad, (0.2 + row * 0.14 - Math.cos(a * 2) * 0.02) * hs, Math.cos(a) * rad + 0.05 * hs);
+        const tooth = mk(new THREE.BoxGeometry(0.048 * hs, (0.058 + this.r() * 0.018) * hs, 0.036 * hs), S.teeth, head);
+        const rad = 0.69 * hs;
+        tooth.position.set(Math.sin(a) * rad, (0.21 + row * 0.082) * hs, Math.cos(a) * rad + 0.03 * hs);
         tooth.rotation.y = a;
       }
     }
-    if (P.hair > 0.35) {
-      const cap = mk(new THREE.SphereGeometry(0.9 * hs, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), isBoss ? S.armor : hairM, head);
-      cap.scale.set(0.98, 1.1, 1.06); cap.position.set(0, 0.62 * hs, -0.05 * hs); cap.rotation.x = -0.25;
-      if (P.hair > 0.7) {
-        for (let i = 0; i < 8; i++) {
-          const tuft = mk(new THREE.ConeGeometry(0.2 * hs, 0.7 * hs, 6), isBoss ? S.armor : hairM, head);
-          const a = (i / 8) * Math.PI * 2;
-          tuft.position.set(Math.sin(a) * 0.6 * hs, 0.95 * hs, Math.cos(a) * 0.55 * hs - 0.1 * hs);
-          tuft.rotation.set(Math.cos(a) * 0.9, 0, -Math.sin(a) * 0.9);
-        }
+    if (P.hair > 0.32) {
+      const cap = mk(new THREE.SphereGeometry(0.84 * hs, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.52), isBoss ? S.armor : hairM, head);
+      cap.scale.set(0.92, 1.05, 1.02); cap.position.set(0, 0.66 * hs, -0.07 * hs); cap.rotation.x = -0.34;
+      for (let i = 0; i < 9; i++) {
+        const tuft = mk(new THREE.ConeGeometry(0.17 * hs, (0.48 + this.r() * 0.32) * hs, 5), isBoss ? S.armor : hairM, head);
+        const a = (i / 9) * Math.PI * 2;
+        tuft.position.set(Math.sin(a) * 0.56 * hs, 0.9 * hs, Math.cos(a) * 0.52 * hs - 0.12 * hs);
+        tuft.rotation.set(Math.cos(a) * 1.05, 0, -Math.sin(a) * 1.05);
       }
     }
     this.shoulders = []; this.elbows = []; this.wrists = []; this.stumps = [];
@@ -441,6 +451,9 @@ export class Titan {
     this.hitTilt = 0.35;
     const g = this.game;
     if (part === 'nape') {
+      if (this.guardT > 0 && !opts.explosive && !opts.heavy) {
+        return { result: 'deflect' };
+      }
       if (this.armor > 0) {
         const armorMult = opts.explosive ? 2.8 : opts.heavy ? 1.55 : 0.55;
         const armorDmg = Math.round(dmg * armorMult);
@@ -461,6 +474,9 @@ export class Titan {
       this.hp -= dmg;
       this.regen = 3.5;
       if (this.napeScar) this.napeScar.visible = true;
+      if ((this.type === 'armored' || this.type === 'tank') && this.armCut[1] <= 1.2 && this.state === 'chase') {
+        this.guardT = 1.35;
+      }
       return { result: 'nape' };
     }
     if (part === 'ankle' || part === 'leg') {
@@ -496,7 +512,7 @@ export class Titan {
   }
 
   get label() {
-    return { sprinter: 'Pelari', normal: 'Biasa', abnormal: 'Abnormal', tank: 'Raksasa', armored: 'Lapis' }[this.type] + ' ' + Math.round(this.height) + 'm';
+    return { sprinter: 'Sprinter', normal: 'Standard', abnormal: 'Abnormal', tank: 'Brute', armored: 'Armored', crawler: 'Stalker' }[this.type] + ' ' + Math.round(this.height) + 'm';
   }
 
   threatInfo() {
@@ -506,6 +522,7 @@ export class Titan {
     if (this.state === 'slam') return { kind: 'slam', windup: Math.min(1, t / (1.15 * 0.82)), active: t > 1.15 * 0.78 && t < 1.15 * 0.9 };
     if (this.state === 'throw') return { kind: 'throw', windup: Math.min(1, t / (1.25 * 0.76)), active: false };
     if (this.state === 'reach') return { kind: 'grab', windup: Math.min(1, t / (1.45 * 0.42)), active: t > 1.45 * 0.42 && t < 1.45 * 0.84 };
+    if (this.state === 'leap') return { kind: 'leap', windup: Math.min(1, t / 0.45), active: t >= 0.45 };
     if (this.lunge > 0) return { kind: 'lunge', windup: 1, active: true };
     return null;
   }
@@ -569,6 +586,8 @@ export class Titan {
     }
     this.cooldown -= dt;
     this.throwCD -= dt;
+    this.leapCD = (this.leapCD || 0) - dt;
+    this.guardT = Math.max(0, (this.guardT || 0) - dt);
     this.lungeCD = (this.lungeCD || 0) - dt;
     const pos = this.root.position;
     const s = this.s;
@@ -579,6 +598,7 @@ export class Titan {
     const isBoss = this.type === 'armored';
     const isTank = this.type === 'tank';
     const isSprinter = this.type === 'sprinter';
+    const isCrawler = this.type === 'crawler';
 
     const convoyPos = g.engineers?.getThreatAttractor(pos, this.type);
     const chasePos = convoyPos || p.pos;
@@ -636,7 +656,8 @@ export class Titan {
       }
       if (t > 0.48 && t < 0.82 && !this.didStrike && this.armCut[side] <= 1.2) {
         const hp = this.handPos(side, this._hand);
-        g.world.destroyNear(hp, 2.2 * s);
+        _v.set(Math.sin(this.heading), 0, Math.cos(this.heading));
+        g.world.destroyNear(hp, 2.2 * s, 95, _v);
         if (!p.dead && p.invuln <= 0 && hp.distanceTo(p.pos) < 1.55 * s + 0.8) {
           const committed = ((p.slashT > 0.05 && p.slashT < 0.95) || p.spin > 0) && p.vel.length() > 14;
           if (!committed) {
@@ -646,13 +667,56 @@ export class Titan {
             g.vfx.dust(hp, 2.8 * s, 10);
           } else if (!this.nearMissed) {
             this.nearMissed = true;
-            g.hud.pop(p.pos, 'NYARIS!', 'small');
+            g.hud.pop(p.pos, 'CLOSE CALL!', 'small');
             g.audio.dash();
-            p.gas = Math.min(100, p.gas + 5);
+            p.gas = Math.min(100, p.gas + 6);
           }
         }
       }
       if (t >= 1) { this.setState('chase'); this.cooldown = rand(1.1, 2.2); }
+    } else if (this.state === 'leap') {
+      wantHeading = Math.atan2(toPlayer.x, toPlayer.z);
+      if (this.stateT < 0.45) {
+        targetSpeed = 0;
+        lean = 0.65;
+        this.body.position.y = -0.7 * s * Math.sin((this.stateT / 0.45) * Math.PI * 0.5);
+      } else {
+        if (!this.leapAir) {
+          this.leapAir = true;
+          const dx = p.pos.x - pos.x, dz = p.pos.z - pos.z;
+          const dh = Math.max(6, Math.hypot(dx, dz));
+          const flyT = clamp(dh / 28, 0.55, 1.15);
+          this.leapVel.set(dx / flyT, clamp((p.pos.y - pos.y) / flyT + 14 * flyT, 14, 24), dz / flyT);
+          g.audio.roar(pos, this.height, 0.75);
+          g.audio.whoosh(pos, s * 1.3);
+        }
+        this.leapVel.y -= 28 * dt;
+        pos.addScaledVector(this.leapVel, dt);
+        this.body.position.y = 0;
+        lean = 0.72;
+        if (!p.dead && p.invuln <= 0 && !this.didStrike && pos.distanceTo(p.pos) < 2.2 * s + 1.2) {
+          const committed = ((p.slashT > 0.05 && p.slashT < 0.95) || p.spin > 0) && p.vel.length() > 14;
+          if (!committed) {
+            this.didStrike = true;
+            _v.copy(this.leapVel).setY(6).normalize();
+            p.knockback(_v, 18, 15);
+          } else if (!this.nearMissed) {
+            this.nearMissed = true;
+            g.hud.pop(p.pos, 'CLOSE CALL!', 'small');
+            p.gas = Math.min(100, p.gas + 6);
+          }
+        }
+        if (pos.y <= 0 && this.leapVel.y < 0) {
+          pos.y = 0;
+          this.leapAir = false;
+          g.vfx.dust(pos, 4.5 * s, 16);
+          g.audio.fall(pos, this.height * 0.7);
+          g.world.destroyNear(pos, 3.2 * s, 110, this.leapVel);
+          this.setState('chase');
+          this.leapCD = rand(5.5, 9.0);
+          this.cooldown = 1.4;
+        }
+      }
     } else if (this.state === 'slam') {
       const dur = 1.15;
       const t = this.stateT / dur;
@@ -730,7 +794,7 @@ export class Titan {
             const committed = ((p.slashT > 0.05 && p.slashT < 0.95) || p.spin > 0) && speed > 10;
             if (committed) {
               this.setState('chase'); this.cooldown = 1.2; g.cam.shake(0.12);
-              g.hud.pop(p.pos, 'NYARIS!', 'small');
+              g.hud.pop(p.pos, 'CLOSE CALL!', 'small');
               g.audio.dash();
               p.gas = Math.min(100, p.gas + 5);
             } else if (speed > 16) {
@@ -743,9 +807,9 @@ export class Titan {
       } else {
         if (this.state !== 'chase') this.setState('chase');
         wantHeading = Math.atan2(toT.x, toT.z);
-        const baseSpd = isSprinter ? 9.8 : abn ? 8.2 : isBoss ? 4.3 : isTank ? 2.1 : 3.2;
+        const baseSpd = isCrawler ? 11.2 : isSprinter ? 9.8 : abn ? 8.2 : isBoss ? 4.4 : isTank ? 2.2 : 3.3;
         targetSpeed = baseSpd * Math.sqrt(s) * (chasingPlayer && distH < reach * 1.25 ? 0.38 : 1);
-        lean = isSprinter ? 0.48 : abn ? 0.55 : isBoss ? 0.22 : 0.08;
+        lean = isCrawler ? 0.82 : isSprinter ? 0.48 : abn ? 0.55 : isBoss ? 0.22 : 0.08;
         const pyRel = p.pos.y - pos.y;
         const attackCommitted = ((p.slashT > 0.05 && p.slashT < 0.95) || p.spin > 0) && p.vel.length() > 11;
 
@@ -760,6 +824,9 @@ export class Titan {
           if (this.armCut[this.grabSide] > 1.2) this.grabSide = 1 - this.grabSide;
           this.setState('swipe');
           g.audio.roar(pos, this.height, 0.45);
+        } else if (tokenFree && (isCrawler || isSprinter || abn) && !p.dead && this.leapCD <= 0 && playerDistH > 14 && playerDistH < 34 && pyRel > 3 && pyRel < 22 && this.legCut <= 0) {
+          this.leapAir = false;
+          this.setState('leap');
         } else if (tokenFree && (isTank || isBoss || (abn && Math.random() < 0.25)) && this.throwCD <= 0 && distH > 38 && distH < 145 && this.armCut[1] <= 1.2) {
           this.setState('throw');
           g.audio.roar(pos, this.height, 0.65);
@@ -796,13 +863,15 @@ export class Titan {
     const turnRate = isSprinter ? 2.8 : abn ? 2.2 : isBoss ? 1.25 : isTank ? 0.72 : 1.05;
     const dh = Math.atan2(Math.sin(wantHeading - this.heading), Math.cos(wantHeading - this.heading));
     this.heading += clamp(dh, -turnRate * dt, turnRate * dt);
-    if (this.state === 'kneel' || this.state === 'emerge' || this.state === 'grab' || this.state === 'slam' || this.state === 'throw') targetSpeed = 0;
+    if (this.state === 'kneel' || this.state === 'emerge' || this.state === 'grab' || this.state === 'slam' || this.state === 'throw' || this.state === 'leap') targetSpeed = 0;
     this.speed = damp(this.speed, targetSpeed, 3.2, dt);
     const fx = Math.sin(this.heading), fz = Math.cos(this.heading);
     const bx = pos.x, bz = pos.z;
-    pos.x += fx * this.speed * dt;
-    pos.z += fz * this.speed * dt;
-    this.avoid(dt);
+    if (this.state !== 'leap') {
+      pos.x += fx * this.speed * dt;
+      pos.z += fz * this.speed * dt;
+      this.avoid(dt);
+    }
     const moved = Math.hypot(pos.x - bx, pos.z - bz);
     if (this.speed > 0.5 && moved < this.speed * dt * 0.3) {
       this.stuckT += dt;
@@ -830,7 +899,11 @@ export class Titan {
       const d2 = dx * dx + dz * dz;
       if (d2 >= rr * rr) continue;
       if (o.house && !o.house.dead && o.h < this.height * crushScale && d2 < rr * rr * 0.68) {
-        this.game.onHouseDown(o.house, pos);
+        const push = _v.set(Math.sin(this.heading), 0, Math.cos(this.heading));
+        const power = (this.type === 'armored' || this.lunge > 0 ? 220 : 85) * dt * 4;
+        if (this.game.world.damageHouse(o.house, pos, push, power)) {
+          this.game.onHouseDown(o.house, pos);
+        }
         continue;
       }
       if (d2 > 1e-6) {
@@ -884,6 +957,10 @@ export class Titan {
     if (this.blind > 0 && this.armCut[0] <= 1.2) {
       this.shoulders[0].rotation.set(-2.25, 0.35, 0.45);
       this.elbows[0].rotation.set(-1.75, 0, 0);
+    }
+    if (this.guardT > 0 && this.armCut[1] <= 1.2 && this.state === 'chase') {
+      this.shoulders[1].rotation.set(-2.5, -0.4, -0.45);
+      this.elbows[1].rotation.set(-1.95, 0, 0);
     }
     const bob = Math.abs(Math.cos(ph)) * 0.12 * amp;
     this.hips.position.y = lerp(5.05 - bob, 2.5, k);

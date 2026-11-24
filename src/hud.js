@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { WALL_R, GAP_HALF } from './world.js';
+import { formatKey } from './util.js';
 
 const $ = (id) => document.getElementById(id);
 const _v = new THREE.Vector3();
@@ -15,6 +16,8 @@ export class HUD {
       hitmark: $('hitmark'),
       candL: $('cand-l'),
       candR: $('cand-r'),
+      candLKey: $('cand-l-key'),
+      candRKey: $('cand-r-key'),
       lock: $('lock'),
       locktxt: $('locktxt'),
       marks: $('marks'),
@@ -36,26 +39,29 @@ export class HUD {
       kills: $('kills').querySelector('b'),
       combo: $('combo'),
       hpb: $('hpb'),
-      gasb: $('gasb'),
-      bladeb: $('bladeb'),
-      sets: $('sets'),
+      hpnum: $('hpnum'),
       viewbadge: $('viewbadge'),
-      spearcount: $('spearcount'),
-      spearpips: $('spearpips'),
+      spearAlert: $('spear-alert'),
+      spearKeyAlert: $('spear-key-alert'),
       spearhint: $('spearhint'),
       squadBox: $('squad-box'),
       sqRows: [$('sq0'), $('sq1'), $('sq2')],
-      gasarc: $('gasarc'),
-      bladearc: $('bladearc'),
-      gasnum: $('gasnum'),
-      bladenum: $('bladenum'),
-      gaspips: $('gaspips'),
-      bladepips: $('bladepips'),
-      gaslvl: $('gaslvl'),
-      spearnum: $('spearnum'),
-      classlabel: $('classlabel'),
       flareRow: $('flare-row'),
       flaretxt: $('flaretxt'),
+      cmdKeyHud: $('cmd-key-hud'),
+      gasPod: $('gas-pod'),
+      gasb: $('gasb'),
+      gasnum: $('gasnum'),
+      gaspips: $('gaspips'),
+      gasKeyHud: $('gas-key-hud'),
+      bladePod: $('blade-pod'),
+      bladeb: $('bladeb'),
+      bladenum: $('bladenum'),
+      bladepips: $('bladepips'),
+      bladeKeyHud: $('blade-key-hud'),
+      spearMini: $('spear-mini'),
+      spearKeyHud: $('spear-key-hud'),
+      spearcount: $('spearcount'),
       hl: $('hl'),
       hr: $('hr'),
       spd: $('spd'),
@@ -64,15 +70,17 @@ export class HUD {
       spinbar: $('spinbar'),
       spinfill: $('spinbar')?.querySelector('i'),
       rebound: $('rebound'),
-      gear: $('gear'),
       radio: $('radio'),
       upgrades: $('upgrades'),
       upcards: $('upcards'),
       toast: $('toast'),
       struggle: $('struggle'),
+      struggleKey: $('struggle-key'),
       strb: $('strb'),
       hurt: $('hurt'),
       help: $('help'),
+      helpGrid: $('help-grid'),
+      helpCloseHint: $('help-close-hint'),
       hk: document.querySelectorAll('#cross .hk'),
       depot: $('depotm'),
       threats: $('threats'),
@@ -93,6 +101,45 @@ export class HUD {
     this.resT = 0;
     this.radioT = 0;
     this.hitmarkT = 0;
+    this.syncBindHints();
+  }
+
+  syncBindHints() {
+    const b = this.game.prefs?.binds || {};
+    const k = (act) => formatKey(b[act]);
+    const e = this.el;
+    if (e.candLKey) e.candLKey.textContent = k('hookL');
+    if (e.candRKey) e.candRKey.textContent = k('hookR');
+    if (e.hl) e.hl.textContent = k('hookL');
+    if (e.hr) e.hr.textContent = k('hookR');
+    if (e.gasKeyHud) e.gasKeyHud.textContent = k('reloadGas');
+    if (e.bladeKeyHud) e.bladeKeyHud.textContent = k('reloadBlade');
+    if (e.spearKeyHud) e.spearKeyHud.textContent = k('spear');
+    if (e.spearKeyAlert) e.spearKeyAlert.textContent = k('spear');
+    if (e.cmdKeyHud) e.cmdKeyHud.textContent = k('command');
+    if (e.struggleKey) e.struggleKey.textContent = k('reel');
+    if (e.rebound) e.rebound.textContent = `${k('reel')} · WALL-KICK`;
+    if (e.helpCloseHint) e.helpCloseHint.textContent = `[${k('help')}] Close`;
+
+    const helpItems = [
+      [`<kbd>${k('hookL')}</kbd><kbd>${k('hookR')}</kbd> / <kbd>RMB</kbd>`, 'Left / Right / Dual Hooks'],
+      [`<kbd>${k('reel')}</kbd>`, 'Winch Reel / Jump / Wall-Kick'],
+      [`<kbd>${k('boost')}</kbd>+<kbd>${k('forward')}${k('left')}${k('back')}${k('right')}</kbd>`, 'Momentum Boost & Steer'],
+      [`<kbd>${k('back')}</kbd>+<kbd>${k('boost')}</kbd>`, 'Air Brake'],
+      ['<kbd>LMB</kbd>', 'Slash / Hold for Spiral Slash'],
+      [`<kbd>${k('spear')}</kbd>`, 'Fire / Detonate Thunder Spear'],
+      [`<kbd>${k('command')}</kbd>`, 'Squad Order & Artillery'],
+      [`<kbd>${k('reloadBlade')}</kbd> / <kbd>${k('reloadGas')}</kbd>`, 'Swap Blades / Gas Canister'],
+      [`<kbd>${k('hookMode')}</kbd>`, 'Smart / Focus Grapple Mode'],
+      [`<kbd>${k('viewToggle')}</kbd> / <kbd>${k('help')}</kbd>`, 'Camera View / Controls'],
+    ];
+    if (e.helpGrid) {
+      e.helpGrid.innerHTML = helpItems.map(([keys, desc]) => `<div>${keys} ${desc}</div>`).join('');
+    }
+    const pauseBinds = $('pause-binds');
+    if (pauseBinds) {
+      pauseBinds.innerHTML = helpItems.slice(0, 8).map(([keys, desc]) => `<div>${keys} ${desc}</div>`).join('');
+    }
   }
 
   setText(el, key, val) {
@@ -121,7 +168,7 @@ export class HUD {
     d.style.left = o.x + 'px';
     d.style.top = o.y + 'px';
     this.el.pops.appendChild(d);
-    setTimeout(() => d.remove(), 1100);
+    setTimeout(() => d.remove(), 1050);
   }
 
   hitmarker(kind = 'hit') {
@@ -129,10 +176,10 @@ export class HUD {
     hm.className = '';
     void hm.offsetWidth;
     hm.className = kind;
-    this.hitmarkT = kind === 'kill' ? 0.34 : 0.18;
+    this.hitmarkT = kind === 'kill' ? 0.3 : 0.16;
   }
 
-  radio(msg, dur = 4.4) {
+  radio(msg, dur = 4.2) {
     this.el.radio.textContent = msg;
     this.el.radio.classList.remove('hidden');
     this.radioT = dur;
@@ -153,8 +200,8 @@ export class HUD {
     const d = document.createElement('div');
     d.innerHTML = html;
     this.el.killfeed.prepend(d);
-    while (this.el.killfeed.children.length > 5) this.el.killfeed.lastChild.remove();
-    setTimeout(() => d.remove(), 4600);
+    while (this.el.killfeed.children.length > 3) this.el.killfeed.lastChild.remove();
+    setTimeout(() => d.remove(), 4300);
   }
 
   damageFrom(src) {
@@ -166,7 +213,7 @@ export class HUD {
     d.style.transform = `rotate(${ang}rad)`;
     d.innerHTML = '<i></i>';
     this.el.dmgdir.appendChild(d);
-    setTimeout(() => d.remove(), 1150);
+    setTimeout(() => d.remove(), 1050);
   }
 
   updateThreats() {
@@ -178,7 +225,7 @@ export class HUD {
         const th = t.threatInfo();
         if (!th) continue;
         const d = t.root.position.distanceTo(p.pos);
-        const range = th.kind === 'throw' ? 160 : th.kind === 'slam' ? 9 * t.s + 10 : 5.5 * t.s + 8;
+        const range = th.kind === 'throw' ? 160 : th.kind === 'slam' ? 9 * t.s + 10 : th.kind === 'leap' ? 42 : 5.5 * t.s + 8;
         if (d > range) continue;
         let el = this.threatEls[n];
         if (!el) {
@@ -189,17 +236,17 @@ export class HUD {
         }
         n++;
         const hot = th.active || th.windup > 0.72;
-        const label = { swipe: 'SAPUAN!', slam: 'HANTAMAN!', throw: 'LEMPARAN BATU!', grab: 'CENGKERAMAN!', lunge: 'TERJANGAN!' }[th.kind];
+        const label = { swipe: 'SWIPE!', slam: 'GROUND SLAM!', throw: 'BOULDER!', grab: 'GRAB!', lunge: 'CHARGE!', leap: 'LEAP!' }[th.kind] || 'INCOMING!';
         _v.copy(t.nape.c).project(g.cam.camera);
         const behind = _v.z > 1;
         let x = _v.x, y = _v.y;
         if (behind) { x = -x; y = -y; }
-        if (!behind && Math.abs(x) < 0.9 && Math.abs(y) < 0.85) {
+        if (!behind && Math.abs(x) < 0.88 && Math.abs(y) < 0.82) {
           el.className = 'th' + (hot ? ' hot' : '');
           el.style.left = (x * 0.5 + 0.5) * innerWidth + 'px';
           el.style.top = (-y * 0.5 + 0.5) * innerHeight + 'px';
           el.style.transform = '';
-          el.firstChild.style.transform = `scale(${1.9 - th.windup * 0.9})`;
+          el.firstChild.style.transform = `scale(${1.8 - th.windup * 0.85})`;
         } else {
           const a = Math.atan2(y, x), k = 0.86 / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)) * 1.1);
           el.className = 'edge' + (hot ? ' hot' : '');
@@ -220,20 +267,20 @@ export class HUD {
     const show = eng.activeConvoy && !p.dead;
     e.objm.classList.toggle('hidden', !show);
     if (!show) return;
-    _v.copy(eng.convoyPos).setY(5);
+    _v.copy(eng.convoyPos).setY(5.5);
     const dist = Math.round(_v.distanceTo(p.pos));
     if (dist < 14) { e.objm.classList.add('hidden'); return; }
     _v.project(g.cam.camera);
     let x = _v.x, y = _v.y;
-    if (_v.z > 1) { x = -x; y = -y; if (Math.abs(x) < 0.9 && Math.abs(y) < 0.85) y = -0.85; }
-    const k = Math.max(1, Math.abs(x) / 0.9, Math.abs(y) / 0.82);
+    if (_v.z > 1) { x = -x; y = -y; if (Math.abs(x) < 0.9 && Math.abs(y) < 0.82) y = -0.82; }
+    const k = Math.max(1, Math.abs(x) / 0.88, Math.abs(y) / 0.78);
     let sx = ((x / k) * 0.5 + 0.5) * innerWidth;
-    const sy = (-(y / k) * 0.5 + 0.5) * innerHeight;
-    if (sy > innerHeight - 150 && Math.abs(sx - innerWidth / 2) < 200) sx = innerWidth / 2 + (sx < innerWidth / 2 ? -200 : 200);
+    const sy = Math.min(innerHeight - 108, Math.max(96, (-(y / k) * 0.5 + 0.5) * innerHeight));
+    if (sy > innerHeight - 150 && Math.abs(sx - innerWidth / 2) < 250) sx = innerWidth / 2 + (sx < innerWidth / 2 ? -250 : 250);
     e.objm.style.left = sx + 'px';
     e.objm.style.top = sy + 'px';
     e.objm.classList.toggle('alert', eng.pinned);
-    this.setText(e.objtxt, 'objtxt', (eng.pinned ? 'KONVOI DISERANG ' : 'KONVOI ') + dist + 'm');
+    this.setText(e.objtxt, 'objtxt', (eng.pinned ? 'CONVOY PINNED ' : 'CONVOY ') + dist + 'm');
   }
 
   toast(text, dur = 1.6) {
@@ -243,25 +290,26 @@ export class HUD {
   }
 
   flash(kind) {
+    const b = this.game.prefs?.binds || {};
     const map = {
-      'no-anchor': 'Tidak ada titik kait dalam jangkauan',
-      blades: 'Pedang tumpul! Tekan [R] ganti set',
+      'no-anchor': 'No anchor surface in range',
+      blades: `Blades shattered! Press [${formatKey(b.reloadBlade)}] to swap`,
       swap: '',
-      lowgas: 'GAS HAMPIR HABIS',
+      lowgas: 'LOW GAS PRESSURE',
     };
-    if (map[kind]) this.toast(`<span style="font-size:20px">${map[kind]}</span>`, 0.9);
+    if (map[kind]) this.toast(`<span style="font-size:18px">${map[kind]}</span>`, 0.9);
   }
 
   resupply(name) {
-    if (this.resT <= 0) this.toast(`<span style="font-size:20px;color:#9effc4">SUPLAI PENUH — ${name}</span>`, 0.8);
+    if (this.resT <= 0) this.toast(`<span style="font-size:18px;color:#9effc4">RESUPPLIED — ${name}</span>`, 0.8);
     this.resT = 0.7;
   }
 
-  hurt(d) { this.hurtT = Math.min(1, this.hurtT + d / 35 + 0.2); }
+  hurt(d) { this.hurtT = Math.min(1, this.hurtT + d / 35 + 0.18); }
 
   combo(n) {
     if (n >= 2) {
-      this.el.combo.textContent = `${n}× BERUNTUN`;
+      this.el.combo.textContent = `${n}× STREAK`;
       this.el.combo.style.opacity = 1;
       this.comboT = 3.2;
     }
@@ -283,6 +331,7 @@ export class HUD {
     e.upgrades.classList.add('hidden');
     e.struggle.classList.add('hidden');
     e.help.classList.add('hidden');
+    if (e.spearAlert) e.spearAlert.classList.add('hidden');
     if (e.rebound) e.rebound.classList.add('hidden');
     if (e.spinbar) e.spinbar.classList.remove('on');
     e.pops.innerHTML = '';
@@ -296,7 +345,7 @@ export class HUD {
   drawRadar() {
     const g = this.game, p = g.player, eng = g.engineers, sq = g.squad;
     const ctx = this.rctx;
-    const W = 152, C = W / 2, scale = (C - 10) / 270;
+    const W = 128, C = W / 2, scale = (C - 9) / 270;
     ctx.clearRect(0, 0, W, W);
     const yaw = g.cam.yaw;
     const cos = Math.cos(yaw), sin = Math.sin(yaw);
@@ -305,8 +354,8 @@ export class HUD {
       const rx = -(dx * cos - dz * sin) * scale;
       const ry = -(dx * sin + dz * cos) * scale;
       const r = Math.hypot(rx, ry);
-      if (r > C - 8) {
-        const k = (C - 8) / r;
+      if (r > C - 7) {
+        const k = (C - 7) / r;
         return [C + rx * k, C + ry * k, true];
       }
       return [C + rx, C + ry, false];
@@ -314,17 +363,17 @@ export class HUD {
 
     ctx.strokeStyle = 'rgba(255,255,255,0.09)';
     ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(C, C, (C - 10) * 0.5, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(C, C, (C - 9) * 0.5, 0, Math.PI * 2); ctx.stroke();
 
     ctx.fillStyle = 'rgba(255,235,190,0.08)';
     ctx.beginPath();
     ctx.moveTo(C, C);
-    ctx.arc(C, C, C - 8, -Math.PI / 2 - 0.52, -Math.PI / 2 + 0.52);
+    ctx.arc(C, C, C - 7, -Math.PI / 2 - 0.5, -Math.PI / 2 + 0.5);
     ctx.closePath();
     ctx.fill();
 
     ctx.strokeStyle = 'rgba(210,185,135,0.4)';
-    ctx.lineWidth = 1.6;
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
     let started = false;
     for (let i = 0; i <= 48; i++) {
@@ -343,7 +392,7 @@ export class HUD {
       ctx.save();
       ctx.translate(sx, sy);
       ctx.rotate(Math.PI / 4);
-      ctx.fillRect(-3, -3, 6, 6);
+      ctx.fillRect(-2.6, -2.6, 5.2, 5.2);
       ctx.restore();
     }
 
@@ -353,13 +402,13 @@ export class HUD {
         if (r.cleared) continue;
         const [sx, sy] = toR(r.pos.x, r.pos.z);
         ctx.strokeStyle = '#5be4ff';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(sx, sy, 3.2, 0, Math.PI * 2); ctx.stroke();
+        ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.arc(sx, sy, 2.8, 0, Math.PI * 2); ctx.stroke();
       }
     } else if (eng?.wagon.visible) {
       const [sx, sy] = toR(eng.convoyPos.x, eng.convoyPos.z);
       ctx.fillStyle = eng.pinned ? '#ff4d3a' : '#ffd97a';
-      ctx.fillRect(sx - 4, sy - 4, 8, 8);
+      ctx.fillRect(sx - 3.5, sy - 3.5, 7, 7);
     }
 
     if (sq) {
@@ -368,7 +417,7 @@ export class HUD {
         if (!m.model.root.visible) continue;
         const [sx, sy] = toR(m.pos.x, m.pos.z);
         ctx.fillStyle = '#70d6ff';
-        ctx.beginPath(); ctx.arc(sx, sy, 2.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx, sy, 2.2, 0, Math.PI * 2); ctx.fill();
       }
     }
 
@@ -378,13 +427,13 @@ export class HUD {
       const [sx, sy] = toR(t.root.position.x, t.root.position.z);
       if (t.type === 'armored') {
         ctx.fillStyle = '#ffe07d';
-        ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx, sy, 4.4, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#ff3b20';
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.4;
         ctx.stroke();
       } else {
-        ctx.fillStyle = t.type === 'abnormal' ? '#ff9f38' : t.type === 'tank' ? '#d96bff' : '#ff4c38';
-        ctx.beginPath(); ctx.arc(sx, sy, t.type === 'tank' ? 4.2 : 3.1, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = t.type === 'abnormal' || t.type === 'crawler' ? '#ff9f38' : t.type === 'tank' ? '#d96bff' : '#ff4c38';
+        ctx.beginPath(); ctx.arc(sx, sy, t.type === 'tank' ? 3.8 : 2.8, 0, Math.PI * 2); ctx.fill();
       }
     }
 
@@ -395,22 +444,23 @@ export class HUD {
       ctx.save();
       ctx.translate(sx, sy);
       ctx.rotate(g.elapsed * 4);
-      ctx.fillRect(-2.2, -2.2, 4.4, 4.4);
+      ctx.fillRect(-2, -2, 4, 4);
       ctx.restore();
     }
 
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.moveTo(C, C - 5);
-    ctx.lineTo(C + 4, C + 4);
-    ctx.lineTo(C, C + 2);
-    ctx.lineTo(C - 4, C + 4);
+    ctx.moveTo(C, C - 4.5);
+    ctx.lineTo(C + 3.5, C + 3.5);
+    ctx.lineTo(C, C + 1.5);
+    ctx.lineTo(C - 3.5, C + 3.5);
     ctx.closePath();
     ctx.fill();
   }
 
   update(dt) {
     const g = this.game, p = g.player, eng = g.engineers, sq = g.squad, e = this.el;
+    const b = g.prefs?.binds || {};
     if (e.fps && !e.fps.classList.contains('hidden')) {
       this.fpsAcc = (this.fpsAcc || 0) + dt;
       this.fpsN = (this.fpsN || 0) + 1;
@@ -419,41 +469,29 @@ export class HUD {
         this.fpsAcc = 0; this.fpsN = 0;
       }
     }
-    e.hpb.style.width = Math.max(0, Math.round(p.hp)) + '%';
+
+    const hpInt = Math.max(0, Math.round(p.hp));
+    e.hpb.style.width = hpInt + '%';
+    this.setText(e.hpnum, 'hpnum', String(hpInt));
+    this.setText(e.viewbadge, 'vbadge', g.cam.fp ? '1ST' : '3RD');
+
     e.gasb.style.width = Math.max(0, Math.round(p.gas)) + '%';
     e.bladeb.style.width = Math.max(0, Math.round(p.blade)) + '%';
-    this.setText(e.sets, 'sets', '×' + p.bladeSets);
-    this.setText(e.viewbadge, 'vbadge', '1ST POV');
-    e.gasarc.style.strokeDashoffset = 100 - p.gas;
-    e.bladearc.style.strokeDashoffset = 100 - p.blade;
     this.setText(e.gasnum, 'gasnum', p.gasReload > 0 ? p.gasReload.toFixed(1) + 's' : String(Math.round(p.gas)));
     this.setText(e.bladenum, 'bladenum', String(Math.round(p.blade)));
-    this.setText(e.spearnum, 'spearnum', String(p.spears));
-    e.gaslvl.style.opacity = 0.25 + 0.75 * (p.gas / 100);
     for (let i = 0; i < 6; i++) e.gaspips.children[i].classList.toggle('on', i < p.gasCylinders);
     for (let i = 0; i < 8; i++) e.bladepips.children[i].classList.toggle('on', i < p.bladeSets);
-    this.setText(e.classlabel, 'cls', { light: 'RINGAN', balanced: 'SEIMBANG', heavy: 'BERAT' }[p.className] || 'SEIMBANG');
-    e.gear.classList.toggle('lowgas', p.gas < 20);
+    e.gasPod.classList.toggle('low', p.gas < 20);
+    e.bladePod.classList.toggle('low', p.blade < 22);
     this.setText(e.spd, 'spd', String(Math.round(p.speed)));
 
     const maxSp = p.maxSpears;
     this.setText(e.spearcount, 'spcnt', `${p.spears}/${maxSp}`);
-    for (let i = 0; i < e.spearpips.children.length; i++) {
-      const pip = e.spearpips.children[i];
-      pip.classList.toggle('hide', i >= Math.min(6, maxSp));
-      pip.classList.toggle('on', i < p.spears);
-    }
     const activeShot = p.spearShots.some((s) => s.fuse > 0 || s.age > 0.14);
-    e.spearhint.classList.toggle('active', activeShot);
+    e.spearMini.classList.toggle('active', activeShot);
+    e.spearAlert.classList.toggle('hidden', !activeShot);
     if (activeShot) {
-      this.setText(e.spearhint, 'sphint', 'TEKAN [X] LAGI — LEDAKKAN SEKARANG!');
-    } else if (p.spears <= 0) {
-      const rem = Math.max(1, Math.ceil(20 - (p.spearRegenT || 0)));
-      this.setText(e.spearhint, 'sphint', `Habis · Isi di Depot Hijau / Suplai ${rem}s`);
-    } else if (p.lock) {
-      this.setText(e.spearhint, 'sphint', 'SASARAN TERKUNCI · [X] Luncurkan Rudal');
-    } else {
-      this.setText(e.spearhint, 'sphint', 'Pecah zirah & ledakan area · Isi di Depot');
+      this.setText(e.spearhint, 'sphint', 'DETONATE THUNDER SPEAR!');
     }
 
     if (sq) {
@@ -465,17 +503,17 @@ export class HUD {
         e.flaretxt,
         'flare',
         cd > 0
-          ? `KOMANDO SIAGA (${Math.ceil(cd)}s)`
+          ? `ORDER READY (${Math.ceil(cd)}s)`
           : hasTgt
-            ? 'SERBU TARGET & MERIAM'
-            : 'PANGGIL SKUAD & ISI SUPLAI',
+            ? 'FOCUS FIRE & ARTILLERY'
+            : 'RALLY & RESUPPLY',
       );
       for (let i = 0; i < 3; i++) {
         const m = sq.members[i];
         const rowEl = e.sqRows[i];
         if (m && rowEl) {
           this.setText(rowEl, 'sq' + i, m.status);
-          rowEl.classList.toggle('atk', m.status.includes('SERBU') || m.status.includes('MENYERANG') || m.status.includes('MENYELAMATKAN'));
+          rowEl.classList.toggle('atk', m.status === 'FOCUS FIRE' || m.status === 'ENGAGING' || m.status === 'RESCUING' || m.status === 'FLANKING');
         }
       }
     }
@@ -491,7 +529,7 @@ export class HUD {
         e.engWrap.classList.toggle('hidden', g.mode !== 'campaign');
         if (g.mode === 'campaign') {
           const atGate = eng.convoyPos.z >= eng.convoyTargetZ - 1;
-          this.setText(e.englbl, 'elbl', eng.pinned ? 'DISERANG' : atGate ? 'SEGEL' : 'KONVOI');
+          this.setText(e.englbl, 'elbl', eng.pinned ? 'PINNED' : atGate ? 'SEALING' : 'CONVOY');
           const pct = atGate ? Math.round(eng.sealProgress * 100) : Math.round(((eng.convoyPos.z - 52) / (eng.convoyTargetZ - 52)) * 100);
           e.engb.style.width = pct + '%';
           e.engBar.classList.toggle('pinned', eng.pinned);
@@ -501,7 +539,7 @@ export class HUD {
     }
 
     const focus = p.hookMode === 'focus';
-    this.setText(e.hmode, 'hmode', focus ? 'FOKUS [F]' : 'OTOMATIS [F]');
+    this.setText(e.hmode, 'hmode', `${focus ? 'FOCUS' : 'SMART'} [${formatKey(b.hookMode)}]`);
     e.hmode.classList.toggle('focus', focus);
     e.hmode.classList.toggle('auto', !focus);
 
@@ -523,7 +561,7 @@ export class HUD {
       const cand = p.cand[i];
       if (!on && cand.ok && !p.dead && !focus) {
         const o = this.project(cand.point);
-        if (o.z < 1 && o.x > 20 && o.x < innerWidth - 20 && o.y > 20 && o.y < innerHeight - 20) {
+        if (o.z < 1 && o.x > 24 && o.x < innerWidth - 24 && o.y > 24 && o.y < innerHeight - 24) {
           cEl.classList.remove('hidden');
           cEl.classList.toggle('flesh', cand.surface === 'flesh' || !!cand.collider?.owner);
           cEl.style.left = o.x + 'px';
@@ -556,7 +594,7 @@ export class HUD {
         this.setText(
           e.locktxt,
           'locktxt',
-          armored ? 'ZIRAH [X]' : p.canExecute ? '[KLIK] EKSEKUSI!' : 'TENGKUK',
+          armored ? `ARMOR [${formatKey(b.spear)}]` : p.canExecute ? '[LMB] EXECUTE!' : 'NAPE',
         );
       } else e.lock.style.display = 'none';
     } else e.lock.style.display = 'none';
@@ -583,8 +621,8 @@ export class HUD {
       if (!off) { m.style.display = 'none'; continue; }
       const a = Math.atan2(y, x), k = 0.88 / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)) * 1.1);
       const sx = (Math.cos(a) * k * 0.5 + 0.5) * innerWidth;
-      const sy = Math.max(185, (-Math.sin(a) * k * 0.5 + 0.5) * innerHeight);
-      m.className = 'm' + (t.type === 'armored' ? ' boss' : t.type === 'abnormal' ? ' abn' : '');
+      const sy = Math.max(165, Math.min(innerHeight - 105, (-Math.sin(a) * k * 0.5 + 0.5) * innerHeight));
+      m.className = 'm' + (t.type === 'armored' ? ' boss' : t.type === 'abnormal' || t.type === 'crawler' ? ' abn' : '');
       m.style.display = 'block';
       m.style.left = sx + 'px';
       m.style.top = sy + 'px';
@@ -597,17 +635,17 @@ export class HUD {
     if (nd && nd.depot && nd.dist >= 8) {
       _v.copy(nd.depot.pos).project(g.cam.camera);
       let x = _v.x, y = _v.y;
-      if (_v.z > 1) { x = -x; y = -y; if (Math.abs(x) < 0.9 && Math.abs(y) < 0.85) y = -0.85; }
-      const k = Math.max(1, Math.abs(x) / 0.9, Math.abs(y) / 0.85);
+      if (_v.z > 1) { x = -x; y = -y; if (Math.abs(x) < 0.9 && Math.abs(y) < 0.82) y = -0.82; }
+      const k = Math.max(1, Math.abs(x) / 0.88, Math.abs(y) / 0.78);
       let sx = ((x / k) * 0.5 + 0.5) * innerWidth;
-      const sy = (-(y / k) * 0.5 + 0.5) * innerHeight;
-      if (sy > innerHeight - 150 && Math.abs(sx - innerWidth / 2) < 200) sx = innerWidth / 2 + (sx < innerWidth / 2 ? -200 : 200);
+      const sy = Math.min(innerHeight - 108, Math.max(96, (-(y / k) * 0.5 + 0.5) * innerHeight));
+      if (sy > innerHeight - 150 && Math.abs(sx - innerWidth / 2) < 240) sx = innerWidth / 2 + (sx < innerWidth / 2 ? -240 : 240);
       e.depot.style.left = sx + 'px';
       e.depot.style.top = sy + 'px';
       this.setText(e.depot.lastChild, 'depot', 'DEPOT ' + Math.round(nd.dist) + 'm');
     }
 
-    this.setText(e.left, 'left', g.mode === 'training' ? `CINCIN ${eng?.ringsCleared || 0}/8` : aliveCount ? `${aliveCount} TITAN AKTIF` : '');
+    this.setText(e.left, 'left', g.mode === 'training' ? `RINGS ${eng?.ringsCleared || 0}/8` : aliveCount ? `${aliveCount} TITANS ACTIVE` : '');
     this.setText(e.kills, 'kills', String(g.kills));
     e.struggle.classList.toggle('hidden', !p.grabbedBy);
     if (p.grabbedBy) e.strb.style.width = Math.min(100, p.struggle * 100) + '%';
@@ -616,7 +654,7 @@ export class HUD {
     if (this.radioT > 0) { this.radioT -= dt; if (this.radioT <= 0) e.radio.classList.add('hidden'); }
     this.resT -= dt;
     this.hurtT = Math.max(0, this.hurtT - dt * 0.85);
-    e.hurt.style.opacity = Math.max(this.hurtT, p.hp < 30 ? 0.34 + Math.sin(g.elapsed * 6) * 0.14 : 0);
+    e.hurt.style.opacity = Math.max(this.hurtT, p.hp < 30 ? 0.32 + Math.sin(g.elapsed * 6) * 0.14 : 0);
     if (this.comboT > 0) { this.comboT -= dt; if (this.comboT <= 0) e.combo.style.opacity = 0; }
 
     this.updateThreats();
