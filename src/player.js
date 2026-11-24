@@ -3,6 +3,8 @@ import { PlayerModel } from './playerModel.js';
 import { VFX_COLORS } from './vfx.js';
 import { createRayHit } from './collision.js';
 import { clamp, damp, closestPointOnSegment } from './util.js';
+import { createPistolState, updatePistols, reloadPistols, firePistolShot } from './combat/weapons.ts';
+import { createParkourState, updateParkour, tryLandingRoll } from './physics/parkour.ts';
 
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _v4 = new THREE.Vector3(), _n = new THREE.Vector3();
 const _wish = new THREE.Vector3();
@@ -27,9 +29,10 @@ const PROBE_OFFSETS = [
 ];
 
 const CLASSES = {
-  light: { cylinders: 2, blades: 4, spears: 2, speed: 1.12, steer: 1.2, thrust: 1.1, damage: 1.15 },
-  balanced: { cylinders: 4, blades: 6, spears: 3, speed: 1.0, steer: 1.05, thrust: 1.0, damage: 1.05 },
-  heavy: { cylinders: 6, blades: 8, spears: 5, speed: 0.9, steer: 0.92, thrust: 0.95, damage: 1.0 },
+  light: { style: 'blades', cylinders: 2, blades: 4, spears: 2, speed: 1.12, steer: 1.2, thrust: 1.1, damage: 1.15 },
+  balanced: { style: 'blades', cylinders: 4, blades: 6, spears: 3, speed: 1.0, steer: 1.05, thrust: 1.0, damage: 1.05 },
+  gunslinger: { style: 'pistols', cylinders: 3, blades: 6, spears: 2, speed: 1.1, steer: 1.16, thrust: 1.08, damage: 1.1 },
+  heavy: { style: 'siege', cylinders: 6, blades: 8, spears: 5, speed: 0.9, steer: 0.92, thrust: 0.95, damage: 1.0 },
 };
 
 export const TUNE = {
@@ -107,7 +110,7 @@ export class Player {
     for (const s of this.spearShots) g.scene.remove(s.mesh);
     this.spearShots.length = 0;
     for (const h of this.hooks) h.reset();
-    this.pos.copy(g.world.playerSpawn);
+    this.pos.copy(g.world.getArenaSpawn ? g.world.getArenaSpawn(g.arena) : g.world.playerSpawn);
     this.vel.set(0, 0, 0);
     this.vPrev.set(0, 0, 0);
     this.accS.set(0, 0, 0);
@@ -155,6 +158,8 @@ export class Player {
     this.strikeSpeed = 0;
     this.smoothLat = 0;
     this.smoothFwd = 0;
+    this.pistols = createPistolState(12, 8);
+    this.parkour = createParkourState();
     this.mods = {
       bladeSaver: 1,
       gasSaver: 1,
@@ -173,6 +178,7 @@ export class Player {
   applyClass(name, refill = false) {
     this.className = CLASSES[name] ? name : 'balanced';
     this.classDef = CLASSES[this.className];
+    this.combatStyle = this.classDef.style || 'blades';
     if (refill) {
       this.gas = 100;
       this.blade = 100;
@@ -181,6 +187,7 @@ export class Player {
       this.spears = this.classDef.spears + (this.mods?.maxSpearBonus || 0);
       this.gasReload = 0;
       this.spearRegenT = 0;
+      this.pistols = createPistolState(12, 8);
     }
   }
 
@@ -216,27 +223,34 @@ export class Player {
     const from = this.model.gearPos(side, _v2);
 
     if (this.lock) {
-      const sideOffset = side * 0.65 * this.lock.s;
-      _v4.copy(this.lock.nape.c).addScaledVector(cam.rightFlat, sideOffset);
-      _v3.subVectors(_v4, from);
-      const nd = _v3.length();
-      if (nd > 2 && nd <= range) {
-        _v3.divideScalar(nd);
-        const flesh = g.world.col.raycast(from, _v3, nd + 3, { dynamics: true, inflate: 1.8 }, _fleshRayHit);
-        if (flesh?.collider?.owner === this.lock) {
-          out.ok = true;
-          out.point.copy(flesh.point);
-          out.collider = flesh.collider;
-          out.surface = flesh.surface;
-          return;
-        }
-        const wall = g.world.col.raycast(from, _v3, nd - 0.5, { dynamics: false }, _wallRayHit);
-        if (!wall) {
-          out.ok = true;
-          out.point.copy(this.lock.nape.c);
-          out.surface = 'flesh';
-          out.lockOwner = this.lock;
-          return;
+      const aimAtStatic = this.aim && !this.aim.collider?.owner && this.aim.surface !== 'ground' && this.aim.t < 95;
+      _v3.subVectors(this.lock.nape.c, cam.camera.position);
+      const lockD = _v3.length();
+      const aimDotLock = lockD > 1e-3 ? _v3.divideScalar(lockD).dot(cam.forward) : 0;
+      const preferStructure = aimAtStatic && aimDotLock < 0.93;
+      if (!preferStructure) {
+        const sideOffset = side * 0.65 * this.lock.s;
+        _v4.copy(this.lock.nape.c).addScaledVector(cam.rightFlat, sideOffset);
+        _v3.subVectors(_v4, from);
+        const nd = _v3.length();
+        if (nd > 2 && nd <= range) {
+          _v3.divideScalar(nd);
+          const flesh = g.world.col.raycast(from, _v3, nd + 3, { dynamics: true, inflate: 1.8 }, _fleshRayHit);
+          if (flesh?.collider?.owner === this.lock) {
+            out.ok = true;
+            out.point.copy(flesh.point);
+            out.collider = flesh.collider;
+            out.surface = flesh.surface;
+            return;
+          }
+          const wall = g.world.col.raycast(from, _v3, nd - 0.5, { dynamics: false }, _wallRayHit);
+          if (!wall) {
+            out.ok = true;
+            out.point.copy(this.lock.nape.c);
+            out.surface = 'flesh';
+            out.lockOwner = this.lock;
+            return;
+          }
         }
       }
     }
@@ -512,22 +526,29 @@ export class Player {
     }
 
     const m = inp.mouse;
-    if (m.lPressed && this.slashT < 0 && this.spin <= 0) this.startSlash();
-    if (m.l && !this.grounded && this.speed > 11 && this.slashT < 0) {
-      this.charge = Math.min(1, this.charge + dt * 2.5 * this.mods.spinRateBonus);
-    }
-    if (!m.l && this.charge > 0) {
-      if (this.charge > 0.4 && this.blade > 0) {
-        this.spin = 0.6 + this.charge * 0.36;
-        this.slashHits.clear();
-        g.audio.spin();
-        g.vfx.slashArc(this.pos, this.quat, 3.0);
+    updatePistols(this, dt);
+    if (this.combatStyle === 'pistols') {
+      if (m.lPressed || (m.l && this.pistols.fireCd <= 0)) firePistolShot(this);
+      if (inp.actionPressed('reloadBlade')) reloadPistols(this);
+    } else {
+      if (m.lPressed && this.slashT < 0 && this.spin <= 0) this.startSlash();
+      if (m.l && !this.grounded && this.speed > 11 && this.slashT < 0) {
+        this.charge = Math.min(1, this.charge + dt * 2.5 * this.mods.spinRateBonus);
       }
-      this.charge = 0;
+      if (!m.l && this.charge > 0) {
+        if (this.charge > 0.4 && this.blade > 0) {
+          this.spin = 0.6 + this.charge * 0.36;
+          this.slashHits.clear();
+          g.audio.spin();
+          g.vfx.slashArc(this.pos, this.quat, 3.0);
+        }
+        this.charge = 0;
+      }
+      if (inp.actionPressed('reloadBlade')) this.swapBlades();
     }
-    if (inp.actionPressed('reloadBlade')) this.swapBlades();
     if (inp.actionPressed('spear')) this.handleSpearInput();
     if (inp.actionPressed('command')) g.squad?.issueCommand();
+    updateParkour(this, dt, true);
     this.spearCd = Math.max(0, this.spearCd - dt);
     this.updateSpears(dt);
 
@@ -1050,8 +1071,13 @@ export class Player {
         }
       }
     }
-    if (this.grounded && !wasGround) { g.onLand(maxHit); this.airTime = 0; }
-    if (maxHit > 19 && this.impactN) {
+    let rolled = false;
+    if (this.grounded && !wasGround) {
+      rolled = tryLandingRoll(this, maxHit);
+      g.onLand(rolled ? maxHit * 0.35 : maxHit);
+      this.airTime = 0;
+    }
+    if (maxHit > 19 && this.impactN && !rolled) {
       this.impactT = 0.3; this.impactSpeed = maxHit;
       g.cam.impactFov = Math.max(g.cam.impactFov, clamp(maxHit * 0.04, 0.8, 2.2));
       g.vfx.sparks(p, Math.min(12, Math.floor(maxHit * 0.28)));
@@ -1062,16 +1088,17 @@ export class Player {
     }
     if (!this.grounded) this.airTime += dt;
 
-    if (maxHit > 25 && this.invuln <= 0) {
-      const crashDmg = maxHit <= 42
-        ? Math.round((maxHit - 23) * 0.85)
-        : Math.round(16 + (maxHit - 42) * 1.5);
+    const effHit = rolled ? maxHit * 0.2 : maxHit;
+    if (effHit > 25 && this.invuln <= 0) {
+      const crashDmg = effHit <= 42
+        ? Math.round((effHit - 23) * 0.85)
+        : Math.round(16 + (effHit - 42) * 1.5);
       this.damage(crashDmg, 'crash');
-      if (maxHit > 38) g.onCrash(maxHit);
-      else g.onBump(maxHit);
+      if (effHit > 38) g.onCrash(effHit);
+      else g.onBump(effHit);
       this.invuln = 0.55;
-    } else if (maxHit > 15 && !this.grounded) {
-      g.onBump(maxHit);
+    } else if (effHit > 15 && !this.grounded) {
+      g.onBump(effHit);
     }
   }
 

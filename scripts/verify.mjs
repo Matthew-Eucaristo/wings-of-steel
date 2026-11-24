@@ -2,8 +2,8 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-const PORT = 5199;
-const CDP = 9301;
+const PORT = 5199 + (process.pid % 100);
+const CDP = 9310 + (process.pid % 400);
 const CHROME = process.env.CHROME || [
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   '/home/ubuntu/.local/bin/google-chrome',
@@ -24,7 +24,9 @@ const chrome = spawn(CHROME, [
   '--headless=new', `--remote-debugging-port=${CDP}`, `--user-data-dir=/tmp/wos-verify-${Date.now()}`,
   '--window-size=1440,900', '--enable-webgl', '--ignore-gpu-blocklist', '--no-first-run', `http://localhost:${PORT}/`,
 ], { stdio: 'ignore' });
-const shutdown = (code) => { chrome.kill('SIGKILL'); vite.kill('SIGKILL'); process.exit(code); };
+const shutdown = (code) => { try { chrome.kill('SIGKILL'); } catch {} try { vite.kill('SIGKILL'); } catch {} process.exit(code); };
+process.on('uncaughtException', (err) => { console.error(err); shutdown(1); });
+process.on('unhandledRejection', (err) => { console.error(err); shutdown(1); });
 
 let wsUrl;
 for (let i = 0; i < 50 && !wsUrl; i++) {
@@ -50,7 +52,9 @@ ws.addEventListener('message', (ev) => {
 const cdp = (method, params = {}) => new Promise((r) => { pending.set(++id, r); ws.send(JSON.stringify({ id, method, params })); });
 const run = async (expr) => {
   const r = await cdp('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true });
+  if (r.error) throw new Error('CDP error: ' + JSON.stringify(r.error));
   if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || 'eval failed');
+  if (r.result?.result?.type === 'object' && r.result?.result?.value === undefined) throw new Error('Unserializable object: ' + JSON.stringify(r.result.result));
   return r.result?.result?.value;
 };
 const snap = async (name) => {
@@ -63,6 +67,10 @@ await cdp('Page.enable');
 await cdp('Runtime.enable');
 await cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
 for (let i = 0; i < 50; i++) { if (await run('!!window.game')) break; await sleep(200); }
+if (!(await run('!!window.game'))) {
+  console.error('window.game never initialized; errors:', pageErrors);
+  shutdown(1);
+}
 
 await run(`(() => {
   const g = window.game;
@@ -103,6 +111,9 @@ const cases = {
   'kill 1st person': `__fresh('campaign', true); const t = __titan('normal', 60, 14); g.player.pos.copy(t.nape.c).add(new THREE.Vector3(0, 0.4, -6)); g.player.vel.set(0, 0, 30); g.cam.yaw = 0; g.cam.pitch = -0.05; g.step(1/60); g.input.mouse.l = true; g.input.mouse.lPressed = true; return { ...__frames(45), kills: g.kills };`,
   'limb cut': `__fresh(); const t = __titan('tank', 60, 18); const a = t.parts.find(p => p.part === 'arm'); g.player.pos.copy(a.a).add(new THREE.Vector3(0, 0, -1.2)); g.input.mouse.l = true; g.input.mouse.lPressed = true; return __frames(30);`,
   'armor + spear blast': `__fresh(); const t = __titan('armored', 60, 20); g.player.pos.copy(t.nape.c).add(new THREE.Vector3(0, 1, -9)); g.explode(t.nape.c.clone()); return __frames(30);`,
+  'gunslinger shot': `__fresh(); g.player.applyClass('gunslinger', true); const t = __titan('normal', 60, 14); g.player.pos.copy(t.nape.c).add(new THREE.Vector3(0, 0.2, -16)); g.cam.yaw = 0; g.cam.pitch = 0; g.step(1/60); g.input.mouse.l = true; g.input.mouse.lPressed = true; const r = __frames(18); return { ...r, ammo: g.player.pistols.ammo };`,
+  'parkour roll': `__fresh(); g.player.pos.set(0, 5, 22); g.player.vel.set(0, -32, 8); g.input.keys.add('ControlLeft'); const r = __frames(20); g.input.keys.clear(); return { ...r, hp: Math.round(g.player.hp), rolled: g.player.parkour.rollAnimT > 0 };`,
+  'warhammer spikes': `__fresh(); const t = __titan('warhammer', 55, 20); g.shifters.castWarhammerSpikes(t, g.player.pos.clone().add(new THREE.Vector3(12, 0, 12))); const r = __frames(25); return { ...r, spikes: g.shifters.spikes.length };`,
   'hard landing': `__fresh(); g.player.pos.set(0, 4, 22); g.player.vel.set(0, -32, 5); const r = __frames(20); return { ...r, hp: Math.round(g.player.hp), dead: g.player.dead };`,
   'particle fuzz': `__fresh(); const pt = g.player.pos.clone().add(new THREE.Vector3(0, 0, 4)); g.vfx.flash(pt, 5, 0xffaa33); g.vfx.flash(pt, 5, '#44ccff'); g.vfx.add.spawn(pt, { x: NaN, y: Infinity, z: 0 }, { color: NaN, size0: NaN, alpha: NaN, life: NaN }); return __frames(15);`,
 };
@@ -112,6 +123,9 @@ for (const [name, body] of Object.entries(cases)) {
   const r = await run(`(() => { const g = window.game; ${body} })()`);
   let ok = r.maxBlack < 0.05 && r.minAvg > 0.25 && (!('kills' in r) || r.kills >= 1);
   if (name === 'hard landing') ok &&= r.hp < 100 && r.hp > 50 && !r.dead;
+  if (name === 'gunslinger shot') ok &&= r.ammo < 12;
+  if (name === 'parkour roll') ok &&= r.hp === 100 && r.rolled;
+  if (name === 'warhammer spikes') ok &&= r.spikes >= 4;
   failed ||= !ok;
   console.log(`${ok ? 'PASS' : 'FAIL'} ${name.padEnd(20)} minLum=${r.minAvg} black=${r.maxBlack} minTimeScale=${r.minTs}${'kills' in r ? ' kills=' + r.kills : ''}${'hp' in r ? ' hp=' + r.hp : ''}`);
 }
@@ -254,11 +268,23 @@ for (const p of flow.phases) console.log(`     t=${p.t} cap="${p.cap}" fade=${p.
 if (shotDir) {
   await run(`(() => { const g = window.game; g.mode = 'campaign'; g.returnToMenu(); g.step(1/60); g.post.render(g.elapsed); })()`);
   await snap('title');
-  await run(`(() => { document.getElementById('openplay').click(); })()`);
-  await snap('deploy');
-  await run(`(() => { document.getElementById('closedeploy').click(); document.getElementById('opensettings').click(); document.querySelector('#settings-tabs button[data-tab="controls"]').click(); })()`);
+  await run(`(() => { document.getElementById('opencust').click(); const g = window.game; for (let i = 0; i < 20; i++) g.step(1/60); g.post.render(g.elapsed); })()`);
+  await snap('wardrobe-full');
+  await run(`(() => { document.getElementById('cust-face').click(); const g = window.game; for (let i = 0; i < 25; i++) g.step(1/60); g.post.render(g.elapsed); })()`);
+  await snap('wardrobe-face');
+  await run(`(() => { document.getElementById('closecust').click(); document.getElementById('openplay').click(); })()`);
+  await snap('deploy-campaign');
+  await run(`(() => { document.querySelector('#modes button[data-mode="endless"]').click(); })()`);
+  await snap('deploy-endless');
+  await run(`(() => { document.getElementById('closedeploy').click(); document.getElementById('openstory').click(); })()`);
+  await snap('storybook');
+  await run(`(() => { document.getElementById('closestory').click(); document.getElementById('openmp').click(); })()`);
+  await snap('multiplayer');
+  await run(`(() => { document.getElementById('closemp').click(); document.getElementById('opensettings').click(); document.querySelector('#settings-tabs button[data-tab="controls"]').click(); })()`);
   await snap('settings-controls');
-  await run(`(() => { document.getElementById('closesettings').click(); })()`);
+  await run(`(() => { document.getElementById('closesettings').click(); const g = window.game; g.arena = 'forest'; g.weather = 'moon'; g.world.applyAtmosphere('moon'); __fresh('endless', true); for (let i = 0; i < 12; i++) g.step(1/60); g.post.render(g.elapsed); })()`);
+  await snap('arena-forest-moon');
+  await run(`(() => { const g = window.game; g.arena = 'town'; g.weather = 'dusk'; g.world.applyAtmosphere('dusk'); })()`);
   await run(`(() => {
     const g = window.game; __fresh('campaign', true);
     const t = __titan('normal', 40, 14); t.root.position.x = -8; t.grabSide = 1; t.setState('swipe'); t.stateT = 0.35;

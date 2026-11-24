@@ -12,6 +12,10 @@ import { HUD } from './hud.js';
 import { Post } from './post.js';
 import { Story } from './story.js';
 import { createRayHit } from './collision.js';
+import { STORY_CHAPTERS, ARENAS, WEATHERS, defaultProgress, isChapterUnlocked, isCosmeticUnlocked, unlockHint } from './progression.js';
+import { MultiplayerClient } from './net/multiplayer.js';
+import { ShifterAbilities } from './entities/shifters.ts';
+import { CannonController } from './combat/cannonControl.ts';
 import { clamp, damp, lerp, rand, easeOutQuart, loadPrefs, savePrefs, DEFAULT_BINDS, BIND_LABELS, formatKey } from './util.js';
 
 const _v = new THREE.Vector3();
@@ -131,8 +135,10 @@ class Game {
       bestRank: '',
       appearance: { ...DEFAULT_APPEARANCE },
       binds: { ...DEFAULT_BINDS },
+      progress: defaultProgress(),
     });
     this.prefs.appearance = { ...DEFAULT_APPEARANCE, ...(this.prefs.appearance || {}) };
+    this.prefs.progress = { ...defaultProgress(), ...(this.prefs.progress || {}) };
 
     const canvas = document.getElementById('c');
     const renderer = (this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' }));
@@ -145,6 +151,9 @@ class Game {
 
     this.scene = new THREE.Scene();
     this.mode = 'campaign';
+    this.arena = 'town';
+    this.weather = 'dusk';
+    this.chapterIdx = 0;
     this.playerClass = 'balanced';
     this.world = new World(this.scene, renderer);
     this.world.gameRef = this;
@@ -163,6 +172,9 @@ class Game {
     this.hud = new HUD(this);
     this.post = new Post(renderer, this.scene, this.cam.camera);
     this.story = new Story(this);
+    this.net = new MultiplayerClient(this);
+    this.shifters = new ShifterAbilities(this);
+    this.cannon = new CannonController(this);
     this.TitanClass = Titan;
 
     this.stats = { maxSpeed: 0, bestCombo: 0, time: 0 };
@@ -214,18 +226,69 @@ class Game {
     const optIntro = document.getElementById('opt-intro');
     const optTut = document.getElementById('opt-tut');
 
-    const syncDeployOpts = () => {
+    const renderDeployOptions = () => {
       const isCamp = this.mode === 'campaign';
-      document.getElementById('deploy-opts').classList.toggle('hidden', !isCamp);
+      document.getElementById('pane-campaign').classList.toggle('active', isCamp);
+      document.getElementById('pane-arena').classList.toggle('active', !isCamp);
+      document.querySelectorAll('#modes button').forEach((x) => {
+        const active = x.dataset.mode === this.mode;
+        x.classList.toggle('active', active);
+        x.classList.toggle('selected', active);
+      });
+
+      const chList = document.getElementById('chapter-list');
+      chList.innerHTML = '';
+      STORY_CHAPTERS.forEach((ch, idx) => {
+        const unlocked = isChapterUnlocked(this.prefs.progress, idx);
+        const rank = this.prefs.progress.chapterRanks?.[ch.id] || '';
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chapter-card' + (this.chapterIdx === idx ? ' selected' : '') + (!unlocked ? ' locked' : '');
+        b.innerHTML = `<span class="ch-num">CH. ${ch.num}</span>${rank ? `<span class="ch-rank">${rank}</span>` : ''}<b>${ch.title}</b><small>${unlocked ? ch.subtitle : `Clear Chapter ${STORY_CHAPTERS[idx - 1].num} to unlock`}</small><div class="ch-rew">${unlocked ? 'Reward: ' + ch.unlockReward.label : 'LOCKED'}</div>`;
+        b.onclick = () => {
+          if (!unlocked) return;
+          this.chapterIdx = idx;
+          this.arena = ch.arena;
+          this.weather = ch.weather;
+          this.maxWave = ch.waves;
+          this.world.applyAtmosphere(this.weather);
+          renderDeployOptions();
+        };
+        chList.appendChild(b);
+      });
+
+      const arList = document.getElementById('arena-list');
+      arList.innerHTML = '';
+      for (const ar of ARENAS) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.classList.toggle('selected', this.arena === ar.id);
+        b.innerHTML = `<b>${ar.name}</b><small>${ar.desc}</small>`;
+        b.onclick = () => { this.arena = ar.id; renderDeployOptions(); };
+        arList.appendChild(b);
+      }
+
+      const wList = document.getElementById('weather-list');
+      wList.innerHTML = '';
+      for (const w of WEATHERS) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = w.name;
+        b.classList.toggle('selected', this.weather === w.id);
+        b.onclick = () => { this.weather = w.id; this.world.applyAtmosphere(this.weather); renderDeployOptions(); };
+        wList.appendChild(b);
+      }
+
       optIntro.textContent = `INTRO CUTSCENE: ${this.prefs.introCutscene ? 'ON' : 'OFF'}`;
       optIntro.classList.toggle('toggle-on', !!this.prefs.introCutscene);
       optTut.textContent = `FIELD TUTORIAL: ${this.prefs.fieldTutorial ? 'ON' : 'OFF'}`;
       optTut.classList.toggle('toggle-on', !!this.prefs.fieldTutorial);
     };
+    this.renderDeployOptions = renderDeployOptions;
 
     document.getElementById('openplay').onclick = () => {
       this.audio.init();
-      syncDeployOpts();
+      renderDeployOptions();
       titleEl.classList.add('hidden');
       deployEl.classList.remove('hidden');
     };
@@ -240,15 +303,21 @@ class Game {
     document.getElementById('closeguide').onclick = () => {
       guideEl.classList.add('hidden');
     };
-    optIntro.onclick = () => { this.prefs.introCutscene = !this.prefs.introCutscene; savePrefs(this.prefs); syncDeployOpts(); };
-    optTut.onclick = () => { this.prefs.fieldTutorial = !this.prefs.fieldTutorial; savePrefs(this.prefs); syncDeployOpts(); };
+    optIntro.onclick = () => { this.prefs.introCutscene = !this.prefs.introCutscene; savePrefs(this.prefs); renderDeployOptions(); };
+    optTut.onclick = () => { this.prefs.fieldTutorial = !this.prefs.fieldTutorial; savePrefs(this.prefs); renderDeployOptions(); };
 
     for (const b of document.querySelectorAll('#modes button')) {
       b.onclick = () => {
         this.mode = b.dataset.mode;
         this.endless = this.mode === 'endless';
-        document.querySelectorAll('#modes button').forEach((x) => x.classList.toggle('selected', x === b));
-        syncDeployOpts();
+        if (this.mode === 'campaign') {
+          const ch = STORY_CHAPTERS[this.chapterIdx] || STORY_CHAPTERS[0];
+          this.arena = ch.arena;
+          this.weather = ch.weather;
+          this.maxWave = ch.waves;
+          this.world.applyAtmosphere(this.weather);
+        }
+        renderDeployOptions();
       };
     }
     for (const b of document.querySelectorAll('#classes button')) {
@@ -260,9 +329,18 @@ class Game {
     }
 
     document.getElementById('start').onclick = () => {
-      this.startSession(this.mode === 'campaign' && !!this.prefs.introCutscene, this.mode === 'campaign' && !!this.prefs.fieldTutorial);
+      const ch = STORY_CHAPTERS[this.chapterIdx] || STORY_CHAPTERS[0];
+      if (this.mode === 'campaign') {
+        this.arena = ch.arena;
+        this.weather = ch.weather;
+        this.maxWave = ch.waves;
+      }
+      this.startSession(this.mode === 'campaign' && !!this.prefs.introCutscene && this.chapterIdx === 0, this.mode === 'campaign' && !!this.prefs.fieldTutorial);
       lock();
     };
+
+    this.bindStorybookUI();
+    this.bindMultiplayerUI();
     document.getElementById('cont').onclick = () => {
       this.mode = 'endless';
       this.endless = true;
@@ -300,21 +378,169 @@ class Game {
     this.vfx.setBladeColor(aura.id, aura.trail2);
   }
 
+  bindStorybookUI() {
+    const modal = document.getElementById('storybook');
+    const tabsEl = document.getElementById('story-tabs');
+    const pageEl = document.getElementById('story-page');
+    const playBtn = document.getElementById('story-deploy');
+    let sel = 0;
+
+    const render = () => {
+      tabsEl.innerHTML = '';
+      STORY_CHAPTERS.forEach((ch, idx) => {
+        const unlocked = isChapterUnlocked(this.prefs.progress, idx);
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = `CH. ${ch.num}${unlocked ? '' : ' 🔒'}`;
+        b.classList.toggle('active', idx === sel);
+        b.onclick = () => { sel = idx; render(); };
+        tabsEl.appendChild(b);
+      });
+      const ch = STORY_CHAPTERS[sel];
+      const unlocked = isChapterUnlocked(this.prefs.progress, sel);
+      const cleared = this.prefs.progress.chaptersCleared.includes(ch.id);
+      const rank = this.prefs.progress.chapterRanks?.[ch.id];
+      const arenaName = ARENAS.find((a) => a.id === ch.arena)?.name || ch.arena;
+      const weatherName = WEATHERS.find((w) => w.id === ch.weather)?.name || ch.weather;
+      if (unlocked) {
+        pageEl.innerHTML = `
+          <div class="st-meta"><span>CHAPTER ${ch.num} · ${arenaName} · ${weatherName}</span><span>${ch.loreDate}${rank ? ` · RANK ${rank}` : ''}</span></div>
+          <h3>${ch.loreTitle}</h3>
+          <blockquote>${ch.loreQuote}</blockquote>
+          <p>${ch.loreBody}</p>
+          <div class="st-reward">${cleared ? 'UNLOCKED REWARD: ' : 'CLEAR REWARD: '}${ch.unlockReward.label}</div>`;
+        playBtn.classList.remove('hidden');
+      } else {
+        pageEl.innerHTML = `
+          <div class="st-meta"><span>CHAPTER ${ch.num} · ARCHIVE SEALED</span><span>CLASSIFIED</span></div>
+          <h3>${ch.title}</h3>
+          <p>Complete Chapter ${STORY_CHAPTERS[sel - 1].num} (${STORY_CHAPTERS[sel - 1].title}) to unseal this chapter's War Chronicle and unlock deployment.</p>
+          <div class="st-reward">LOCKED REWARD: ${ch.unlockReward.label}</div>`;
+        playBtn.classList.add('hidden');
+      }
+    };
+
+    document.getElementById('openstory').onclick = () => {
+      this.audio.init();
+      render();
+      modal.classList.remove('hidden');
+    };
+    document.getElementById('closestory').onclick = () => modal.classList.add('hidden');
+    playBtn.onclick = () => {
+      const ch = STORY_CHAPTERS[sel];
+      this.mode = 'campaign';
+      this.chapterIdx = sel;
+      this.arena = ch.arena;
+      this.weather = ch.weather;
+      this.maxWave = ch.waves;
+      modal.classList.add('hidden');
+      this.startSession(sel === 0 && !!this.prefs.introCutscene, false);
+      this.lock();
+    };
+  }
+
+  bindMultiplayerUI() {
+    const modal = document.getElementById('multiplayer');
+    const callsignEl = document.getElementById('mp-callsign');
+    const roomEl = document.getElementById('mp-room');
+    const urlEl = document.getElementById('mp-url');
+    const statusEl = document.getElementById('mp-status');
+    const coopBtn = document.getElementById('mp-coop');
+    const pvpBtn = document.getElementById('mp-pvp');
+    let netMode = 'coop';
+
+    const syncMode = () => {
+      coopBtn.classList.toggle('toggle-on', netMode === 'coop');
+      pvpBtn.classList.toggle('toggle-on', netMode === 'pvp');
+    };
+    coopBtn.onclick = () => { netMode = 'coop'; syncMode(); };
+    pvpBtn.onclick = () => { netMode = 'pvp'; syncMode(); };
+
+    this.net.onStatus = (text, ok, peerCount) => {
+      statusEl.textContent = ok ? `${text} · ${peerCount} remote scout${peerCount === 1 ? '' : 's'} online` : text;
+      statusEl.classList.toggle('ok', ok);
+    };
+
+    document.getElementById('openmp').onclick = () => {
+      this.audio.init();
+      syncMode();
+      modal.classList.remove('hidden');
+    };
+    document.getElementById('closemp').onclick = () => modal.classList.add('hidden');
+    document.getElementById('mp-connect').onclick = () => {
+      this.net.connect(urlEl.value.trim(), roomEl.value.trim(), callsignEl.value.trim(), netMode);
+    };
+    document.getElementById('mp-launch').onclick = () => {
+      modal.classList.add('hidden');
+      this.mode = 'endless';
+      this.startSession(false, false);
+      this.lock();
+    };
+  }
+
   bindCustomizeUI() {
     const panel = document.getElementById('customize');
     const titleEl = document.getElementById('title');
     const rotSlider = document.getElementById('cust-rot');
+    const unlockHintEl = document.getElementById('cust-unlock-hint');
+    const fullBtn = document.getElementById('cust-full');
+    const faceBtn = document.getElementById('cust-face');
     const A = this.prefs.appearance;
+
+    const ctabs = [...document.querySelectorAll('#cust-tabs button')];
+    const cpanes = [...panel.querySelectorAll('.cust-pane')];
+    const switchCTab = (tab) => {
+      ctabs.forEach((b) => b.classList.toggle('active', b.dataset.ctab === tab));
+      cpanes.forEach((p) => p.classList.toggle('active', p.dataset.cpane === tab));
+      if (tab === 'face' || tab === 'hair') {
+        this.cam.wardrobeZoom = 1.32;
+        fullBtn.classList.remove('toggle-on');
+        faceBtn.classList.add('toggle-on');
+      } else {
+        this.cam.wardrobeZoom = 2.45;
+        fullBtn.classList.add('toggle-on');
+        faceBtn.classList.remove('toggle-on');
+      }
+    };
+    ctabs.forEach((b) => { b.onclick = () => switchCTab(b.dataset.ctab); });
+    fullBtn.onclick = () => { this.cam.wardrobeZoom = 2.45; fullBtn.classList.add('toggle-on'); faceBtn.classList.remove('toggle-on'); };
+    faceBtn.onclick = () => { this.cam.wardrobeZoom = 1.32; faceBtn.classList.add('toggle-on'); fullBtn.classList.remove('toggle-on'); };
+
+    let dragging = false, lastX = 0;
+    const canvas = document.getElementById('c');
+    canvas.addEventListener('pointerdown', (e) => {
+      if (!this.cam.customizing) return;
+      dragging = true; lastX = e.clientX;
+    });
+    addEventListener('pointermove', (e) => {
+      if (!dragging || !this.cam.customizing) return;
+      const dx = e.clientX - lastX; lastX = e.clientX;
+      this.cam.wardrobeAngle += dx * 0.01;
+      rotSlider.value = clamp(this.cam.wardrobeAngle, -3.14, 3.14);
+    });
+    addEventListener('pointerup', () => { dragging = false; });
+    canvas.addEventListener('wheel', (e) => {
+      if (!this.cam.customizing) return;
+      this.cam.wardrobeZoom = clamp(this.cam.wardrobeZoom + e.deltaY * 0.0018, 1.25, 3.25);
+    }, { passive: true });
 
     const buildChips = (containerId, list, prop) => {
       const el = document.getElementById(containerId);
       el.innerHTML = '';
       for (const item of list) {
+        const unlocked = !item.unlockKey || isCosmeticUnlocked(this.prefs.progress, item.unlockKey);
         const b = document.createElement('button');
         b.type = 'button';
-        b.textContent = item.label;
+        b.textContent = unlocked ? item.label : `${item.label} 🔒`;
         b.classList.toggle('selected', A[prop] === item.id);
+        b.classList.toggle('locked', !unlocked);
         b.onclick = () => {
+          if (!unlocked) {
+            unlockHintEl.textContent = `Unlock: ${unlockHint(item.unlockKey)}`;
+            this.audio.click();
+            return;
+          }
+          unlockHintEl.textContent = '';
           A[prop] = item.id;
           this.applyAppearance();
           savePrefs(this.prefs);
@@ -328,12 +554,20 @@ class Game {
       const el = document.getElementById(containerId);
       el.innerHTML = '';
       for (const item of list) {
+        const unlocked = !item.unlockKey || isCosmeticUnlocked(this.prefs.progress, item.unlockKey);
         const b = document.createElement('button');
         b.type = 'button';
-        b.title = item.label;
+        b.title = unlocked ? item.label : `${item.label} — Unlock: ${unlockHint(item.unlockKey)}`;
         b.style.background = item.id;
         b.classList.toggle('selected', A[prop] === item.id);
+        b.classList.toggle('locked', !unlocked);
         b.onclick = () => {
+          if (!unlocked) {
+            unlockHintEl.textContent = `Unlock ${item.label}: ${unlockHint(item.unlockKey)}`;
+            this.audio.click();
+            return;
+          }
+          unlockHintEl.textContent = '';
           A[prop] = item.id;
           this.applyAppearance();
           savePrefs(this.prefs);
@@ -344,12 +578,20 @@ class Game {
     };
 
     const refresh = () => {
+      unlockHintEl.textContent = '';
+      buildSwatches('cust-skin', APPEARANCE_PRESETS.skinTones, 'skinTone');
+      buildSwatches('cust-eye', APPEARANCE_PRESETS.eyeColors, 'eyeColor');
+      buildChips('cust-expr', APPEARANCE_PRESETS.expressions, 'expression');
+      buildChips('cust-acc', APPEARANCE_PRESETS.accessories, 'accessory');
       buildChips('cust-hairstyle', APPEARANCE_PRESETS.hairStyles, 'hairStyle');
       buildSwatches('cust-haircolor', APPEARANCE_PRESETS.hairColors, 'hairColor');
+      buildSwatches('cust-jacket', APPEARANCE_PRESETS.jacketColors, 'jacketColor');
       buildChips('cust-cape', APPEARANCE_PRESETS.capeStyles, 'capeStyle');
       buildSwatches('cust-scarf', APPEARANCE_PRESETS.scarfColors, 'scarfColor');
-      buildSwatches('cust-jacket', APPEARANCE_PRESETS.jacketColors, 'jacketColor');
+      buildChips('cust-pants', APPEARANCE_PRESETS.pantsThemes, 'pantsTheme');
+      buildChips('cust-rig', APPEARANCE_PRESETS.rigFinishes, 'rigFinish');
       buildSwatches('cust-aura', APPEARANCE_PRESETS.bladeAuras, 'bladeAura');
+      buildChips('cust-crest', APPEARANCE_PRESETS.crests, 'crest');
     };
 
     document.getElementById('opencust').onclick = () => {
@@ -358,7 +600,10 @@ class Game {
       titleEl.classList.add('hidden');
       panel.classList.remove('hidden');
       this.cam.customizing = true;
+      this.cam.wardrobeZoom = 2.45;
       this.cam.wardrobeAngle = +rotSlider.value;
+      fullBtn.classList.add('toggle-on');
+      faceBtn.classList.remove('toggle-on');
     };
     rotSlider.oninput = () => { this.cam.wardrobeAngle = +rotSlider.value; };
     document.getElementById('closecust').onclick = () => {
@@ -530,13 +775,17 @@ class Game {
     this.cam.customizing = false;
     document.getElementById('customize').classList.add('hidden');
     document.getElementById('deploy').classList.add('hidden');
+    document.getElementById('storybook').classList.add('hidden');
+    document.getElementById('multiplayer').classList.add('hidden');
     this.endless = this.mode === 'endless';
     this.won = false;
     this.stats = { maxSpeed: 0, bestCombo: 0, time: 0 };
     this.kills = 0;
     this.wave = 0;
+    this.world.applyAtmosphere(this.weather || 'dusk');
     this.clearTransientState();
-    this.engineers.reset(this.mode);
+    const ch = STORY_CHAPTERS[this.chapterIdx] || STORY_CHAPTERS[0];
+    this.engineers.reset(this.mode === 'campaign' && !ch.convoy ? 'endless' : this.mode);
     this.squad.reset(false);
     this.story.begin(this.mode, withCutscene, withTutorial);
   }
@@ -666,6 +915,8 @@ class Game {
     for (const t of this.titans) t.dispose();
     this.titans = [];
     this.clearBoulders();
+    this.shifters.clear();
+    this.cannon.reset();
     this.vfx.clear();
     this.world.resetDestruction();
     this.player.reset();
@@ -742,6 +993,12 @@ class Game {
     document.getElementById('customize').classList.add('hidden');
     document.getElementById('deploy').classList.add('hidden');
     document.getElementById('guide').classList.add('hidden');
+    document.getElementById('storybook').classList.add('hidden');
+    document.getElementById('multiplayer').classList.add('hidden');
+    this.arena = 'town';
+    this.weather = 'dusk';
+    this.world.applyAtmosphere('dusk');
+    this.player.pos.copy(this.world.playerSpawn);
     this.hud.show(false);
     this.updateBestBanner();
     document.getElementById('title').classList.remove('hidden');
@@ -766,8 +1023,18 @@ class Game {
   pickFarSpawnPoint() {
     const convoy = this.engineers.activeConvoy ? this.engineers.convoyPos : null;
     const pPos = this.player.pos;
+    if (this.arena === 'forest') {
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const a = Math.PI + rand(-1.0, 1.0);
+        const r = rand(235, 345);
+        const x = Math.sin(a) * r, z = Math.cos(a) * r;
+        if (Math.hypot(x - pPos.x, z - pPos.z) < 72) continue;
+        return new THREE.Vector3(x, 0, z);
+      }
+      return new THREE.Vector3(rand(-90, 90), 0, -240);
+    }
     for (let attempt = 0; attempt < 24; attempt++) {
-      const fromBreach = Math.random() < 0.48;
+      const fromBreach = this.arena === 'ramparts' ? Math.random() < 0.78 : Math.random() < 0.48;
       const a = fromBreach ? rand(-0.55, 0.55) : rand(-2.4, 2.4);
       const r = fromBreach ? rand(315, 362) : rand(248, 345);
       const x = Math.sin(a) * r, z = Math.cos(a) * r;
@@ -789,7 +1056,8 @@ class Game {
       this.engineers.convoyHP = Math.min(100, this.engineers.convoyHP + 15);
       this.offerUpgrades();
     }
-    const isBossWave = (this.mode === 'campaign' && this.wave === this.maxWave) || (this.mode === 'endless' && this.wave % 4 === 0);
+    const ch = STORY_CHAPTERS[this.chapterIdx] || STORY_CHAPTERS[0];
+    const isBossWave = (this.mode === 'campaign' && this.wave === this.maxWave && !!ch.boss) || (this.mode === 'endless' && this.wave % 3 === 0);
     const n = Math.min(8 + this.wave * 2, 18);
     for (let i = 0; i < n; i++) {
       const pos = this.pickFarSpawnPoint();
@@ -803,8 +1071,13 @@ class Game {
     }
     if (isBossWave) {
       const bossPos = this.pickFarSpawnPoint();
-      this.titans.push(new Titan(this, bossPos, { type: 'armored', height: 20.5 }));
-      this.hud.radio('PRIORITY ALERT: ARMORED TITAN spotted! Shatter its nape armor with Thunder Spears or Focus Fire!');
+      const endlessCycle = ['armored', 'beast', 'warhammer', 'founder'];
+      const bossType = this.mode === 'campaign' && typeof ch.boss === 'string'
+        ? ch.boss
+        : endlessCycle[Math.floor((this.wave / 3 - 1) % endlessCycle.length)] || 'armored';
+      const ti = new Titan(this, bossPos, { type: bossType });
+      this.titans.push(ti);
+      this.hud.radio(`PRIORITY ALERT: ${ti.label.toUpperCase()} detected! Engage with Thunder Spears, Cannons, or Focus Fire!`);
     }
     const label = this.mode === 'endless' ? `WAVE ${this.wave}` : `PHASE ${this.wave} / ${this.maxWave}`;
     document.getElementById('wave').textContent = label;
@@ -897,9 +1170,9 @@ class Game {
       this.flash = 0.18;
       this.cam.hitJolt(0.88, 0.12);
     } else if (result === 'armor') {
-      this.vfx.sparks(point, 16, VFX_COLORS.ARMOR_C);
+      this.vfx.sparks(point, 20, VFX_COLORS.ARMOR_C);
       this.vfx.flash(point, 1.8, VFX_COLORS.ARMOR_C);
-      this.audio.clang(point);
+      this.audio.steelClash(point);
       this.hud.pop(point, `-${dmg} ARMOR`, 'small');
       this.hud.hitmarker('armor');
       this.hud.toast('<span style="font-size:17px;color:#ffd996">Reinforced armor! Fire Thunder Spear or Focus Order</span>', 1.0);
@@ -915,8 +1188,8 @@ class Game {
       this.triggerImpact(0.075, 0.02, 0.18, 0.38, 0.62);
       this.cam.hitJolt(0.68, 0.09);
     } else if (result === 'deflect') {
-      this.vfx.sparks(point, 14);
-      this.audio.clang(point);
+      this.vfx.sparks(point, 18);
+      this.audio.steelClash(point);
       this.hud.pop(point, 'GUARDED!', 'small');
       this.hud.hitmarker('armor');
       this.triggerImpact(0.04, 0.05, 0.1, 0.65, 0.35);
@@ -1074,10 +1347,14 @@ class Game {
 
   recordScore(rank = '') {
     let changed = false;
+    const pr = this.prefs.progress;
+    if (this.kills > 0) { pr.totalKills += this.kills; changed = true; }
+    if (this.stats.bestCombo > (pr.bestStreak || 0)) { pr.bestStreak = this.stats.bestCombo; changed = true; }
+    if (this.stats.maxSpeed > (pr.peakSpeed || 0)) { pr.peakSpeed = Math.round(this.stats.maxSpeed); changed = true; }
     if (this.kills > (this.prefs.bestKills || 0)) { this.prefs.bestKills = this.kills; changed = true; }
     if (this.wave > (this.prefs.bestWave || 0)) { this.prefs.bestWave = this.wave; changed = true; }
     const rankOrder = { '': 0, C: 1, B: 2, A: 3, S: 4 };
-    if ((rankOrder[rank] || 0) > (rankOrder[this.prefs.bestRank] || 0)) { this.prefs.bestRank = rank; changed = true; }
+    if ((rankOrder[rank] || 0) > (rankOrder[this.prefs.bestRank] || 0)) { this.prefs.bestRank = rank; pr.bestRank = rank; changed = true; }
     if (changed) savePrefs(this.prefs);
   }
 
@@ -1126,6 +1403,13 @@ class Game {
     this.engineers.sealProgress = 1;
     this.world.setSealProgress(1);
     const rank = this.computeRank();
+    if (this.mode === 'campaign') {
+      const ch = STORY_CHAPTERS[this.chapterIdx];
+      if (ch) {
+        if (!this.prefs.progress.chaptersCleared.includes(ch.id)) this.prefs.progress.chaptersCleared.push(ch.id);
+        this.prefs.progress.chapterRanks[ch.id] = rank;
+      }
+    }
     this.recordScore(rank);
     document.getElementById('winrank').textContent = rank;
     document.getElementById('winstats').innerHTML = this.statsHTML();
@@ -1202,6 +1486,9 @@ class Game {
     const dt = paused ? 0 : rdt * this.timeScale;
 
     if (inp.actionPressed('help')) document.getElementById('help').classList.toggle('hidden');
+    if (inp.actionPressed('interact') && this.started && !this.player.dead) {
+      this.cannon.toggleMount();
+    }
     if (inp.actionPressed('viewToggle') && this.started) {
       this.cam.fp = !this.cam.fp;
       this.hud.toast(`<span style="font-size:18px">CAMERA: ${this.cam.fp ? 'FIRST-PERSON' : 'THIRD-PERSON'}</span>`, 0.9);
@@ -1266,10 +1553,14 @@ class Game {
         }
       }
       if (this.started) {
-        this.player.update(dt);
+        if (!this.cannon.mounted) this.player.update(dt);
+        else this.player.animate(dt);
+        this.cannon.update(dt);
         this.engineers.update(dt);
         this.squad.update(dt);
+        this.shifters.update(dt);
         this.updateBoulders(dt);
+        this.net.update(dt);
       } else {
         this.player.animate(dt);
       }

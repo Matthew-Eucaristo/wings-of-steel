@@ -165,7 +165,9 @@
     </div>
     <nav class="main-nav">
       <button id="openplay" class="primary-btn">PLAY</button>
+      <button id="openstory" class="nav-btn">STORYBOOK</button>
       <button id="opencust" class="nav-btn">CUSTOMIZE</button>
+      <button id="openmp" class="nav-btn">MULTIPLAYER</button>
       <button id="opensettings" class="nav-btn">SETTINGS</button>
       <button id="openguide" class="nav-btn">FIELD GUIDE</button>
     </nav>
@@ -175,45 +177,53 @@
 </div>
 
 <div id="deploy" class="hidden">
-  <div class="modal-card wide">
+  <div class="modal-card xwide">
     <div class="modal-head">
-      <small>MISSION BRIEFING</small>
+      <small>OPERATIONS COMMAND</small>
       <h2>SELECT OPERATION</h2>
     </div>
-    <div class="section-label">OPERATION</div>
-    <div id="modes" class="card-row">
-      <button type="button" data-mode="campaign" class="selected">
-        <b>OPERATION: SOUTH GATE</b>
-        <small>5 Phases · Lead your AI squad &amp; escort the Engineer Convoy to seal the breach.</small>
-      </button>
-      <button type="button" data-mode="endless">
-        <b>ENDLESS DEFENSE</b>
-        <small>Escalating waves of all Titan classes with between-wave field requisitions.</small>
-      </button>
-      <button type="button" data-mode="training">
-        <b>ODM PROVING GROUNDS</b>
-        <small>Aerial grapple course and sparring Titans to sharpen swings and executions.</small>
-      </button>
+    <div id="modes" class="tab-bar tri">
+      <button type="button" data-mode="campaign" class="active selected">STORY CAMPAIGN</button>
+      <button type="button" data-mode="endless">ENDLESS ARENA</button>
+      <button type="button" data-mode="training">PROVING GROUNDS</button>
     </div>
-    <div class="section-label">ODM LOADOUT</div>
-    <div id="classes" class="card-row">
+
+    <div id="pane-campaign" class="deploy-pane active">
+      <div class="section-label">CAMPAIGN CHAPTERS · CLEAR TO UNLOCK STORYBOOK &amp; GEAR</div>
+      <div id="chapter-list" class="chapter-grid"></div>
+      <div id="deploy-opts" class="deploy-opts">
+        <button type="button" id="opt-intro" class="ghost sm toggle-on">INTRO CUTSCENE: ON</button>
+        <button type="button" id="opt-tut" class="ghost sm">FIELD TUTORIAL: OFF</button>
+      </div>
+    </div>
+
+    <div id="pane-arena" class="deploy-pane">
+      <div class="section-label">BATTLEFIELD ARENA</div>
+      <div id="arena-list" class="card-row"></div>
+      <div class="section-label">ATMOSPHERE &amp; WEATHER</div>
+      <div id="weather-list" class="chip-row weather-row"></div>
+    </div>
+
+    <div class="section-label">CORPS CLASS &amp; ODM LOADOUT</div>
+    <div id="classes" class="card-row quad">
       <button type="button" data-class="light">
-        <b>VANGUARD</b>
-        <small>Agile swing turn &amp; burst · 2 Gas · 4 Blades · 2 Spears</small>
+        <b>SURVEY VANGUARD</b>
+        <small>Dual Blades · Agile swings · 2 Gas · 4 Blades · 2 Spears</small>
       </button>
       <button type="button" data-class="balanced" class="selected">
-        <b>SCOUT</b>
-        <small>Balanced corps standard · 4 Gas · 6 Blades · 3 Spears</small>
+        <b>SURVEY SCOUT</b>
+        <small>Dual Blades · Balanced · 4 Gas · 6 Blades · 3 Spears</small>
+      </button>
+      <button type="button" data-class="gunslinger">
+        <b>ANTI-PERSONNEL</b>
+        <small>Dual ODM Pistols · Ranged weakpoints · 3 Gas · 12-rd Mags</small>
       </button>
       <button type="button" data-class="heavy">
-        <b>ASSAULT</b>
-        <small>Extended ordnance · 6 Gas · 8 Blades · 5 Spears</small>
+        <b>GARRISON SIEGE</b>
+        <small>Heavy Ordnance &amp; Cannons · 6 Gas · 8 Blades · 5 Spears</small>
       </button>
     </div>
-    <div id="deploy-opts" class="deploy-opts">
-      <button type="button" id="opt-intro" class="ghost sm toggle-on">INTRO CUTSCENE: ON</button>
-      <button type="button" id="opt-tut" class="ghost sm">FIELD TUTORIAL: OFF</button>
-    </div>
+
     <div class="btns">
       <button id="start" class="primary-btn">DEPLOY</button>
       <button id="closedeploy" class="ghost">BACK</button>
@@ -221,36 +231,100 @@
   </div>
 </div>
 
+<div id="storybook" class="hidden">
+  <div class="modal-card xwide">
+    <div class="modal-head">
+      <small>SURVEY CORPS ARCHIVES</small>
+      <h2>WAR CHRONICLE</h2>
+    </div>
+    <div id="story-tabs" class="story-tabs"></div>
+    <div id="story-page" class="story-page"></div>
+    <div class="btns">
+      <button id="story-deploy" class="primary-btn">PLAY CHAPTER</button>
+      <button id="closestory" class="ghost">CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<div id="multiplayer" class="hidden">
+  <div class="modal-card wide">
+    <div class="modal-head">
+      <small>NETWORKED SQUADRON</small>
+      <h2>MULTIPLAYER LOBBY</h2>
+    </div>
+    <div class="mp-grid">
+      <div class="set-row">
+        <label>Callsign</label>
+        <input id="mp-callsign" class="text-in" type="text" maxlength="16" value="Scout-01" />
+      </div>
+      <div class="set-row">
+        <label>Room Code</label>
+        <input id="mp-room" class="text-in" type="text" maxlength="16" value="HALVARD-1" />
+      </div>
+      <div class="set-row span2">
+        <label>WebSocket Relay URL <small>(Run `node server/relay.mjs` or use a Cloudflare Workers relay)</small></label>
+        <input id="mp-url" class="text-in" type="text" value="ws://localhost:8787" />
+      </div>
+    </div>
+    <div class="set-row toggles">
+      <button type="button" id="mp-coop" class="ghost sm toggle-on">CO-OP TITAN HUNT</button>
+      <button type="button" id="mp-pvp" class="ghost sm">PVP ODM DUEL</button>
+    </div>
+    <div id="mp-status" class="mp-status">Offline · Connect to a relay room or launch a Squadron Skirmish immediately.</div>
+    <div class="btns">
+      <button id="mp-connect" class="primary-btn">CONNECT TO ROOM</button>
+      <button id="mp-launch" class="ghost">LAUNCH SKIRMISH</button>
+      <button id="closemp" class="ghost">BACK</button>
+    </div>
+  </div>
+</div>
+
 <div id="customize" class="hidden">
+  <div class="cust-stage-hint">Drag to rotate · Scroll to zoom</div>
   <div class="cust-panel">
-    <h2>SOLDIER WARDROBE</h2>
-    <div class="cust-group">
-      <label>Rotate Character</label>
-      <input id="cust-rot" type="range" min="-3.14" max="3.14" step="0.05" value="0.35" />
+    <div class="cust-head">
+      <h2>SOLDIER WARDROBE</h2>
+      <div class="cust-cam-row">
+        <button type="button" id="cust-full" class="ghost sm toggle-on">FULL BODY</button>
+        <button type="button" id="cust-face" class="ghost sm">FACE CLOSEUP</button>
+      </div>
     </div>
-    <div class="cust-group">
-      <label>Hairstyle</label>
-      <div id="cust-hairstyle" class="chip-row"></div>
+    <div class="tab-bar cust-tabs" id="cust-tabs">
+      <button type="button" data-ctab="face" class="active">FACE</button>
+      <button type="button" data-ctab="hair">HAIR</button>
+      <button type="button" data-ctab="uniform">UNIFORM</button>
+      <button type="button" data-ctab="gear">ODM GEAR</button>
     </div>
-    <div class="cust-group">
-      <label>Hair Color</label>
-      <div id="cust-haircolor" class="swatch-row"></div>
+
+    <div class="cust-pane active" data-cpane="face">
+      <div class="cust-group"><label>Skin Tone</label><div id="cust-skin" class="swatch-row"></div></div>
+      <div class="cust-group"><label>Eye Color</label><div id="cust-eye" class="swatch-row"></div></div>
+      <div class="cust-group"><label>Expression</label><div id="cust-expr" class="chip-row"></div></div>
+      <div class="cust-group"><label>Face Detail &amp; Headgear</label><div id="cust-acc" class="chip-row"></div></div>
     </div>
-    <div class="cust-group">
-      <label>Corps Cloak</label>
-      <div id="cust-cape" class="chip-row"></div>
+
+    <div class="cust-pane" data-cpane="hair">
+      <div class="cust-group"><label>Hairstyle</label><div id="cust-hairstyle" class="chip-row"></div></div>
+      <div class="cust-group"><label>Hair Color</label><div id="cust-haircolor" class="swatch-row"></div></div>
     </div>
-    <div class="cust-group">
-      <label>Scarf Color</label>
-      <div id="cust-scarf" class="swatch-row"></div>
+
+    <div class="cust-pane" data-cpane="uniform">
+      <div class="cust-group"><label>Jacket Uniform</label><div id="cust-jacket" class="swatch-row"></div></div>
+      <div class="cust-group"><label>Corps Cloak</label><div id="cust-cape" class="chip-row"></div></div>
+      <div class="cust-group"><label>Scarf / Cravat</label><div id="cust-scarf" class="swatch-row"></div></div>
+      <div class="cust-group"><label>Trousers &amp; Boots</label><div id="cust-pants" class="chip-row"></div></div>
     </div>
-    <div class="cust-group">
-      <label>Jacket Uniform</label>
-      <div id="cust-jacket" class="swatch-row"></div>
+
+    <div class="cust-pane" data-cpane="gear">
+      <div class="cust-group"><label>ODM Rig Alloy Finish</label><div id="cust-rig" class="chip-row"></div></div>
+      <div class="cust-group"><label>Blade Edge Gleam</label><div id="cust-aura" class="swatch-row"></div></div>
+      <div class="cust-group"><label>Shoulder Insignia</label><div id="cust-crest" class="chip-row"></div></div>
     </div>
+
+    <div id="cust-unlock-hint" class="cust-unlock-hint"></div>
     <div class="cust-group">
-      <label>Blade Edge Gleam</label>
-      <div id="cust-aura" class="swatch-row"></div>
+      <label>Turntable Rotation</label>
+      <input id="cust-rot" type="range" min="-3.14" max="3.14" step="0.04" value="0.28" />
     </div>
     <div class="btns">
       <button id="closecust" class="primary-btn">SAVE &amp; BACK</button>

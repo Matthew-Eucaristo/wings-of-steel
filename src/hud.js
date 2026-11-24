@@ -476,22 +476,43 @@ export class HUD {
     this.setText(e.viewbadge, 'vbadge', g.cam.fp ? '1ST' : '3RD');
 
     e.gasb.style.width = Math.max(0, Math.round(p.gas)) + '%';
-    e.bladeb.style.width = Math.max(0, Math.round(p.blade)) + '%';
+    const isGun = p.combatStyle === 'pistols';
+    if (isGun && p.pistols) {
+      e.bladeb.style.width = Math.round((p.pistols.ammo / p.pistols.maxAmmo) * 100) + '%';
+      this.setText(e.bladenum, 'bladenum', p.pistols.reloadT > 0 ? p.pistols.reloadT.toFixed(1) + 's' : `${p.pistols.ammo}/${p.pistols.maxAmmo}`);
+      for (let i = 0; i < 8; i++) e.bladepips.children[i].classList.toggle('on', i < p.pistols.reserveMags);
+      e.bladePod.classList.toggle('low', p.pistols.ammo <= 3);
+    } else {
+      e.bladeb.style.width = Math.max(0, Math.round(p.blade)) + '%';
+      this.setText(e.bladenum, 'bladenum', String(Math.round(p.blade)));
+      for (let i = 0; i < 8; i++) e.bladepips.children[i].classList.toggle('on', i < p.bladeSets);
+      e.bladePod.classList.toggle('low', p.blade < 22);
+    }
     this.setText(e.gasnum, 'gasnum', p.gasReload > 0 ? p.gasReload.toFixed(1) + 's' : String(Math.round(p.gas)));
-    this.setText(e.bladenum, 'bladenum', String(Math.round(p.blade)));
     for (let i = 0; i < 6; i++) e.gaspips.children[i].classList.toggle('on', i < p.gasCylinders);
-    for (let i = 0; i < 8; i++) e.bladepips.children[i].classList.toggle('on', i < p.bladeSets);
     e.gasPod.classList.toggle('low', p.gas < 20);
-    e.bladePod.classList.toggle('low', p.blade < 22);
     this.setText(e.spd, 'spd', String(Math.round(p.speed)));
 
     const maxSp = p.maxSpears;
     this.setText(e.spearcount, 'spcnt', `${p.spears}/${maxSp}`);
     const activeShot = p.spearShots.some((s) => s.fuse > 0 || s.age > 0.14);
+    const nearCannon = !activeShot && !!g.cannon?.nearCannon;
+    const mountedCannon = !activeShot && !!g.cannon?.mounted;
+    const downedMate = !activeShot && !mountedCannon && sq?.members?.find((m) => m.downed);
     e.spearMini.classList.toggle('active', activeShot);
-    e.spearAlert.classList.toggle('hidden', !activeShot);
+    e.spearAlert.classList.toggle('hidden', !activeShot && !nearCannon && !mountedCannon && !downedMate);
     if (activeShot) {
+      this.setText(e.spearKeyAlert, 'spkey', formatKey(b.spear));
       this.setText(e.spearhint, 'sphint', 'DETONATE THUNDER SPEAR!');
+    } else if (mountedCannon) {
+      this.setText(e.spearKeyAlert, 'spkey', formatKey(b.interact));
+      this.setText(e.spearhint, 'sphint', g.cannon.reloadT > 0 ? `RELOADING CANNON (${g.cannon.reloadT.toFixed(1)}s)` : 'LMB FIRE · DISMOUNT CANNON');
+    } else if (nearCannon) {
+      this.setText(e.spearKeyAlert, 'spkey', formatKey(b.interact));
+      this.setText(e.spearhint, 'sphint', 'MAN GARRISON CANNON');
+    } else if (downedMate) {
+      this.setText(e.spearKeyAlert, 'spkey', formatKey(b.interact));
+      this.setText(e.spearhint, 'sphint', `REVIVE ${downedMate.name.toUpperCase()}`);
     }
 
     if (sq) {

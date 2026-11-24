@@ -7,12 +7,15 @@
     "dev": "vite --host 0.0.0.0 --port 5173",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "typecheck": "tsc --noEmit",
     "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
     "three": "^0.170.0"
   },
   "devDependencies": {
+    "@types/three": "^0.170.0",
+    "typescript": "^5.8.3",
     "vite": "^6.4.5"
   },
   "allowScripts": {

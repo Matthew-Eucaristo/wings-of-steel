@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { PlayerModel } from './playerModel.js';
 import { Ribbon } from './particles.js';
 import { clamp, rand } from './util.js';
+import { initSquadVitals, damageSquadMember, updateDownedMember } from './combat/squadRescue.ts';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -84,7 +85,7 @@ export class Squad {
   }
 
   reset(visible = true) {
-    const pSpawn = this.game.world.playerSpawn;
+    const pSpawn = this.game.world.getArenaSpawn ? this.game.world.getArenaSpawn(this.game.arena) : this.game.world.playerSpawn;
     this.focusTarget = null;
     this.focusT = 0;
     this.rallyT = 0;
@@ -100,6 +101,7 @@ export class Squad {
       m.slashT = -1;
       m.trailLen = 0;
       m.status = 'FORMATION';
+      initSquadVitals(m);
       m.model.capeInit = false;
       m.model.setVisible(visible);
       m.cable.hide();
@@ -335,6 +337,16 @@ export class Squad {
       const m = this.members[i];
       m.model.setVisible(activeMode);
       if (!activeMode) { m.cable.hide(); m.trail.hide(); continue; }
+      if (updateDownedMember(g, m, dt)) continue;
+
+      for (let ti = 0; ti < g.titans.length; ti++) {
+        const tn = g.titans[ti];
+        if (!tn.alive) continue;
+        if ((tn.state === 'swipe' || tn.state === 'slam' || tn.state === 'leap') && tn.root.position.distanceTo(m.pos) < 5.5 * tn.s) {
+          damageSquadMember(g, m, 36);
+        }
+      }
+      if (m.downed) continue;
 
       m.attackCD -= dt;
       m.spearCD = Math.max(0, (m.spearCD || 0) - dt);

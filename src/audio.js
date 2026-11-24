@@ -222,10 +222,39 @@ export class Audio {
   }
   clang(pos) {
     if (!this.ok()) return;
-    const o = this.out(pos, 0.78, 0.38);
-    this.tone(o, { type: 'triangle', f0: 2200, f1: 1850, dur: 0.36, vol: 0.18 });
-    this.tone(o, { type: 'sine', f0: 3420, f1: 3100, dur: 0.24, vol: 0.1 });
-    this.burst(o, { f0: 4200, f1: 2400, q: 5, dur: 0.1, vol: 0.6 });
+    const o = this.out(pos, 0.88, 0.44);
+    this.tone(o, { type: 'triangle', f0: 2580, f1: 2340, dur: 0.42, vol: 0.2, att: 0.002 });
+    this.tone(o, { type: 'sine', f0: 3890, f1: 3680, dur: 0.34, vol: 0.14, att: 0.002 });
+    this.tone(o, { type: 'sine', f0: 5240, f1: 4950, dur: 0.24, vol: 0.08, att: 0.002 });
+    this.burst(o, { f0: 4800, f1: 2600, q: 6, dur: 0.12, vol: 0.68, att: 0.001 });
+  }
+  steelClash(pos) {
+    if (!this.ok()) return;
+    this.clang(pos);
+    const o = this.out(pos, 0.72, 0.48);
+    this.tone(o, { type: 'sine', f0: 3120, f1: 2980, dur: 0.46, vol: 0.14, att: 0.002, delay: 0.055 });
+    this.tone(o, { type: 'triangle', f0: 4680, f1: 4410, dur: 0.32, vol: 0.09, att: 0.002, delay: 0.055 });
+    this.burst(o, { f0: 5600, f1: 3100, q: 7, dur: 0.09, vol: 0.52, att: 0.001, delay: 0.055 });
+  }
+  bladeDraw() {
+    if (!this.ok()) return;
+    const o = this.out(null, 0.56, 0.22);
+    this.burst(o, { type: 'bandpass', f0: 2400, f1: 6800, q: 5, dur: 0.24, vol: 0.46, att: 0.015 });
+    this.tone(o, { type: 'sine', f0: 3620, f1: 3420, dur: 0.34, vol: 0.09, att: 0.02, delay: 0.08 });
+  }
+  pistolShot(pos) {
+    if (!this.ok()) return;
+    const o = this.out(pos, 0.95, 0.28, 45);
+    this.burst(o, { type: 'highpass', f0: 1400, f1: 5800, dur: 0.09, vol: 1.0, att: 0.001 });
+    this.burst(o, { buf: this.brown, type: 'lowpass', f0: 520, f1: 90, dur: 0.16, vol: 1.15, att: 0.001 });
+    this.tone(o, { type: 'sawtooth', f0: 320, f1: 85, dur: 0.08, vol: 0.22, att: 0.001 });
+  }
+  reviveChime() {
+    if (!this.ok()) return;
+    const o = this.out(null, 0.52, 0.28);
+    this.tone(o, { type: 'triangle', f0: 523.25, f1: 523.25, dur: 0.16, vol: 0.14 });
+    this.tone(o, { type: 'triangle', f0: 659.25, f1: 659.25, dur: 0.18, vol: 0.14, delay: 0.1 });
+    this.tone(o, { type: 'triangle', f0: 783.99, f1: 783.99, dur: 0.28, vol: 0.16, delay: 0.2 });
   }
   armorShatter(pos) {
     if (!this.ok()) return;

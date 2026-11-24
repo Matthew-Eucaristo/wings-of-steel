@@ -3,6 +3,7 @@ import { Capsule } from './collision.js';
 import { clamp, damp, lerp, rand, randSign, mulberry32, angleDiff } from './util.js';
 import { skinTextures } from './textures.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { createLimbStatus, createRagdollState, initTitanRagdoll, stepTitanRagdoll, applyLocationalInjury, regenLimbStatus } from './combat/anatomy.ts';
 
 function mergeJoints(root, keepSet) {
   const groups = [];
@@ -111,11 +112,12 @@ export class Titan {
   constructor(game, pos, opts = {}) {
     this.game = game;
     this.type = opts.type ?? 'normal';
-    const isBoss = this.type === 'armored';
+    const isBoss = this.type === 'armored' || this.type === 'beast' || this.type === 'warhammer' || this.type === 'founder';
+    const isArmored = this.type === 'armored';
     const isTank = this.type === 'tank';
     const isSprinter = this.type === 'sprinter';
     const isCrawler = this.type === 'crawler';
-    this.height = opts.height ?? (isBoss ? 20 : isTank ? rand(17, 20.5) : isCrawler ? rand(6.8, 8.8) : isSprinter ? rand(8, 10.5) : rand(11.5, 15.5));
+    this.height = opts.height ?? (this.type === 'founder' ? 24 : isBoss ? 20 : isTank ? rand(17, 20.5) : isCrawler ? rand(6.8, 8.8) : isSprinter ? rand(8, 10.5) : rand(11.5, 15.5));
     this.passive = !!opts.passive;
     this.s = this.height / 10;
     this.seed = opts.seed ?? Math.floor(Math.random() * 1e9);
@@ -127,10 +129,14 @@ export class Titan {
     this.heading = Math.random() * Math.PI * 2;
     this.walkPhase = 0;
     this.speed = 0;
-    this.napeHP = isBoss ? 680 : isTank ? 560 : isCrawler ? 140 : isSprinter ? 160 : this.type === 'abnormal' ? 280 : 250;
+    this.napeHP = this.type === 'founder' ? 920 : isBoss ? 680 : isTank ? 560 : isCrawler ? 140 : isSprinter ? 160 : this.type === 'abnormal' ? 280 : 250;
     this.hp = this.napeHP;
-    this.maxArmor = isBoss ? 620 : 0;
+    this.maxArmor = isArmored ? 620 : this.type === 'warhammer' ? 420 : 0;
     this.armor = this.maxArmor;
+    this.limbs = createLimbStatus();
+    this.ragdoll = createRagdollState();
+    this.specialCD = rand(4.5, 7.5);
+    this.fleeT = 0;
     this.regen = 0;
     this.hitFlash = 0;
     this.hitTwist = 0;
@@ -166,7 +172,7 @@ export class Titan {
       grin: r(),
       hair: isBoss ? 0.85 : r(),
     };
-    const defaultTone = isBoss ? '#8b3e33' : isTank ? '#96877e' : isCrawler ? '#9e8f88' : this.type === 'abnormal' ? '#b0968e' : isSprinter ? '#bca698' : SKIN_TONES[Math.floor(r() * SKIN_TONES.length)];
+    const defaultTone = this.type === 'warhammer' ? '#d4dae4' : this.type === 'beast' ? '#5c463a' : this.type === 'founder' ? '#b89476' : isBoss ? '#8b3e33' : isTank ? '#96877e' : isCrawler ? '#9e8f88' : this.type === 'abnormal' ? '#b0968e' : isSprinter ? '#bca698' : SKIN_TONES[Math.floor(r() * SKIN_TONES.length)];
     this.build(opts.tone || defaultTone);
     this.root.position.copy(pos);
     this.root.rotation.y = this.heading;
@@ -450,6 +456,7 @@ export class Titan {
     this.hitTwist = randSign() * 0.45;
     this.hitTilt = 0.35;
     const g = this.game;
+    applyLocationalInjury(this, part, side, dmg);
     if (part === 'nape') {
       if (this.guardT > 0 && !opts.explosive && !opts.heavy) {
         return { result: 'deflect' };
@@ -474,8 +481,12 @@ export class Titan {
       this.hp -= dmg;
       this.regen = 3.5;
       if (this.napeScar) this.napeScar.visible = true;
-      if ((this.type === 'armored' || this.type === 'tank') && this.armCut[1] <= 1.2 && this.state === 'chase') {
+      if ((this.type === 'armored' || this.type === 'tank' || this.type === 'warhammer') && this.armCut[1] <= 1.2 && this.state === 'chase') {
         this.guardT = 1.35;
+      } else if (this.hp < this.napeHP * 0.36 && this.type !== 'armored' && this.type !== 'founder' && this.state === 'chase') {
+        this.setState('flee');
+        this.fleeT = 4.2;
+        g.audio.roar(this.root.position, this.height, 0.55);
       }
       return { result: 'nape' };
     }
@@ -512,7 +523,7 @@ export class Titan {
   }
 
   get label() {
-    return { sprinter: 'Sprinter', normal: 'Standard', abnormal: 'Abnormal', tank: 'Brute', armored: 'Armored', crawler: 'Stalker' }[this.type] + ' ' + Math.round(this.height) + 'm';
+    return ({ sprinter: 'Sprinter', normal: 'Standard', abnormal: 'Abnormal', tank: 'Brute', armored: 'Armored', crawler: 'Stalker', beast: 'Siege Hurler', warhammer: 'Forge Sentinel', founder: 'Sovereign' }[this.type] || 'Titan') + ' ' + Math.round(this.height) + 'm';
   }
 
   threatInfo() {
@@ -532,6 +543,7 @@ export class Titan {
     this.squadMarked = false;
     this.setState('dead');
     this.fallDir = dir && dir.lengthSq() > 1e-4 ? Math.atan2(dir.x, dir.z) : this.root.rotation.y;
+    initTitanRagdoll(this, dir);
     if (this.game.player.grabbedBy === this) this.game.player.releaseGrab(this);
   }
 
@@ -581,11 +593,13 @@ export class Titan {
 
     if (this.regen > 0) this.regen -= dt;
     else {
-      this.hp = Math.min(this.napeHP, this.hp + dt * 110);
+      this.hp = Math.min(this.napeHP, this.hp + dt * (this.state === 'flee' ? 42 : 16));
+      regenLimbStatus(this, dt);
       if (this.napeScar && this.hp >= this.napeHP) this.napeScar.visible = false;
     }
     this.cooldown -= dt;
     this.throwCD -= dt;
+    this.specialCD = (this.specialCD || 5) - dt;
     this.leapCD = (this.leapCD || 0) - dt;
     this.guardT = Math.max(0, (this.guardT || 0) - dt);
     this.lungeCD = (this.lungeCD || 0) - dt;
@@ -595,7 +609,7 @@ export class Titan {
     let lean = 0;
     let wantHeading = this.heading;
     const abn = this.type === 'abnormal';
-    const isBoss = this.type === 'armored';
+    const isBoss = this.type === 'armored' || this.type === 'beast' || this.type === 'warhammer' || this.type === 'founder';
     const isTank = this.type === 'tank';
     const isSprinter = this.type === 'sprinter';
     const isCrawler = this.type === 'crawler';
@@ -628,6 +642,14 @@ export class Titan {
     } else if (this.state === 'kneel') {
       this.legCut -= dt;
       if (this.legCut <= 0) this.setState('chase');
+    } else if (this.state === 'flee') {
+      this.fleeT -= dt;
+      wantHeading = Math.atan2(-toPlayer.x, -toPlayer.z);
+      targetSpeed = 5.4 * Math.sqrt(s);
+      lean = 0.35;
+      this.guardT = Math.max(this.guardT, 0.35);
+      if (Math.random() < dt * 10) g.vfx.wisp(this.nape.c, s * 1.4);
+      if (this.fleeT <= 0 || this.hp > this.napeHP * 0.62) this.setState('chase');
     } else if (this.state === 'grab') {
       const i = this.grabSide;
       const t = clamp(this.stateT / 3.8, 0, 1);
@@ -847,6 +869,20 @@ export class Titan {
             g.audio.roar(pos, this.height, 0.35);
           }
         }
+        if (this.specialCD <= 0 && !p.dead && distH < 130) {
+          if (this.type === 'warhammer') {
+            this.specialCD = rand(7.5, 11);
+            g.shifters?.castWarhammerSpikes(this, p.pos.clone().addScaledVector(p.vel, 0.35));
+          } else if (this.type === 'beast' && distH > 32) {
+            this.specialCD = rand(8.0, 12);
+            g.shifters?.castBeastBarrage(this, p.pos.clone());
+          } else if (this.type === 'founder') {
+            this.specialCD = rand(12, 16);
+            g.shifters?.castFounderSummon(this);
+          }
+        }
+        const legMult = 0.55 + 0.45 * (Math.min(this.limbs?.leftLeg ?? 100, this.limbs?.rightLeg ?? 100) / 100);
+        targetSpeed *= legMult;
         if ((abn || isBoss || isSprinter) && distH < 30 && distH > 11 && (this.lungeCD || 0) <= 0 && Math.random() < dt * 0.45 && pyRel < 9) {
           this.lunge = isBoss ? 1.15 : 0.85; this.lungeCD = isBoss ? 6 : 4.5; this.cooldown = Math.min(this.cooldown, 0.35);
           g.audio.roar(pos, this.height, 0.85);
@@ -1026,22 +1062,7 @@ export class Titan {
     const s = this.s;
     this.deadT += dt;
     const t = this.deadT;
-    const fall = clamp(t / 1.65, 0, 1);
-    const e = fall * fall;
-    this.body.rotation.x = e * 1.42;
-    this.hips.position.y = lerp(5.05, 2.0, e);
-    this.spine.rotation.x = lerp(this.spine.rotation.x, 0.3, dt * 2);
-    for (let i = 0; i < 2; i++) {
-      this.shoulders[i].rotation.x = lerp(this.shoulders[i].rotation.x, -2.6, dt * 1.5);
-      this.knees[i].rotation.x = lerp(this.knees[i].rotation.x, 0.3 + e * 1.2, dt * 2);
-      this.thighs[i].rotation.x = lerp(this.thighs[i].rotation.x, -e * 1.2, dt * 2);
-    }
-    this.head.rotation.x = lerp(this.head.rotation.x, 0.3, dt);
-    this.root.rotation.y += clamp(angleDiff(this.fallDir, this.root.rotation.y), -dt * 2.2, dt * 2.2);
-    if (fall >= 1 && !this.landed) {
-      this.landed = true;
-      this.game.onTitanFall(this);
-    }
+    stepTitanRagdoll(this, dt);
     const dead = clamp((t - 1.5) / 6, 0, 1);
     this.mat.userData.u.uDead.value = dead;
     this.root.updateMatrixWorld(true);

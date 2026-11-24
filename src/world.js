@@ -191,6 +191,46 @@ export class World {
 
     const hemi = new THREE.HemisphereLight(new THREE.Color('#bcd2ff'), new THREE.Color('#6b5a44'), 0.55);
     scene.add(hemi);
+    this.hemi = hemi;
+    this.atmosphere = 'dusk';
+  }
+
+  applyAtmosphere(preset = 'dusk') {
+    this.atmosphere = preset;
+    const cfg = {
+      dusk: { elev: 13, az: 205, turb: 7, ray: 1.4, fogC: '#c9b9a4', fogD: 0.00135, sunC: '#ffd7a8', sunI: 3.2, hemiSky: '#bcd2ff', hemiGnd: '#6b5a44', hemiI: 0.55, envI: 0.55, exp: 1.0, winEm: 0.35, mood: 0.0 },
+      storm: { elev: 28, az: 165, turb: 14, ray: 0.45, fogC: '#7b8792', fogD: 0.0022, sunC: '#c8d6e6', sunI: 1.85, hemiSky: '#98adc0', hemiGnd: '#434a4c', hemiI: 0.72, envI: 0.48, exp: 0.94, winEm: 0.85, mood: 0.65 },
+      dawn: { elev: 7, az: 78, turb: 5.5, ray: 2.0, fogC: '#d6c4b8', fogD: 0.0017, sunC: '#ffbfa0', sunI: 2.9, hemiSky: '#d8c8e8', hemiGnd: '#5e5144', hemiI: 0.6, envI: 0.58, exp: 1.02, winEm: 0.25, mood: 0.15 },
+      moon: { elev: 22, az: 310, turb: 2.5, ray: 0.25, fogC: '#1a2434', fogD: 0.002, sunC: '#8eb6ea', sunI: 1.45, hemiSky: '#3a5480', hemiGnd: '#1a202c', hemiI: 0.62, envI: 0.34, exp: 0.95, winEm: 1.55, mood: 0.95 },
+    }[preset] || { elev: 13, az: 205, turb: 7, ray: 1.4, fogC: '#c9b9a4', fogD: 0.00135, sunC: '#ffd7a8', sunI: 3.2, hemiSky: '#bcd2ff', hemiGnd: '#6b5a44', hemiI: 0.55, envI: 0.55, exp: 1.0, winEm: 0.35, mood: 0.0 };
+
+    const u = this.sky.material.uniforms;
+    u.turbidity.value = cfg.turb;
+    u.rayleigh.value = cfg.ray;
+    const phi = THREE.MathUtils.degToRad(90 - cfg.elev);
+    const theta = THREE.MathUtils.degToRad(cfg.az);
+    this.sunDir.setFromSphericalCoords(1, phi, theta);
+    u.sunPosition.value.copy(this.sunDir);
+    this.lightMatrix.lookAt(new THREE.Vector3(), this.sunDir.clone().negate(), new THREE.Vector3(0, 1, 0));
+    this.invLightMatrix.copy(this.lightMatrix).invert();
+
+    this.scene.fog.color.set(cfg.fogC);
+    this.scene.fog.density = cfg.fogD;
+    this.sun.color.set(cfg.sunC);
+    this.sun.intensity = cfg.sunI;
+    this.hemi.color.set(cfg.hemiSky);
+    this.hemi.groundColor.set(cfg.hemiGnd);
+    this.hemi.intensity = cfg.hemiI;
+    this.scene.environmentIntensity = cfg.envI;
+    this.renderer.toneMappingExposure = cfg.exp;
+    if (this.townMats?.walls) this.townMats.walls.emissiveIntensity = cfg.winEm;
+    if (this.gameRef?.post?.u?.uMood) this.gameRef.post.u.uMood.value = cfg.mood;
+  }
+
+  getArenaSpawn(arena = 'town') {
+    if (arena === 'forest' && this.forestSpawn) return this.forestSpawn;
+    if (arena === 'ramparts' && this.rampartsSpawn) return this.rampartsSpawn;
+    return this.playerSpawn;
   }
 
   followShadow(center) {
@@ -561,6 +601,7 @@ float townMask(){ float r = length(vWPos.xz); float road = smoothstep(14.0, 7.0,
       this.col.add(new Convex(new THREE.Vector3(fx, fh / 2, fz), 0, boxPlanes(fw / 2, fh / 2, fd / 2), Math.hypot(fw, fh, fd) / 2, { surface: 'stone' }));
       this.obstacles.push({ x: fx, z: fz, r: 8.5, h: fh });
       this.addDepot(new THREE.Vector3(fx, fh, fz), 'SOUTH BASTION');
+      this.rampartsSpawn = new THREE.Vector3(fx + 2, fh + 1.4, fz - 2);
     }
 
     const bastions = [
@@ -1021,6 +1062,15 @@ float townMask(){ float r = length(vWPos.xz); float road = smoothstep(14.0, 7.0,
     };
     chunked(trunks, barkMat, true);
     chunked(canopies, this.canopyMat, false);
+
+    const fx = 0, fz = -280, fh = 26;
+    const plat = new THREE.Mesh(boxGeo(14, 1.4, 14, 4, 4, new THREE.Color('#5a402c')), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88 }));
+    plat.position.set(fx, fh, fz);
+    plat.castShadow = plat.receiveShadow = true;
+    this.scene.add(plat);
+    this.col.add(new Convex(new THREE.Vector3(fx, fh, fz), 0, boxPlanes(7, 0.7, 7), 10, { surface: 'wood' }));
+    this.addDepot(new THREE.Vector3(fx - 3.5, fh + 0.7, fz - 2), 'CANOPY OUTPOST');
+    this.forestSpawn = new THREE.Vector3(fx + 3, fh + 2.2, fz + 2);
   }
 
   leafMaterial() {

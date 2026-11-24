@@ -215,6 +215,16 @@ export class VFX {
       emitT: 0,
     });
   }
+  bulletTracer(from, to) {
+    _d.subVectors(to, from);
+    const dist = _d.length();
+    if (dist > 1e-3) _d.divideScalar(dist);
+    const steps = Math.min(18, Math.max(4, Math.floor(dist / 7)));
+    for (let s = 1; s <= steps; s++) {
+      _v.lerpVectors(from, to, s / steps);
+      this.add.spawn(_v, _v2.copy(_d).multiplyScalar(14), { life: 0.11, size0: 0.18, size1: 0.04, color: SPARK, colorEnd: HOT, alpha: 0.9, drag: 1, stretch: 0.14, fadeIn: 0 });
+    }
+  }
   cannonShot(from, to) {
     _d.subVectors(to, from);
     const dist = _d.length();

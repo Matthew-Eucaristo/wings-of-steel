@@ -386,18 +386,20 @@ export function skinTextures() {
     const height = new Float32Array(W * W);
     for (let y = 0; y < W; y++) {
       for (let x = 0; x < W; x++) {
-        const n = noiseA.fbm(x / W, y / W, 8, 4);
-        const m = noiseB.fbm(x / W, y / W, 32, 3);
+        const fx = x / W, fy = y / W;
+        const n = noiseA.fbm(fx, fy, 8, 4);
+        const m = noiseB.fbm(fx, fy, 28, 3);
+        const striation = Math.sin(fx * Math.PI * 18 + n * 5.0) * 0.5 + 0.5;
         const i = (y * W + x) * 4;
-        img.data[i] = 225 + n * 30;
-        img.data[i + 1] = 205 + n * 30 - m * 18;
-        img.data[i + 2] = 200 + n * 25 - m * 20;
+        img.data[i] = Math.min(255, 220 + n * 28 + striation * 12);
+        img.data[i + 1] = Math.min(255, 198 + n * 28 - m * 16 + striation * 6);
+        img.data[i + 2] = Math.min(255, 192 + n * 24 - m * 18 + striation * 4);
         img.data[i + 3] = 255;
-        height[y * W + x] = n * 0.6 + m * 0.4;
+        height[y * W + x] = n * 0.45 + m * 0.3 + striation * 0.25;
       }
     }
     c.putImageData(img, 0, 0);
-    return { map: toTexture(col), normalMap: heightToNormal(height, W, W, 1.2) };
+    return { map: toTexture(col), normalMap: heightToNormal(height, W, W, 1.9) };
   });
 }
 
